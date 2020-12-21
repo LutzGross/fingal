@@ -4,6 +4,8 @@ import argparse
 import numpy as np
 from pathlib import Path
 import sys,os 
+from fingal import FindNearestElectrode
+
 sys.path.append(os.getcwd())
 
 parser = argparse.ArgumentParser(description='creates survey data sets (station file and data file) for a FullWaver survey from geosoft survey data', epilog="version 1/8/2021")
@@ -36,23 +38,7 @@ configFN=args.project+".py"
 meshfile=args.project+".fly"
 
 
-def FindNearestElectrode(x, y, z, electrodes):
-    """
-    (x,y,z) is the coordinates of a proposed electrode (by true data file)
-    electrodes dictonary of defined electrodes in mesh electrodes[ide]=X=(xe,, ye, ze)
-    """
-    distmin=1e88
-    idemin=None
-    for ide in electrodes:
-        X=electrodes[ide]
-        dist=((X[0]-x)**2 + (X[1]-y)**2 + (X[2]-z)**2)**0.5
-        if dist < distmin :
-           distmin=dist
-           idemin=ide
-    if not idemin is None:
-        return int(idemin), distmin
-    else:
-        return idemin, distmin
+
     
 print("data file %s is opened."%datafile)
 TABS=None
