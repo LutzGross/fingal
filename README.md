@@ -1,4 +1,4 @@
-# fingal - geohpysical inversion in python
+# fingal - geophysical inversion in python
 A python package for geohpysical inversion for galvanic data based on the finite element method (FEM) supporting unstructured meshes. 
 Data sets supported are electric potential data as well as electric field data for DC and IP surveys.  
 
