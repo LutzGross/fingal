@@ -1,5 +1,5 @@
-# fingal - Geophysical inversion in python
-A python package for geohpysical inversion for galvanic data based on the finite element method (FEM) supporting unstructured meshes. 
+# fingal - 3D Geophysical inversion in python
+A python package for geohpysical inversion in 3D for galvanic data based on the finite element method (FEM) supporting unstructured meshes. 
 Data sets supported are electric potential data as well as electric field data for DC and IP surveys.  
 
 It is based in the  [esys-escript](https://github.com/esys-escript/esys-escript.github.io) with python3 and supports parallel execution with domain decomposition for threading as well as MPI. 
