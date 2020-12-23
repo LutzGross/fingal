@@ -7,6 +7,7 @@ from esys.escript import unitsSI as U
 import numpy as np
 import argparse
 import os.path
+sys.path.append(os.getcwd())
 
 parser = argparse.ArgumentParser(description='creates plot of station/electrode locations', epilog="l.gross@uq.edu.au, version 18/4/2018")
 parser.add_argument(dest='config', metavar='configfile', type=str, help='python setting configuration')
