@@ -5,7 +5,7 @@ created = '{created}'
 #. 
 #. This is the project name. This name is used when ever a file name is needed and
 #. no specific name was set.
-project={project}
+project='{project}'
 # 
 #   name of the mesh file
 # 
@@ -57,7 +57,7 @@ adjustStationLocationsToElementCenter=True
 #. where SIGMA_R is the relative error for R and SIGMA_GAMMA is the relative error for GAMMA. 
 #. For electric field inversion R is to be read as field intensity.
 #. 
-datafile = {datafile}
+datafile = '{datafile}'
 #. 
 #. If False the injections are assumed to pole injections and column B is dropped in the data file. 
 #.
@@ -117,7 +117,7 @@ useLogDefect=True
 #. Iteration is terminated when both the relative in the property function and the change 
 #. in the cost function is less than tolerance.
 #.
-tolerance=1e-4.
+tolerance=1.e-4
 #.
 #. interpolation order in the line search
 #.
