@@ -1,12 +1,9 @@
 #!/usr/bin/python3
-from __future__ import print_function
-from esys.escript import *
 import importlib, sys, os
 from fingal import *
-from esys.escript import unitsSI as U
 import numpy as np
 import argparse
-import os.path
+from fingal import *
 sys.path.append(os.getcwd())
 
 parser = argparse.ArgumentParser(description='creates plot of station/electrode locations', epilog="l.gross@uq.edu.au, version 18/4/2018")
@@ -31,7 +28,7 @@ elocations=readElectrodeLocations(config.stationfile, delimiter=config.stationde
 print("%s electrode locations read from %s."%(len(elocations), config.stationfile))
 
 fn=None
-if os.path.isfile(config.schedulefile):
+if config.schedulefile and os.path.isfile(config.schedulefile):
     fn=config.schedulefile
       
 if os.path.isfile(config.datafile):
@@ -50,7 +47,7 @@ pyplot.rc('axes', titlesize=fsize)
 pyplot.rc('xtick', labelsize=fsize)
 pyplot.rc('ytick', labelsize=fsize)
 
-fig = pyplot.figure(figsize=(3.2, 3.2), dpi=400)
+fig = pyplot.figure() #figsize=(3.2, 3.2), dpi=400)
 ax = fig.add_subplot(111)
 
 ins=survey.getListOfInjectionStations()
