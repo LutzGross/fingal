@@ -1,8 +1,19 @@
+"""
+Fingal - some tools 
+
+by l.gross@uq.edu.au, Dec 2020.
+"""
+
+
 from esys.escript import Scalar
 
 def makeTagField(functionspace):
     """
-    this creates a data object making the tagges regions with the corresponding tag id 
+    this creates a data object making the tagged regions with the corresponding tag id 
+    
+    :param functionspace: function space to create tags for
+    :type functionspace: `esys.escript.FunctionSpace` 
+    :return: `esys.escript.Scalar` with tags 
     """
     out=Scalar(-1,functionspace)
     for t in functionspace.getListOfTags():
@@ -10,10 +21,16 @@ def makeTagField(functionspace):
     out.expand()
     return out
 
-def FindNearestElectrode(x, y, z, electrodes):
+def FindNearestElectrode(x, y, z, electrodes={}):
     """
-    (x,y,z) is the coordinates of a proposed electrode (by true data file)
-    electrodes dictonary of defined electrodes in mesh electrodes[ide]=X=(xe,, ye, ze)
+    finds the nearest electrode in the dictionary electrodes
+    (x,y,z) is the coordinates of a proposed electrode
+    :param x: x coordinate of electrode
+    :param y: y coordinate of electrode
+    :param z: x coordinate of electrode
+    :param electrodes: dictionary of defined electrodes: electrodes[ide]=X=(xe, ye, ze)
+    :return: id of nearest electrode and distance and distance to 
+    
     """
     distmin=1e88
     idemin=None
