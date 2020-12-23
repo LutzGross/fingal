@@ -1,0 +1,155 @@
+##
+## this is template for fingal configuration file
+##
+# 
+#   name of the mesh file
+# 
+#. This is mesh file in the fly format. It is assumed that all station/electrodes are nodes of the mesh
+#. and all charging electrodes are added as nodal elements with appropriate tagging.
+#.  
+meshfile = %{meshfile}
+#
+#  file of the location of stations/electrodes. 
+#
+#.  This is a CSV file. Each line gives a identifier (integer) of the station and the x,y,z coordinates (floats).
+#.
+stationfile = %{stationfile}
+#.
+#. This is the delimiter between columns in the station file: 
+#.
+stationdelimiter = ','
+#.
+#. This defines how the station identifier is converted into the station tag used 
+#. in the fly file for nodal elements. If None the identifier is used as integer tag when
+#. referring to the nodal elements typically when defining charges.
+#. 
+stationsFMT = 's%s'
+#.
+#. length scale at stations in meter which defines the radius over which prediction are 
+#. averaged to compare with data when predictions are not available at stations. This should
+#. be in the order of the element size near stations.
+#. 
+L_stations=1.
+#.
+#. If True adjustment of station location is allowed to match mesh positions.
+#.
+adjustStationLocationsToElementCenter=True
+#
+# this defines the data file: 
+# 
+#. The data file is a CSV where each line is of the form 
+#.
+#.     A, B, M, N, R, GAMMA
+#.
+#. where A,B is the charging dipole, M,N is measuring dipole, R is the resistance (=potential difference across M,N divided by current),
+#. and GAMMA is the modified chargeability which is defined as GAMMA=ETA/(1-ETA) where ETA is conventional chargeability. GAMMA is more suitable
+#. for inversion as its values are unbounded.
+#.
+#. If errors are given then the format is
+#.
+#.     A, B, M, N, R, SIGMA_R, GAMMA, SIGMA_GAMMA
+#.
+#. where SIGMA_R is the relative error for R and SIGMA_GAMMA is the relative error for GAMMA. 
+#. For electric field inversion R is to be read as field intensity.
+#. 
+datafile = %{datafile}
+#. 
+#. If False the injections are assumed to pole injections and column B is dropped in the data file. 
+#.
+dipoleInjections = %{dipoleInjections}
+#. 
+#. If False the measurements are assumed to be pole measurements and column N is dropped in the data file. 
+#. This the expected for field intensity surveys.
+#.
+dipoleMeasurements = %{dipoleMeasurements}
+#.
+#. column delimiter in the data file 
+#.
+datadelimiter = ','
+#.
+#. if True station coordinates rather then station identifiers are used in the data files (not recommended)
+#.
+usesStationCoordinates = False
+#.
+#. if True errors for resistance (or field intensity) are given in the data file:
+#.
+hasResistanceError=%{hasResistanceError}
+#.
+#. if True errors for chargeability are given in the data file:
+#.    
+hasEtaError=%{hasEtaError}
+#.
+#. This file is used when generating synthetic data. The file contains lines of the for A, B, M, N (or similar)
+#. to define charging dipole (A,B) (or pole A) and measuring dipole (M,N)  (or pole M).
+#.
+schedulefile = None
+#
+#  This section of the file defines the inversion
+#
+#.
+#. reference conductivity (property function p = log(sigma/sigma0))
+#.
+sigma0=0.01
+#.
+#. conductivity outside the region of interest where the inversion happens:
+#.
+sigma_background=sigma0
+#.
+#. reference chargeability (property function p = log(eta/eta0))
+#.   
+eta0=0.01
+#.
+#. chargeability outside the region of interest where the inversion happens:
+#.
+eta_background=0.
+#.
+#. If set a data misfit is calculated in log scale ( = ( (log(r)-log(R))/SIGMA )**2 otherwise
+#. the misfit is calculated as ( = ( (r-R)/(R*SIGMA) )**2 where R is data, r is prediction and SIGMA is relative error/
+#. 
+useLogDefect=True
+#.
+#. tolerence of the inversion. 
+#. Iteration is terminated when both the relative in the property function and the change 
+#. in the cost function is less than tolerance.
+#.
+tolerance=1e-4.
+#.
+#. interpolation order in the line search
+#.
+interpolation_order=3
+#.
+#.  
+#. weighting for the |grad(m)|^2 term
+#.
+w1=0
+#. 
+#. weighting for the |m|^2 term
+#.
+w0=1e-10
+#.
+#. property function p is the smoothed version of m. It is constructed by 
+#. solving 
+#.     alpha1*p_{,xx} +alpha0*p=m 
+#. which applies smmothing with length scale sqrt(alpha1)/alpha0 and a 
+#. rescaling by the factor 1/alpha0. 
+#. 
+alpha0=1
+alpha1=(200.)**2
+#.
+#. this is the same for the modified chargeability GAMMA
+#.
+w1gamma=w1
+w0gamma=w0
+alpha0gamma=alpha0
+alpha1gamma=alpha1
+#.
+#. This is name of the result file. An appropriate extension for the used file format will be added.
+#.
+outfile='sigma'
+#.
+#. For an IP inversion the calculation can be split into the conductivity and chargeability part while 
+#. the intermediate result is saved to a restart file to allow for a faster configuration of the chargeability
+#. inversion. When inversion is running under MPI one restart file per rank is created. This sets the file name
+#. for teh restart file:
+#.
+restartfile = 'restart'
