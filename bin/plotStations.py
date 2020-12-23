@@ -39,7 +39,7 @@ if os.path.isfile(config.datafile):
 if fn is None:
     raise IOError("unable to find survey file.")   
 
-survey=readERTSurvey(fn, stations=elocations, usesStationCoordinates=config.usesStationCoordinates, columns=[], dipoleInjections=config.dipoleInjections , dipoleMeasurements=config.dipoleMeasurements ,  delimiter=config.datadelimiter)
+survey=readGalvanicSurveyData(fn, stations=elocations, usesStationCoordinates=config.usesStationCoordinates, columns=[], dipoleInjections=config.dipoleInjections , dipoleMeasurements=config.dipoleMeasurements ,  delimiter=config.datadelimiter)
 print("%s observations read from %s."%(survey.getNumObservations(), fn))
 
 from matplotlib import pyplot 
@@ -49,11 +49,8 @@ pyplot.rc('axes', labelsize=fsize)
 pyplot.rc('axes', titlesize=fsize)
 pyplot.rc('xtick', labelsize=fsize)
 pyplot.rc('ytick', labelsize=fsize)
-#pyplot.rc('axes', linewidth=2)
 
-#fig = pyplot.figure(figsize=(11, 8), dpi=400)
 fig = pyplot.figure(figsize=(3.2, 3.2), dpi=400)
-#fig = pyplot.figure()
 ax = fig.add_subplot(111)
 
 ins=survey.getListOfInjectionStations()
