@@ -1,5 +1,10 @@
 #!/usr/bin/python3
+"""
+Fingal - creates configuration, station and data file from Geosoft file. 
+This is for the field intensity data only. 
 
+by l.gross@uq.edu.au, Dec 2020.
+"""
 import argparse
 import numpy as np
 from pathlib import Path
