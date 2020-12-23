@@ -20,12 +20,15 @@ the `esys-escript` installation to `PATH`, `LD_LIBRARY_PATH` and `PYTHONPATH`.
 
 # Example
 
+This is a simple example to demonstarte a  typical workflow from a file of electrodes (or stations) [electrodes.loc](examples/Example1/electrodes.loc) and data file of IP data [survey.csv](examples/Example1/survey.csv)  
+
 First step is to create a configuration file `ex1.py`. The `mkConfig.py` script is helping to do this 
 populating the file with some basic information:
 
+    cd examples/Example1
     mkConfig.py --station electrodes.loc --data survey.csv ex1
 
-The map of the station locations can be created using
+To create map of the station locations can be created using
 
     plotStations.py -i station.png ex1
 
