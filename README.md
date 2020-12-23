@@ -20,6 +20,16 @@ the `esys-escript` installation to `PATH`, `LD_LIBRARY_PATH` and `PYTHONPATH`.
 
 # Example
 
+First step is to create a configuration file `ex1.py`. The `mkConfig.py` script is helping to do this 
+populating the file with some basic information:
+
+    mkConfig.py --station electrodes.loc --data survey.csv ex1
+
+The map of the station locations can be created using
+
+    plotStations.py -i station.png ex1
+
+    mkMesh 
 # List of Functions
 
 # 
