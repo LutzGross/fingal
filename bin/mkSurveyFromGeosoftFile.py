@@ -13,14 +13,13 @@ from fingal import FindNearestElectrode
 
 sys.path.append(os.getcwd())
 
-parser = argparse.ArgumentParser(description='creates survey data sets (station file and data file) for a FullWaver survey from geosoft survey data', epilog="version 1/8/2021")
+parser = argparse.ArgumentParser(description='creates survey data sets (station file and data file) and configuration file from geosoft survey data', epilog="version 1/8/2021")
 parser.add_argument('--resmin', '-r', dest='resmin', metavar='RESmin', type=float, default=0.0, help='ignore records with resitivity lower then Resmin')
-parser.add_argument('--fullwaver', '-f', dest='fullwaver', action='store_true', default=False, help='create fullwaver data set')
-parser.add_argument('--xyz', '-x', dest='directional',  action='store_true', default=False, help='create directional quantities for Fullwaver')
+parser.add_argument('--fullwaver', '-f', dest='fullwaver', action='store_true', default=False, help='create FullWaver data set')
+parser.add_argument('--xyz', '-x', dest='directional',  action='store_true', default=False, help='create directional quantities Ex,Ey,Ez for Fullwaver (not supported yet)')
 parser.add_argument('--nocenter', '-n', dest='nocenter',  action='store_true', default=False, help='electrode locations are centered to zero.')
 parser.add_argument('--datafile', '-d',dest='datafile', metavar='DATAFILE', type=str, help='data file name to read from. if not given [PROJECT].dat is used.')
 parser.add_argument(dest='project', metavar='PROJECT', type=str, help='project name')
-#parser.add_argument('--novtx', '-nv', dest='ignorevtx', action='store_true', help="if set vtx points are ignored.")
 
 
 args = parser.parse_args() 
@@ -239,7 +238,7 @@ if args.fullwaver and not args.directional:
         print("%d data records written to %s."%(nout, dataFN))
     
 else:
-    print("output not supported!")
+    print("output not supported yet!")
 
 with open(configFN, 'w') as fout:
     fout.write("meshfile = '%s'\n"%meshfile)
