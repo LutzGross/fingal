@@ -26,7 +26,7 @@ First step is to create a configuration file `ex1.py`. The `mkConfig.py` script 
 populating the file with some basic information:
 
     cd examples/Example1
-    mkConfig.py --station electrodes.loc --data survey.csv ex1
+    mkConfig.py --station electrodes.loc --data survey.csv --obs R,RELERR_R,ETA ex1
 
 To create map of the station locations can be created using
 
