@@ -1,26 +1,36 @@
 #!/usr/bin/python3
+"""
+fingal - 
+
+"""
 import argparse
 import importlib, sys, os
 from fingal import *
 import subprocess
-
+from esys.finley import ReadGmsh
 sys.path.append(os.getcwd())
+#sys.path.append(os.getcwd())
 
-parser = argparse.ArgumentParser(description='Creates a ', epilog="version 16/3/2018")
+parser = argparse.ArgumentParser(description='Creates a mesh fly file using the station location information.', epilog="fingal by l.gross@uq.edu.auversion 21/12/2020")
 parser.add_argument(dest='config', metavar='configfile', type=str, help='python setting configuration')
-parser.add_argument('--topo', '-t',  dest='topo', action='store_true', default=False, help="topography is added from station locations")
-parser.add_argument('--inner', '-i',  dest='inner', type=int, default=20, help="relative inner padding around electrodes in % (default 20)")
-parser.add_argument('--outer', '-o',  dest='outer', type=int, default=50, help="relative outer padding around core in % (default 50)")
-parser.add_argument('--depth', '-d',  dest='depth', type=int, default=40, help="depth relative to core width around core in % (default 40)")
-parser.add_argument('--plot', '-P',  dest='plot', type=str, default=None, help="file name to plot topograpy")
-parser.add_argument('--coremesh', '-c',  dest='coremesh', type=float, default=100, help="number of element on the edge of the core region (default 100)")
-parser.add_argument('--stationmesh', '-s',  dest='stationmesh', type=float, default=0.3, help="refinement factor at stations relative to core mesh size (default 0.3)")
-parser.add_argument('--paddingmesh', '-p',  dest='paddingmesh', type=float, default=40, help="number of element on the edge of the padding region (default 40)")
+parser.add_argument('--topo', '-t',  dest='topo', action='store_true', default=False, help="topography is added from station locations (experimental)")
+parser.add_argument('--inner', '-i',  dest='inner', type=int, default=20, help="relative inner padding within the core around electrodes in %% (default 20)")
+parser.add_argument('--outer', '-o',  dest='outer', type=int, default=80, help="relative outer padding around core in %% (default 80)")
+parser.add_argument('--depth', '-d',  dest='depth', type=int, default=45, help="depth relative to core width around core in %% (default 45)")
+parser.add_argument('--plot', '-P',  dest='plot', type=str, default=None, help="file name to plot topography")
+parser.add_argument('--coremesh', '-c',  dest='coremesh', type=float, default=50, help="number of element on the longest edge of the core region (default 50)")
+parser.add_argument('--stationmesh', '-s',  dest='stationmesh', type=float, default=0.2, help="refinement factor at stations relative to core mesh size (default 0.3)")
+parser.add_argument('--paddingmesh', '-p',  dest='paddingmesh', type=float, default=20, help="number of element on the longest edge of the padding region (default 20)")
 parser.add_argument('--geo', '-g',  dest='geofile', type=str, default="tmp", help="name of gmsh geofile to generate")
+parser.add_argument('--flyno', '-f',  dest='flyno', action='store_true', default=False, help="if set no fly file conversion is started.")
+parser.add_argument('--mshno', '-m',  dest='mshno', action='store_true', default=False, help="if set only gmsh geo file is generated but mesh generation is not started. Useful for debugging.")
 
 args = parser.parse_args()
 
-print("** This plots station locations **")
+print("** This generates a mesh fly file **")
+if args.topo:
+    print("Topography is added.")
+
 
 config = importlib.import_module(args.config)
 print("configuration "+args.config+" imported.")
@@ -44,13 +54,24 @@ fit[0]=zpos
 print("mean of topograpy = ", zpos)
 print("x range = ", xmin, xmax)
 print("y range = ", ymin, ymax)
+
+ebox=max(xmax-xmin, ymax-ymin)
+assert ebox > 0., "area of electrodes is zero."
 fx=((xmax-xmin)*args.inner)/100.
 fy=((ymax-ymin)*args.inner)/100.
+
+if xmax-xmin < 1e-5 * ebox:
+  fx=fy  
+if ymax-ymin < 1e-5 * ebox:
+  fy=fx  
+
+
 fz=(min(xmax-xmin, ymax-ymin)*args.depth)/100.
 zmincore=min(zmin, (fit[0]+fit[1]*(xmin-fx)+fit[2]*(ymin-fy)), fit[0]+fit[1]*(xmax+fx)+fit[2]*(ymin-fy), fit[0]+fit[1]*(xmax+fx)+fit[2]*(ymax+fy), fit[0]+fit[1]*(xmin-fx)+fit[2]*(ymax+fy))
 px=((xmax-xmin+2*fx)*args.outer)/100.
 py=((ymax-ymin+2*fy)*args.outer)/100.
 pz=min(px, py)  
+px,py=pz,pz
 
 XminBB = xmin-fx-px
 XmaxBB = xmax+fx+px
@@ -76,8 +97,8 @@ out+="ZminBB = %s;\n"%ZminBB
 out+="\n"
 
 out+="// element sizes\n"
-out+="mshC = %s/%s;\n"%(min(xmax-xmin+2*fx,ymax-ymin+2*fy), args.coremesh)
-out+="mshBB = %s/%s;\n"%(min(xmax-xmin+2*fx+2*px,ymax-ymin+2*fy+2*py), args.paddingmesh)
+out+="mshC = %s/%s;\n"%(max(xmax-xmin+2*fx,ymax-ymin+2*fy), args.coremesh)
+out+="mshBB = %s/%s;\n"%(max(xmax-xmin+2*fx+2*px,ymax-ymin+2*fy+2*py), args.paddingmesh)
 out+="mshE = mshC*%s;\n"%(args.stationmesh)
 out+="\n"
 out+="Point(1) = {XminCore, YminCore, %s, mshC};\n"%(fit[0]+fit[1]*(xmin-fx)+fit[2]*(ymin-fy))
@@ -157,17 +178,32 @@ for i,s in enumerate(elocations):
   out+='Physical Point("s%s")  = { k+%s } ;\n'%(s,i+1)
 out+='Physical Surface("faces") = { 1, 2, 3, 4,5 ,6,7,8,9,10, 11,12};\n'
 
+GEOFN2=args.geofile+".geo"
+MSHN3=args.geofile+".msh"
 
-if args.topo:
+
+if not args.topo:
+    out+="Surface Loop(1) = {1,2,3,4,5,11};\n"
+    out+="Volume(1) = {-1};\n"
+    out+="Surface Loop(2) = {6, 8, 9, 7, 10, 2, 1, 12, 5, 4, 3};\n"
+    out+="Volume(2) = {2};\n"
+    out+='Physical Volume("padding")  = { 2 } ;\n'
+    out+='Physical Volume("core")  = { 1 } ;\n'
+    open(GEOFN2,'w').write(out)
+    print("3D geometry has been written to %s"%GEOFN2)
+    if not args.mshno:
+        rp=subprocess.run(["gmsh", "-3",  "-algo", "auto", "-o", MSHN3, GEOFN2])
+        rp.check_returncode()
+        print(">> GMSH mesh file %s was generated."%MSHN3)
+else:
+    # this is still experimental!
     GEOFN1=args.geofile+"_2D.geo"
     MSHN1=args.geofile+"_2D.msh"
     MSHN2=args.geofile+"_2D_topo.msh"
-    GEOFN2=args.geofile+".geo"
-    MSHN3=args.config+".msh"
 
 
     open(GEOFN1,'w').write(out)
-    print("surface geometry written to %s"%GEOFN1)
+    print("surface geometry was written to %s"%GEOFN1)
 
 
     out="// Core:\n"
@@ -208,7 +244,7 @@ if args.topo:
     out+="Mesh.CharacteristicLengthMax=1e33;\n"
 
     open(GEOFN2,'w').write(out)
-    print("3D geometry written to %s"%GEOFN2)
+    print("3D geometry was written to %s"%GEOFN2)
 
     print("generate surface mesh:")
 
@@ -280,5 +316,20 @@ if args.topo:
     rp=subprocess.run(["gmsh", "-3",  "-algo", "frontal", "-o", MSHN3, GEOFN2])
     rp.check_returncode()
     print(">> GMSH mesh file %s generated."%MSHN3)
-else:
+
+
+if not args.flyno and not args.mshno:
+    dts=[]
+    dps=[]
+    for s in elocations:
+        if config.stationsFMT:
+            dts.append(config.stationsFMT%s)
+        else:
+            dts.append(s)
+        dps.append(elocations[s])
+    domain=ReadGmsh(MSHN3, 3, diracPoints=dps, diracTags=dts, optimize=True )
+    domain.write(config.meshfile)
+    print("Mesh written to file %s"%(config.meshfile))
+
+
     
