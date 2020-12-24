@@ -36,7 +36,7 @@ if os.path.isfile(config.datafile):
 if fn is None:
     raise IOError("unable to find survey file.")   
 
-survey=readGalvanicSurveyData(fn, stations=elocations, usesStationCoordinates=config.usesStationCoordinates, columns=[], dipoleInjections=config.dipoleInjections , dipoleMeasurements=config.dipoleMeasurements ,  delimiter=config.datadelimiter)
+survey=readSurveyData(fn, stations=elocations, usesStationCoordinates=config.usesStationCoordinates, columns=[], dipoleInjections=config.dipoleInjections , dipoleMeasurements=config.dipoleMeasurements ,  delimiter=config.datadelimiter)
 print("%s observations read from %s."%(survey.getNumObservations(), fn))
 
 from matplotlib import pyplot 
