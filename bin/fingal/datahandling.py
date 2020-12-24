@@ -27,9 +27,10 @@ def readElectrodeLocations(csvfile, delimiter=','):
     return locations    
 
 
-def readGalvanicSurveyData(csvfile, stations={}, usesStationCoordinates=False, columns=['R'], hasInjections=True, dipoleInjections=True, dipoleMeasurements=True, delimiter=','):
+def readSurveyData(csvfile, stations={}, usesStationCoordinates=False, columns=['R'], hasInjections=True, dipoleInjections=True, 
+                           dipoleMeasurements=True, delimiter=',', commend='#', printInfos=True):
     """
-    creates a GalvanicSurveyData object from a csvfile
+    creates a SurveyData object from a csvfile
     """
     nc=len(columns)
     if usesStationCoordinates:
@@ -52,47 +53,51 @@ def readGalvanicSurveyData(csvfile, stations={}, usesStationCoordinates=False, c
             ns=1
         
     f=open(csvfile, 'r')
-    data=GalvanicSurveyData(stations=stations, observations=columns, dipoleInjections=dipoleInjections, dipoleMeasurements=dipoleMeasurements, hasInjections=hasInjections)
+    data=SurveyData(stations=stations, observations=columns, dipoleInjections=dipoleInjections, dipoleMeasurements=dipoleMeasurements, hasInjections=hasInjections)
     line=f.readline().strip()
     lc=0
     distmin=1e99
     distmax=0.
     while line:
-        ll=line.split(delimiter)
-        if len(ll) < ns*c+nc:
-            raise KeyError('In sufficient number of values in line %d. %d expected but %d found. line="%s"'%(lc, ns*c+nc, len(ll), line.strip()))
-        if usesStationCoordinates:
-            C=[ float(ll[i]) for i in range(ns*c) ]
-            S=[]
-            for i in range(ns): 
-                eid, edist = FindNearestElectrode(C[3*i], C[3*i+1], C[3*i+2], stations)
-                S.append(eid)
-                distmin=min(distmin, edist)
-                distmax=max(distmax, edist)
-            #S=[ FindNearestElectrode(C[3*i], C[3*i+1], C[3*i+2], stations)[0] for i in range(ns) ]
-        else:
-            S=[ int(ll[i]) for i in range(ns) ]
-        if ns==1:
-            S=S[0]
-        else:
-            S=tuple(S)
+        if line.startswith(commend):
+            ll=line.split(delimiter)
+            if len(ll) < ns*c+nc:
+                raise KeyError('In sufficient number of values in line %d. %d expected but %d found. line="%s"'%(lc, ns*c+nc, len(ll), line.strip()))
+            if usesStationCoordinates:
+                C=[ float(ll[i]) for i in range(ns*c) ]
+                S=[]
+                for i in range(ns): 
+                    eid, edist = FindNearestElectrode(C[3*i], C[3*i+1], C[3*i+2], stations)
+                    S.append(eid)
+                    distmin=min(distmin, edist)
+                    distmax=max(distmax, edist)
+                #S=[ FindNearestElectrode(C[3*i], C[3*i+1], C[3*i+2], stations)[0] for i in range(ns) ]
+            else:
+                S=[ int(ll[i]) for i in range(ns) ]
+            if ns==1:
+                S=S[0]
+            else:
+                S=tuple(S)
 
-        if nc >0:
-            F=[ float(ll[i+ns*c]) for i in range(nc) ]
-            data.setDataRecord(S,tuple(F))
-        else:
-            data.setDataRecord(S,None)
+            if nc >0:
+                F=[ float(ll[i+ns*c]) for i in range(nc) ]
+                data.setDataRecord(S,tuple(F))
+            else:
+                data.setDataRecord(S,None)
             
         line=f.readline().strip()
         lc+=1
     f.close()
-    if usesStationCoordinates and getMPIRankWorld() == 0:
-        lslogger=logging.getLogger('inv').info("Maximum/Minimum distance of electrode locations to given stations = %e/%e."%(distmax, distmin))
+    if printInfo and getMPIRankWorld() == 0:
+        print(f"{lc} data read from {csvfile}")
+        print(f"Data found: {columns}")
+        if usesStationCoordinates:
+            print("Maximum/Minimum distance of electrode locations to given stations = %e/%e."%(distmax, distmin))
     return data
 
 
 
-class GalvanicSurveyData(object):
+class SurveyData(object):
     """
     this provides a simple interface to access GalvanicData type observations
     
@@ -121,11 +126,14 @@ class GalvanicSurveyData(object):
 
 
     """
+    OBSTYPES= ['R', 'E', 'ETA', 'GAMMA', 'ERR_R', 'ERR_E', 'ERR_ETA', 'ERR_GAMMA', 'RELERR_R', 'RELERR_E', 'RELERR_ETA', 'RELERR_GAMMA']
     def __init__(self, stations={}, observations=[], dipoleInjections=True, dipoleMeasurements=True,  hasInjections=True):
         """
         :stations: dictionary of station identifer to coordinates
         
         """
+        for o in observations:
+            assert self.checkObservationType(o), f'Unknown observation type {o}'
         self.data={}
         self.stations=stations
         self.dipoleinjections=dipoleInjections and hasInjections
@@ -147,7 +155,6 @@ class GalvanicSurveyData(object):
                 ns=2
             else:
                 ns=1
-            
         self.lenTokens=ns
         self.stations=stations
         
@@ -160,7 +167,15 @@ class GalvanicSurveyData(object):
         self.injectionIter=None    # list of injection dipoles or stations
         self.injectionStations=None # list of injection stations
         self.observationElectrodes=None
-        
+    
+    @classmethod 
+    def checkObservationType(cls, obs):
+        if isinstance(obs, list):
+            return all([cls.checkObservationType(o) for o in obs])
+        else:
+            return obs in cls.OBSTYPES
+    
+    
     def getStationNumeration(self):
         """
         returns list of the station identifiers in a particular order

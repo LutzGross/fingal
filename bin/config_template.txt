@@ -52,12 +52,30 @@ adjustStationLocationsToElementCenter=True
 #.
 #. If errors are given then the format is
 #.
-#.     A, B, M, N, R, SIGMA_R, GAMMA, SIGMA_GAMMA
+#.     A, B, M, N, R, RELERR_R, GAMMA, RELERR_GAMMA
 #.
-#. where SIGMA_R is the relative error for R and SIGMA_GAMMA is the relative error for GAMMA. 
+#. where RELERR_R is the relative error for R and RELERR_GAMMA is the relative error for GAMMA. 
 #. For electric field inversion R is to be read as field intensity.
 #. 
 datafile = '{datafile}'
+#.
+#. This defines the data columns of the data file.  
+#. It is a list of the strings giving the meaning of the column:
+#.
+#.   * 'R' - resistance [V/A]
+#.   * 'E' - electric field intensity per charge current [V/(Am)] 
+#.   * 'ETA' - chargeability  [1]
+#.   * 'GAMMA' - modified chargeability (=ETA/(1-ETA)) [1]
+#.   * 'ERR_R' - resistance [V/A]
+#.   * 'ERR_E' - electric field intensity per charge current [V/(Am)] 
+#.   * 'ERR_ETA' - chargeability  [1]
+#.   * 'ERR_GAMMA' - modified chargeability (=ETA/(1-ETA)) [1]
+#.   * 'RELERR_R' - resistance [1]
+#.   * 'RELERR_E' - electric field intensity per charge current [1] 
+#.   * 'RELERR_ETA' - chargeability  [1]
+#.   * 'RELERR_GAMMA' - modified chargeability (=ETA/(1-ETA)) [1]
+#.
+datacolumns = {datacolumns}
 #. 
 #. If False the injections are assumed to pole injections and column B is dropped in the data file. 
 #.
@@ -75,14 +93,6 @@ datadelimiter = ','
 #. if True station coordinates rather then station identifiers are used in the data files (not recommended)
 #.
 usesStationCoordinates = False
-#.
-#. if True errors for resistance (or field intensity) are given in the data file:
-#.
-hasResistanceError={hasResistanceError}
-#.
-#. if True errors for chargeability are given in the data file:
-#.    
-hasEtaError={hasEtaError}
 #.
 #. This file is used when generating synthetic data. The file contains lines of the for A, B, M, N (or similar)
 #. to define charging dipole (A,B) (or pole A) and measuring dipole (M,N)  (or pole M).
@@ -108,8 +118,8 @@ eta0=0.01
 #.
 eta_background=0.
 #.
-#. If set a data misfit is calculated in log scale ( = ( (log(r)-log(R))/SIGMA )**2 otherwise
-#. the misfit is calculated as ( = ( (r-R)/(R*SIGMA) )**2 where R is data, r is prediction and SIGMA is relative error/
+#. If set a data misfit is calculated in log scale ( = ( (log(r)-log(R))/RELERR )**2 otherwise
+#. the misfit is calculated as ( = ( (r-R)/(R*RELERR) )**2 where R is data, r is prediction and RELERR is relative error/
 #. 
 useLogDefect=True
 #.
