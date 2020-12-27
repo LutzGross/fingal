@@ -1,4 +1,4 @@
-# fingal - 3D Geophysical inversion in python
+# fingal - 3D Geophysical Inversion in python
 A python package for geohpysical inversion in 3D for galvanic data based on the finite element method (FEM) supporting unstructured meshes. 
 Data sets supported are electric potential data as well as electric field data for DC and IP surveys.  
 
