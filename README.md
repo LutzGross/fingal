@@ -15,7 +15,7 @@ and add the path  to the `fingal` to your executable and python path:
     export PATH=${PATH}:${HOME}/fingal/bin
     export PYTHONPATH=${PYTHONPATH}:${HOME}/fingal/lib
 
-Depending on your `esys-escript` installation you also have to ass the path to 
+Depending on your `esys-escript` installation you also have to add the path to 
 the `esys-escript` installation to `PATH`, `LD_LIBRARY_PATH` and `PYTHONPATH`.
 
 # Example
