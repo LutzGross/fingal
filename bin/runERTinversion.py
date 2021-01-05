@@ -102,6 +102,8 @@ if args.optimize or args.testSigma0:
          print("update your configuration file %s"%args.config)
          if args.testSigma0: 
             print("And goodbye")
+         else:
+            print("Sigma0 will be updated.") 
     if args.testSigma0: 
         sys.exit()
     else:

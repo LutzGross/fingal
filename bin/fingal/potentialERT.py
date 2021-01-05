@@ -139,9 +139,13 @@ class PotentialERT(MeteredCostFunction):
             v=dV[t]
             d=self.data.getResistenceData(t)
             e=self.data.getResistenceRelError(t)
-            A1+=v/(d*e**2)
-            A2+=(v/(d*e))**2
-        f_opt=A1/A2    
+            if abs(d) > 0:
+                A1+=v/(d*e**2)
+                A2+=(v/(d*e))**2
+        if A2 > 0 and A1 >0:
+            f_opt=A1/A2    
+        else:
+            f_opt=1.
         sigma_opt=self.sigma0/f_opt
 
         defect=0.
