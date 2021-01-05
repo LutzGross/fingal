@@ -106,6 +106,12 @@ schedulefile = None
 #.
 sigma0=0.01
 #.
+#. This defines the region where the conductivity and chargeability is not been updated during inversion, for instance 
+#. region_fixed=["padding"] blocks updates in the padding region. If region_fixed is not a list (for instance None) 
+#. values are fixed at the bottom of the domain. This is required if w0=0 and w1>0.
+#.
+region_fixed=[]
+#.
 #. conductivity outside the region of interest where the inversion happens:
 #.
 sigma_background=sigma0
@@ -118,10 +124,31 @@ eta0=0.01
 #.
 eta_background=0.
 #.
-#. If set a data misfit is calculated in log scale ( = ( (log(r)-log(R))/RELERR )**2 otherwise
-#. the misfit is calculated as ( = ( (r-R)/(R*RELERR) )**2 where R is data, r is prediction and RELERR is relative error/
+#. The function defines the true conductivity and modified chargeability. 
+#. Obviously this function is used when synthetic data are constructed or for testing and validation.
 #. 
-useLogDefect=True
+#def true_properties(domain):
+#    sigma_true=Scalar(sigma_background, Function(domain))
+#    gamma_true=Scalar(eta_background/(1-eta_background), Function(domain))
+#    return sigma_true, gamma_true
+#. 
+#. Set to true_properties=None if the true distributions are not available 
+#
+true_properties=None
+#
+#  Inversion:
+#
+#.
+#. If set a data misfit is calculated as combination of log scale ( = ( (log(r)-log(R))/RELERR )**2 and
+#. quadratic the misfit calculated as ( = ( (r-R)/(R*RELERR) )**2 where R is data, r is prediction and RELERR is relative errorr.
+#. weightLogDefect is the weighting for the log term (not supported by all inversions yet.)                                       
+#. 
+weightLogDefect=0.5
+#.
+#. values in the property function (in essence this is log(sigma/sigma0)) which are smaller than -clip_property_function
+#. and larger then clip_property_function are clipped in order to avoid overflow and underflow in the exponential function.
+#.
+clip_property_function=10
 #.
 #. tolerence of the inversion. 
 #. Iteration is terminated when both the relative in the property function and the change 
@@ -129,9 +156,12 @@ useLogDefect=True
 #.
 tolerance=1.e-4
 #.
-#. interpolation order in the line search
+#. Parameters to control Minimizer:
 #.
 interpolation_order=3
+imax=400
+truncation=20
+restart=60
 #.
 #.  
 #. weighting for the |grad(m)|^2 term
@@ -140,7 +170,7 @@ w1=0
 #. 
 #. weighting for the |m|^2 term
 #.
-w0=1e-10
+w0=0.1
 #.
 #. property function p is the smoothed version of m. It is constructed by 
 #. solving 
@@ -158,12 +188,17 @@ w0gamma=w0
 alpha0gamma=alpha0
 alpha1gamma=alpha1
 #
-# Other file handeling:
+# Output handeling:
 #
 #.
 #. This is name of the result file. An appropriate extension for the used file format will be added.
 #.
 outfile='sigma'
+#.
+#. This defines the core region/region of interest via tags. For instance this region is used to focus output. 
+#. If set to to None no selection is applied and the entire domain is used. 
+#.
+core=['core']
 #.
 #. For an IP inversion the calculation can be split into the conductivity and chargeability part while 
 #. the intermediate result is saved to a restart file to allow for a faster configuration of the chargeability
@@ -171,3 +206,4 @@ outfile='sigma'
 #. for teh restart file:
 #.
 restartfile = 'restart'
+
