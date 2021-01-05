@@ -37,7 +37,7 @@ CHANGE= {
 "dipoleInjections" : not args.ipole,
 "dipoleMeasurements" : not args.mpole,
 "datacolumns" :datacolumns,
-"alpha1" : 10.
+"alpha1" : 1.
 }
 
 

@@ -4,7 +4,7 @@ fingal - data handling
 by l.gross@uq.edu.au, 2018
 """
 import numpy as np
-
+from esys.escript import getMPIRankWorld
     
 def readElectrodeLocations(csvfile, delimiter=','):
     """
@@ -28,7 +28,7 @@ def readElectrodeLocations(csvfile, delimiter=','):
 
 
 def readSurveyData(csvfile, stations={}, usesStationCoordinates=False, columns=['R'], hasInjections=True, dipoleInjections=True, 
-                           dipoleMeasurements=True, delimiter=',', commend='#', printInfos=True):
+                           dipoleMeasurements=True, delimiter=',', commend='#', printInfo=True):
     """
     creates a SurveyData object from a csvfile
     """
@@ -59,7 +59,7 @@ def readSurveyData(csvfile, stations={}, usesStationCoordinates=False, columns=[
     distmin=1e99
     distmax=0.
     while line:
-        if line.startswith(commend):
+        if not line.startswith(commend):
             ll=line.split(delimiter)
             if len(ll) < ns*c+nc:
                 raise KeyError('In sufficient number of values in line %d. %d expected but %d found. line="%s"'%(lc, ns*c+nc, len(ll), line.strip()))
@@ -89,8 +89,8 @@ def readSurveyData(csvfile, stations={}, usesStationCoordinates=False, columns=[
         lc+=1
     f.close()
     if printInfo and getMPIRankWorld() == 0:
+        print(f"Columns used: {columns}")
         print(f"{lc} data read from {csvfile}")
-        print(f"Data found: {columns}")
         if usesStationCoordinates:
             print("Maximum/Minimum distance of electrode locations to given stations = %e/%e."%(distmax, distmin))
     return data
@@ -127,13 +127,14 @@ class SurveyData(object):
 
     """
     OBSTYPES= ['R', 'E', 'ETA', 'GAMMA', 'ERR_R', 'ERR_E', 'ERR_ETA', 'ERR_GAMMA', 'RELERR_R', 'RELERR_E', 'RELERR_ETA', 'RELERR_GAMMA']
-    def __init__(self, stations={}, observations=[], dipoleInjections=True, dipoleMeasurements=True,  hasInjections=True):
+    def __init__(self, stations={}, observations=[], dipoleInjections=True, dipoleMeasurements=True,  hasInjections=True, default_rel_error=0.01):
         """
         :stations: dictionary of station identifer to coordinates
         
         """
         for o in observations:
             assert self.checkObservationType(o), f'Unknown observation type {o}'
+        self.default_rel_error=default_rel_error
         self.data={}
         self.stations=stations
         self.dipoleinjections=dipoleInjections and hasInjections
@@ -226,14 +227,31 @@ class SurveyData(object):
         """
         return the data for a given token (e.g. for (A,B,M,N) )
         """
-        if type is None:
+        if datatype is None:
             return self.data[token]
         else:
             i=self.observations.index(datatype)
             return self.data[token][i]
-        
+    def hasDataType(self, datatype):
+        return datatype in self.observations
+    
     def getResistenceData(self, token):
         return self.getDataRecord(token, datatype='R')
+
+    def getResistenceRelError(self, token):
+        if self.hasDataType("RELERR_R"):
+            return self.getDataRecord(token, datatype='RELERR_R')
+        elif self.hasDataType("ERR_R"):
+            r=self.getDataRecord(token, datatype='R')
+            e=self.getDataRecord(token, datatype='ERR_R')
+            if abs(r)>0:
+                return abs(e/r)
+            else:    
+                return e
+        else:
+            return self.default_rel_error
+            
+
     def getFieldIntensityData(self, token):
         return self.getDataRecord(token, datatype='E')
     def getFieldData(self, token):
@@ -448,34 +466,53 @@ class SurveyData(object):
         else:
             raise ValueError("Unknown observation electrode %s"%M)
         
-    def getObservations(self, A=None, B=None):
+    def getObservations(self, A=None, B=None, insertSource=False):
         """
         returns a list of the observations (M, N) using injection (A,B)
         """
+        if isinstance(A, tuple):
+            A, B= A[0], A[1]
+            
         out=[]
         if self.hasInjections():
             if self.hasDipoleInjections() and self.hasDipoleMeasurements():
                 for A1,B1,M,N in self.tokenIterator():
                     if A1 == A and B1 == B:
-                        if out.count((M,N)) ==0:
-                            out.append((M,N))
+                        if insertSource:
+                            t=(A, B, M, N)
+                        else:
+                            t=(M,N)
+                        if not t in out:
+                                out.append(t)
 
             elif not self.hasDipoleInjections() and self.hasDipoleMeasurements():
                 for A1,M,N in self.tokenIterator():
                     if A1 == A:
-                        if out.count((M,N)) ==0:
-                            out.append((M,N))
+                        if insertSource:
+                            t=(A, M, N)
+                        else:
+                            t=(M,N)
+                        if not t in out:
+                            out.append(t)
 
             elif self.hasDipoleInjections() and not self.hasDipoleMeasurements():
                 for A1,B1, M in self.tokenIterator():
                     if A1 == A and B1 == B:
-                        if out.count(M) ==0:
-                            out.append(M)
+                        if insertSource:
+                            t=(A, B, M)
+                        else:
+                            t=M
+                        if not t in out:
+                            out.append(t)
             else:
                 for A1, M in self.tokenIterator():
                     if A1 == A:
-                        if out.count(M) ==0:
-                            out.append(M)
+                        if insertSource:
+                            t=(A, M)
+                        else:
+                            t=M
+                        if not t in out:
+                            out.append(t)
         else:
             if self.hasDipoleMeasurements():
                 for M,N in self.tokenIterator():
