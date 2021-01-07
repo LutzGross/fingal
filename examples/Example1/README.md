@@ -29,7 +29,11 @@ The option `--optimize` rescales the reference conductivity `sigma0` set in the 
 - [paraview](https://www.paraview.org/)
 - [mayavi](https://docs.enthought.com/mayavi/mayavi/)
  
- 
+The result should look this: 
+<p align="center">
+  <img src="result.png" width="600" title="VisIt Visualization">
+</p>
+
 The switch `--xyx` activates the creation of a CSV file giving ccordinates and conductivity in core region set in the configuartion file via the `core` variable. The name of the created file is `sigma.csv` where again `sigma` is taken from the `output` variable set in `ex1.py`. You can read and plot this file for instance using a 3D scatter plot in `matplotlib`:
 
     import numpy as np
