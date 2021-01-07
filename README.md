@@ -18,7 +18,9 @@ and add the path  to the `fingal` to your executable and python path:
 Depending on your `esys-escript` installation you also have to add the path to 
 the `esys-escript` installation to `PATH`, `LD_LIBRARY_PATH` and `PYTHONPATH`.
 
-# Example
+# Examples
+
+- As simple example for a 2D ERT inversion: [Example1](examples/Example1/README.md)
 
 This is a simple example to demonstarte a  typical workflow from a file of electrodes (or stations) [electrodes.loc](examples/Example1/electrodes.loc) and data file of IP data [survey.csv](examples/Example1/survey.csv)  
 
