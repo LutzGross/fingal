@@ -1,3 +1,4 @@
+# Simple ERT Inversion
 
 This is a simple example to demonstarte a  typical workflow from a file of electrodes (or stations) [electrodes.loc](examples/Example1/electrodes.loc) and data file of IP data [survey.csv](./survey.csv)  
 
