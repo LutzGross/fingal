@@ -22,7 +22,7 @@ the `esys-escript` installation to `PATH`, `LD_LIBRARY_PATH` and `PYTHONPATH`.
 
 - As simple example for a 2D ERT inversion: [Example1](examples/Example1/README.md)
 - Synthetic FullWaver data inversion: [SyntheticFW](examples/SyntheticFW/README.md)
-- Volcano with FullWaver data: [SyntheticFW](examples/VolcanoFW/README.md)
+- Volcano with FullWaver data: [VolcanoFW](examples/VolcanoFW/README.md)
 
 # List of Functions
 
