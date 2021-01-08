@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 """
-fingal - 
+fingal - Creates a mesh fly file using the station location information. 
 
 """
 import argparse
@@ -11,7 +11,7 @@ from esys.finley import ReadGmsh
 sys.path.append(os.getcwd())
 #sys.path.append(os.getcwd())
 
-parser = argparse.ArgumentParser(description='Creates a mesh fly file using the station location information.', epilog="fingal by l.gross@uq.edu.auversion 21/12/2020")
+parser = argparse.ArgumentParser(description='Creates a mesh fly file using the station location information. the gmsh mesh generator is used.', epilog="fingal by l.gross@uq.edu.auversion 21/12/2020")
 parser.add_argument(dest='config', metavar='configfile', type=str, help='python setting configuration')
 parser.add_argument('--topo', '-t',  dest='topo', action='store_true', default=False, help="topography is added from station locations (experimental)")
 parser.add_argument('--inner', '-i',  dest='inner', type=int, default=20, help="relative inner padding within the core around electrodes in %% (default 20)")
@@ -81,6 +81,7 @@ ZminBB = zmincore-fz-pz
 ZminCore = (zmincore-fz)
 
 out=""
+out+="Mesh.MshFileVersion = 2.2\n"
 out+="// Core:\n"
 out+="XminCore = %s;\n"%(xmin-fx)
 out+="XmaxCore = %s;\n"%(xmax+fx)
