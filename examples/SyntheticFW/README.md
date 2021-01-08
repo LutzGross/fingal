@@ -5,7 +5,7 @@ The
     cd examples/SuntheticFW
     gmsh domain.geo    
 <p>
-    <img src=domain.png" width="600" title="geometry of the domain">
+    <img src="domain.png" width="600" title="geometry of the domain">
 </p>
 
 Extract stations form the geo file and create a survey schedule file:
