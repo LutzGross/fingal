@@ -132,7 +132,7 @@ class PotentialERT(MeteredCostFunction):
         """
         this returns a corrected value (float) for sigma0 that gives a better initial data match 
         """
-        sigma, potentials, dV=self.getArguments(0.)
+        sigma, potentials, dV=self.getArguments(m)
         A1=0.
         A2=0.
         for t in self.data.tokenIterator(): 
