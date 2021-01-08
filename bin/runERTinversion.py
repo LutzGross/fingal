@@ -94,7 +94,8 @@ else:
         
 # create cost function:
 costf=PotentialERT(domain, data=survey, w0=config.w0, w1=config.w1, sigma0=sigma0, region_fixed=fixedm, stationsFMT=config.stationsFMT, alpha0=config.alpha0, alpha1=config.alpha1, weightLogDefect=config.weightLogDefect, logclip=config.clip_property_function)
-#costf=PotentialERT(domain, data=survey, w0=config.w0*0, w1=config.w1*0, sigma0=sigma0, region_fixed=fixedm, stationsFMT=config.stationsFMT, alpha0=config.alpha0, alpha1=config.alpha1, weightLogDefect=config.weightLogDefect*0, logclip=config.clip_property_function)
+
+
 if args.optimize or args.testSigma0:
     sigma_opt, f_opt,  defect = costf.optimizeSigma0()
     if getMPIRankWorld() == 0: 
