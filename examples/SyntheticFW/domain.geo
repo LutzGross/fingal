@@ -1,4 +1,4 @@
-Mesh.MshFileVersion = 2.2
+Mesh.MshFileVersion = 2.2;
  
 WidthOuterBox=8000.;
 ThicknessOuterBox=3500.;
