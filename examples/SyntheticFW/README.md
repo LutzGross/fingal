@@ -1,24 +1,43 @@
-# Synthetic Field Intensity Inversion (aka FullWaver)
+# Synthetic Field Intensity Inversion (aka [FullWaver](http://www.iris-instruments.com/v-fullwaver.html))
 
-The 
+This is synthetic case with three cubic anomalies where
+one cube defines anomalies in conductivity and charageability,
+one cube defines an anomaliy in conductivity and
+one cube defines an anomaliy in charageability. The doamin is defines in the Gmsh file `domain.geo` which can be visualized in gmsh: 
 
     cd examples/SuntheticFW
     gmsh domain.geo    
+    
+and show this geometry setup:
 <p>
     <img src="domain.png" width="600" title="geometry of the domain">
 </p>
+The core part shows the three anomalies and the position of charging electrodes and recording stations. In the core region a finer mesh is used while
+in the padding region which is added to eliminate boundary effects a coarser mesh is used. We will create a synthetic data set containing 
+electric field intensity and (modified) chargeability [Missing reference](XX). 
 
-Extract stations form the geo file and create a survey schedule file:
+The first step is to extract the location of the charging electrodes and recording stations from the `domain.geo` to create the file of station locations `stations.csv` as defined in the configuration file [`config.py`](config.py) and to generate a schedule file `synth_data.csv`  (again the name is defined in the configuration file) which will later be used to run the virtual survey: 
 
     ./mkSchedule.py -d 10 domain.geo config
 
-Plot the stations:
+In the survey the electrodes at an offset in the East, North, West and South are paired with in this case 10 (specified by the option `-d 10`) randomly choosen other electrodes setting in this case 4 x 10 charging experiments. 
+
+The lacation of the stations and electrodes can be plotted to the file `station_positions.png` uisng  
 
     plotStations.py -i station_positions.png config
-    
+
+where green and blue dots refer to recording stations and charging electrode respectively:     
 <p>
     <img src="station_positions.png" width="600" title="Position of measurement stations and chargong electrodes">
 </p>
+A 3D mesh is generated from `domain.geo` using gmsh with the mesh written to `synth.msh` in the GMSH file format (Make sure that the format 2.2 is used):
+
+    gmsh -3 -o synth.msh domain.geo
+    
+Notice the the cubic anomlies are tagged with "Anomaly1", "Anomaly2" and "Anomaly3". The core region excluding the anomalies is tagged "InnerBox"
+while the padding is the tagged "OuterBox". The mesh will have about 135000 nodes. The resolution can be changed by editing `domain.geo`.
+
+
 
 ....
 
