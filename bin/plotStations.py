@@ -10,8 +10,8 @@ parser = argparse.ArgumentParser(description='creates plot of station/electrode 
 parser.add_argument(dest='config', metavar='configfile', type=str, help='python setting configuration')
 parser.add_argument('--image', '-i',  dest='plotfile', type=str, default='locs.png', help="image of electrode locations.")
 parser.add_argument('--nolabels', '-n',  dest='nolabels', action='store_true', default=False, help="show no station labels.")
-parser.add_argument('--markersize', '-m',  dest='markersize', type=int, default=8, help="marker size.")
-parser.add_argument('--fondsize', '-f',  dest='fsize', type=int, default=18, help="fond size.")
+parser.add_argument('--markersize', '-m',  dest='markersize', type=int, default=10, help="marker size.")
+parser.add_argument('--fondsize', '-f',  dest='fsize', type=int, default=12, help="fond size.")
 parser.add_argument('--scale', '-s',  dest='scale', type=int, default=0, help="axis scale")
 parser.add_argument('--debug', '-d',  dest='debug', action='store_true', default=True, help="shows more information.")
 args = parser.parse_args()
@@ -33,6 +33,7 @@ if config.schedulefile and os.path.isfile(config.schedulefile):
       
 if os.path.isfile(config.datafile):
     fn=config.datafile
+ 
 if fn is None:
     raise IOError("unable to find survey file.")   
 
@@ -96,13 +97,13 @@ else:
 
 if not args.nolabels:
    for s, x,y in zip(ins2, xins,yins):
-       ax.annotate(str(s),xy=(x,y), fontsize=18)
+       ax.annotate(str(s),xy=(x,y), fontsize=fsize)
 
    for s, x,y in zip(obs2, xobs,yobs):
-       ax.annotate(str(s),xy=(x,y), fontsize=18)
+       ax.annotate(str(s),xy=(x,y), fontsize=fsize)
 
    for s, x,y in zip(both, xboth,yboth):
-       ax.annotate(str(s),xy=(x,y), fontsize=18)
+       ax.annotate(str(s),xy=(x,y), fontsize=fsize)
 
 
 print(len(obs2), " pure observation electrodes")

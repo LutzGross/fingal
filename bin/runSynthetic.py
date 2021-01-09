@@ -1,16 +1,14 @@
 #!/usr/bin/python3
 from esys.escript import *
 import importlib, sys, os
-sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), "lib"))
-sys.path.append(os.getcwd())
-from ERTtools import *
-from esys.finley import ReadMesh, ReadGmsh
-from esys.escript import unitsSI as U
-import numpy as np
-from esys.weipa import saveVTK, saveSilo
 import argparse
-from esys.downunder import MinimizerLBFGS
-from esys.escript.pdetools import Locator, ArithmeticTuple, MaskFromTag
+sys.path.append(os.getcwd())
+import numpy as np
+from fingal import readElectrodeLocations, readSurveyData, makeTagField, setupERTPDE
+from esys.finley import ReadMesh
+
+from esys.weipa import saveVTK, saveSilo
+from esys.escript.pdetools import Locator, MaskFromTag
 
 parser = argparse.ArgumentParser(description='creates a synthetic survey', epilog="l.gross@uq.edu.au, version Jan 2021")
 parser.add_argument('--noise', '-n',  dest='noise', default=0., metavar='NOISE', type=float, help="%% of noise to be added. (default is 0) ")
@@ -23,21 +21,136 @@ parser.add_argument('--plotB', '-B',  dest='plotB', metavar='PLOTB', type=int, d
 args = parser.parse_args()
 
 
+if getMPIRankWorld() == 0: print("** This creates a synthetic survey data set**")
 
-print("** This creates a synthetic survey data set**")
-
+    
 
 config = importlib.import_module(args.config)
-print("configuration "+args.config+" imported.")
+
+    
+if 'R' in config.datacolumns:
+    usePotentials=True
+else:
+    usePotentials=False
+    
+if 'E' in config.datacolumns:
+    useFields=True
+else:
+    useFields=False
+    
+if any( [ s.find("ERR") >=0 for s in config.datacolumns ]):
+    assert args.noise, 'Noise level must be positive.'
+    addError=True
+else:
+    addError= args.noise>0
+    
+if getMPIRankWorld() == 0: 
+    print("configuration "+args.config+" imported.")
+    print(f"Data columns to be generated: {config.datacolumns}")
+    if usePotentials: print("Potential based data are generated.")
+    if useFields: print("Electric field based data are generated.")
+    if addError: print(f"Error of {args.noise}% is added to data.")    
 
 domain=ReadMesh(config.meshfile)
-print("mesh read from "+config.meshfile)
+if getMPIRankWorld() == 0: print("mesh read from "+config.meshfile)
 
 elocations=readElectrodeLocations(config.stationfile, delimiter=config.stationdelimiter)
-print("%s electrode locations read from %s."%(len(elocations), config.stationfile))
+if getMPIRankWorld() == 0: print("%s electrode locations read from %s."%(len(elocations), config.stationfile))
       
-survey=readERTSurvey(config.schedulefile, stations=elocations, usesStationCoordinates=config.usesStationCoordinates, columns=[], dipoleInjections=True, dipoleMeasurements=False,  delimiter=config.datadelimiter)
-print("%s observations read from %s."%(survey.getNumObservations(), config.schedulefile))
+survey=readSurveyData(config.schedulefile, stations=elocations, usesStationCoordinates=config.usesStationCoordinates, columns=[], 
+                      dipoleInjections=config.dipoleInjections, 
+                      dipoleMeasurements=config.dipoleMeasurements, 
+                      delimiter=config.datadelimiter, 
+                      commend='#', printInfo=True)
+
+# set the true sigma and gamma:
+assert config.true_properties, f"True properties must be defined. See true_properties in {args.config}.py"
+sigma_true, gamma_true = config.true_properties(domain) 
+
+txt1=str(sigma_true).replace("\n",';')
+txt2=str(gamma_true).replace("\n",';')
+if getMPIRankWorld() == 0: 
+    print(f"True conductivity sigma_true = {txt1}.")
+    print(f"True modifies chargeability gamma_true = {txt2}.")
+
+
+# set locators to extract predictions:
+station_locations=[]
+for s in survey.getStationNumeration():
+   station_locations.append(survey.getStationLocation(s))
+
+nodelocators=Locator(Solution(domain), station_locations)
+elementlocators=Locator(ReducedFunction(domain), station_locations)
+
+if getMPIRankWorld() == 0: print( str(len(station_locations))+ " station locators calculated.")
+
+
+# PDE:
+pde=setupERTPDE(domain)
+x=pde.getDomain().getX()[0]
+y=pde.getDomain().getX()[1]
+z=pde.getDomain().getX()[2]
+q=whereZero(x-inf(x))+whereZero(x-sup(x))+ whereZero(y-inf(y))+whereZero(y-sup(y))+whereZero(z-inf(z))
+pde.setValue(q=q)
+
+
+
+
+
+primary_field={}
+primary_potential={}
+primary_field_solution={}
+primary_field_elements={}
+
+
+
+SIGMA0=config.sigma0
+ETA0=config.eta0
+
+if getMPIRankWorld() == 0: print("primary field:")
+pde.setValue(A=SIGMA0*kronecker(3))   
+for ip in survey.getListOfInjectionStations():
+    s=Scalar(0.,DiracDeltaFunctions(pde.getDomain()))
+    if config.stationsFMT is None:
+        s.setTaggedValue(ip,1.)
+    else:    
+        s.setTaggedValue(config.stationsFMT%ip,1.)
+    pde.setValue(y_dirac=s)
+    primary_potential[ip]=pde.getSolution()
+    primary_field[ip]=-grad(primary_potential[ip], ReducedFunction(domain))
+    primary_field_solution[ip]=nodelocators(primary_potential[ip])
+    primary_field_elements[ip]=elementlocators(primary_field[ip]) 
+    txt1=str(primary_potential[ip])
+    if getMPIRankWorld() == 0:  print("\t%s : %s "%(ip,txt1))
+if getMPIRankWorld() == 0: print(str(len(primary_field))+" primary fields calculated.")
+
+def getSecondaryPotentials(sigma_s):
+    secondary_field={}
+    secondary_potential={}
+    secondary_field_solution={}
+    secondary_field_elements={}
+    pde.setValue(A=sigma_s*kronecker(3), y_dirac=Data())
+    
+    for ip in survey.getListOfInjectionStations():
+    
+        pde.setValue(X=(sigma_s-SIGMA0)*grad(primary_potential[ip]))
+        secondary_potential[ip]=pde.getSolution()
+        secondary_field[ip]=-grad(secondary_potential[ip], ReducedFunction(domain))
+        if usePotentials:
+            secondary_field_solution[ip]=nodelocators(secondary_potential[ip])
+        if useFields:
+            secondary_field_elements[ip]=elementlocators(secondary_field[ip])         
+        txt1=str(secondary_potential[ip])
+        if getMPIRankWorld() == 0:  print("\t%s : %s "%(ip,txt1))
+    return secondary_field, secondary_potential, secondary_field_solution, secondary_field_elements
+
+if getMPIRankWorld() == 0: print("secondary  potentials:")
+secondary_field, secondary_potential, secondary_field_solution, secondary_field_elements = getSecondaryPotentials(sigma_true)
+if getMPIRankWorld() == 0: print(str(len(secondary_field))+" secondary potentials calculated.")
+
+if getMPIRankWorld() == 0: print("secondary  potentials chargeability:")
+secondary_field_hat, secondary_potential_hat, secondary_field_solution_hat, secondary_field_elements_hat = getSecondaryPotentials(sigma_true*gamma_true/(1+gamma_true)/ETA0)
+if getMPIRankWorld() == 0: print(str(len(secondary_field_hat))+" secondary potentials chargeability calculated.")
 
 1/0
 #======================================
@@ -80,42 +193,6 @@ print("gamma 0 = %s"%(str(gamma0)))
 print("true gamma = %s"%(str(gamma_true)))
 
 
-
-
-pde=setupERTPDE(domain)
-x=pde.getDomain().getX()[0]
-y=pde.getDomain().getX()[1]
-z=pde.getDomain().getX()[2]
-pde.setValue(q=whereZero(x-inf(x))+whereZero(x-sup(x))+ whereZero(y-inf(y))+whereZero(y-sup(y))+whereZero(z-inf(z)))
-
-pdeHAT=setupERTPDE(domain)
-pdeHAT.setValue(q=whereZero(x-inf(x))+whereZero(x-sup(x))+ whereZero(y-inf(y))+whereZero(y-sup(y))+whereZero(z-inf(z)))
-
-
-station_locations=[]
-for s in survey.getStationNumeration():
-   station_locations.append(survey.getStationLocation(s))
-locators=Locator(ReducedFunction(domain), station_locations)
-print( str(len(station_locations))+ " station locators calculated.")
-
-primary_field={}
-primary_potential={}
-primary_field_loc={}
-print("primary field:")
-
-pde.setValue(A=sigma0*kronecker(3))   
-for ip in survey.getListOfInjectionStations():
-    s=Scalar(0.,DiracDeltaFunctions(pde.getDomain()))
-    if config.stationsFMT is None:
-        s.setTaggedValue(ip,1.)
-    else:    
-        s.setTaggedValue(config.stationsFMT%ip,1.)
-    pde.setValue(y_dirac=s)
-    primary_potential[ip]=pde.getSolution()
-    primary_field[ip]=-grad(primary_potential[ip], ReducedFunction(domain))
-    primary_field_loc[ip]=locators(primary_field[ip])
-    print("%s : %s "%(ip, primary_potential[ip]))
-    
 
 
 print("secondary potential:")

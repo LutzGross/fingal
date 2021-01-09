@@ -35,7 +35,7 @@ if args.debug:
 else:    
     logger.setLevel(logging.INFO)
 
-sys.path.append(os.getcwd())
+
 config = importlib.import_module(args.config)
 
 if getMPIRankWorld() == 0:
@@ -51,7 +51,7 @@ if getMPIRankWorld() == 0:
 if config.stationsFMT:
      dts=[ config.stationsFMT%s for s in elocations]
 else:
-    dts=[ s for s in elocations]
+     dts=[ s for s in elocations]
 
 if os.path.splitext(config.meshfile)[1] == ".msh" :
     domain=ReadGmsh(config.meshfile, 3, 

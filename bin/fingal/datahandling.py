@@ -5,7 +5,7 @@ by l.gross@uq.edu.au, 2018
 """
 import numpy as np
 from esys.escript import getMPIRankWorld
-    
+
 def readElectrodeLocations(csvfile, delimiter=','):
     """
     
