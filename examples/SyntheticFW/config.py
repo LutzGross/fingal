@@ -104,7 +104,7 @@ schedulefile = 'synth_schedule.csv'
 #.
 #. reference conductivity (property function p = log(sigma/sigma0))
 #.
-sigma0=0.01
+sigma0=0.001
 #.
 #. This defines the region where the conductivity and chargeability is not been updated during inversion, for instance 
 #. region_fixed=["padding"] blocks updates in the padding region. If region_fixed is not a list (for instance None) 
@@ -122,19 +122,27 @@ eta0=0.01
 #.
 #. chargeability outside the region of interest where the inversion happens:
 #.
-eta_background=0.
+eta_background=eta0
 #.
 #. The function defines the true conductivity and modified chargeability. 
 #. Obviously this function is used when synthetic data are constructed or for testing and validation.
 #. 
-#def true_properties(domain):
-#    sigma_true=Scalar(sigma_background, Function(domain))
-#    gamma_true=Scalar(eta_background/(1-eta_background), Function(domain))
-#    return sigma_true, gamma_true
-#. 
-#. Set to true_properties=None if the true distributions are not available 
-#
-true_properties=None
+def true_properties(domain):
+    from esys.escript import Scalar, Function
+    sigma_true=Scalar(sigma_background, Function(domain))
+    sigma_true.setTaggedValue("InnerBox", sigma_background)
+    sigma_true.setTaggedValue("Anomaly1", sigma_background*10)
+    sigma_true.setTaggedValue("Anomaly2", sigma_background*10)
+    sigma_true.setTaggedValue("Anomaly3", sigma_background)
+
+    gamma_background=eta_background/(1-eta_background)
+    gamma_true=Scalar(gamma_background, Function(domain))
+    gamma_true.setTaggedValue("InnerBox", gamma_background)
+    gamma_true.setTaggedValue("Anomaly1", gamma_background)
+    gamma_true.setTaggedValue("Anomaly2", gamma_background*20)
+    gamma_true.setTaggedValue("Anomaly3", gamma_background*20)
+    
+    return sigma_true, gamma_true
 #
 #  Inversion:
 #
