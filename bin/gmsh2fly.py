@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 from esys.escript import *
 import importlib, os, sys
+sys.path.append(os.getcwd())
 #sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), "./lib"))
 #sys.path.append(os.getcwd())
 from esys.finley import ReadMesh, ReadGmsh
