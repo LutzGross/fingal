@@ -20,7 +20,7 @@ The first step is to extract the location of the charging electrodes and recordi
 
     ./mkSchedule.py -d 10 domain.geo config
 
-In the survey the electrodes at an offset in the East, North, West and South are paired with in this case 10 (specified by the option `-d 10`) randomly choosen other electrodes setting in this case 4 x 10 charging experiments. 
+In the survey the electrodes at an offset in the East, North, West and South are paired with in this case 10 (specified by the option `-d 10`) randomly choosen other electrodes setting in this case 4 x 10 charging experiments. The station spacing is recorded as about 300 (if you have not changed the geometry file). 
 
 The lacation of the stations and electrodes can be plotted to the file `station_positions.png` uisng  
 
@@ -37,7 +37,14 @@ A 3D mesh is generated from `domain.geo` using gmsh with the mesh written to `sy
 Notice the the cubic anomlies are tagged with "Anomaly1", "Anomaly2" and "Anomaly3". The core region excluding the anomalies is tagged "InnerBox"
 while the padding is the tagged "OuterBox". The mesh will have about 135000 nodes. The resolution can be changed by editing `domain.geo`.
 
+The gmsh file ' synth.msh' is converted into an [esys-escript](https://github.com/esys-escript/esys-escript.github.io) mesh file mainly for reasons of performance when reading the mesh under MPI: 
 
+    gmsh2fly.py --silo mesh synth.msh config
+
+The output file name in the `fly` format is specifeid in the configuration file [`config.py`](config.py). The converter aslo generates `mesh.silo` to visualize mesh as it is  
+<p>
+    <img src="mesh.png" width="600" title="Position of measurement stations and chargong electrodes">
+</p>
 
 ....
 
