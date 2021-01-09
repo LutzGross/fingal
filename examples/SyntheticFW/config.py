@@ -179,7 +179,7 @@ w0=0.1
 #. rescaling by the factor 1/alpha0. Typically sqrt(alpha1) is set to the distance of stations.
 #. 
 alpha0=1
-alpha1=1.0
+alpha1=(300.)**2
 #.
 #. this is the same for the modified chargeability GAMMA
 #.
@@ -198,7 +198,7 @@ outfile='sigma'
 #. This defines the core region/region of interest via tags. For instance this region is used to focus output. 
 #. If set to to None no selection is applied and the entire domain is used. 
 #.
-core=['core']
+core=["Anomaly1", "Anomaly2", "Anomaly3", "InnerBox"]
 #.
 #. For an IP inversion the calculation can be split into the conductivity and chargeability part while 
 #. the intermediate result is saved to a restart file to allow for a faster configuration of the chargeability
