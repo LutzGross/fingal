@@ -126,7 +126,7 @@ class SurveyData(object):
 
 
     """
-    OBSTYPES= ['R', 'E', 'ETA', 'GAMMA', 'ERR_R', 'ERR_E', 'ERR_ETA', 'ERR_GAMMA', 'RELERR_R', 'RELERR_E', 'RELERR_ETA', 'RELERR_GAMMA']
+    OBSTYPES= ['R', 'E', 'ETA', 'E0', 'E1', 'E2', 'GAMMA', 'ERR_R', 'ERR_E', 'ERR_ETA', 'ERR_GAMMA', 'RELERR_R', 'RELERR_E', 'RELERR_ETA', 'RELERR_GAMMA']
     def __init__(self, stations={}, observations=[], dipoleInjections=True, dipoleMeasurements=True,  hasInjections=True, default_rel_error=0.01):
         """
         :stations: dictionary of station identifer to coordinates
