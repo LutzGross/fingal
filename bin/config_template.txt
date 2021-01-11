@@ -66,14 +66,14 @@ datafile = '{datafile}'
 #.   * 'E' - electric field intensity per charge current [V/(Am)] 
 #.   * 'ETA' - chargeability  [1]
 #.   * 'GAMMA' - modified chargeability (=ETA/(1-ETA)) [1]
-#.   * 'ERR_R' - resistance [V/A]
-#.   * 'ERR_E' - electric field intensity per charge current [V/(Am)] 
-#.   * 'ERR_ETA' - chargeability  [1]
-#.   * 'ERR_GAMMA' - modified chargeability (=ETA/(1-ETA)) [1]
-#.   * 'RELERR_R' - resistance [1]
-#.   * 'RELERR_E' - electric field intensity per charge current [1] 
-#.   * 'RELERR_ETA' - chargeability  [1]
-#.   * 'RELERR_GAMMA' - modified chargeability (=ETA/(1-ETA)) [1]
+#.   * 'ERR_R' - error resistance [V/A]
+#.   * 'ERR_E' - error electric field intensity per charge current [V/(Am)] 
+#.   * 'ERR_ETA' - error chargeability  [1]
+#.   * 'ERR_GAMMA' - error modified chargeability (=ETA/(1-ETA)) [1]
+#.   * 'RELERR_R' - rel. error resistance [1]
+#.   * 'RELERR_E' - rel. error electric field intensity per charge current [1] 
+#.   * 'RELERR_ETA' - rel. error chargeability  [1]
+#.   * 'RELERR_GAMMA' - rel. error modified chargeability (=ETA/(1-ETA)) [1]
 #.
 datacolumns = {datacolumns}
 #. 
