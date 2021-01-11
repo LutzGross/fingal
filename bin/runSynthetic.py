@@ -14,7 +14,6 @@ parser = argparse.ArgumentParser(description='creates a synthetic survey', epilo
 parser.add_argument('--noise', '-n',  dest='noise', default=0., metavar='NOISE', type=float, help="%% of noise to be added. (default is 0) ")
 parser.add_argument('--fullwaver', '-f', dest='fullwaver',  action='store_true', default=False, help='creates a fullwaver-style survey.')
 parser.add_argument(dest='config', metavar='configfile', type=str, help='python setting configuration')
-
 parser.add_argument('--silo', '-s',  dest='silofile', metavar='SILO', help="silo file for saving mesh file for visualization (no extension) (output if set).")
 parser.add_argument('--plotA', '-A',  dest='plotA', metavar='PLOTA', type=int, default=None, help="electrode A for output (SILO must be set)")
 parser.add_argument('--plotB', '-B',  dest='plotB', metavar='PLOTB', type=int, default=None, help="electrode B for output (SILO must be set)")
@@ -94,15 +93,10 @@ q=whereZero(x-inf(x))+whereZero(x-sup(x))+ whereZero(y-inf(y))+whereZero(y-sup(y
 pde.setValue(q=q)
 
 
-
-
-
-primary_field={}
-primary_potential={}
+primary_field_field={}
 primary_field_solution={}
-primary_field_elements={}
-
-
+primary_potential={}
+primary_field={}
 
 SIGMA0=config.sigma0
 ETA0=config.eta0
@@ -116,191 +110,181 @@ for ip in survey.getListOfInjectionStations():
     else:    
         s.setTaggedValue(config.stationsFMT%ip,1.)
     pde.setValue(y_dirac=s)
-    primary_potential[ip]=pde.getSolution()
-    primary_field[ip]=-grad(primary_potential[ip], ReducedFunction(domain))
-    primary_field_solution[ip]=nodelocators(primary_potential[ip])
-    primary_field_elements[ip]=elementlocators(primary_field[ip]) 
-    txt1=str(primary_potential[ip])
+    primary_field_solution[ip]=pde.getSolution()
+    primary_field_field[ip]=-grad(primary_field_solution[ip], ReducedFunction(domain))
+    primary_potential[ip]=nodelocators(primary_field_solution[ip])
+    primary_field[ip]=elementlocators(primary_field_field[ip]) 
+    txt1=str(primary_field_solution[ip])
     if getMPIRankWorld() == 0:  print("\t%s : %s "%(ip,txt1))
-if getMPIRankWorld() == 0: print(str(len(primary_field))+" primary fields calculated.")
+if getMPIRankWorld() == 0: print(str(len(primary_field_field))+" primary fields calculated.")
 
 def getSecondaryPotentials(sigma_s):
-    secondary_field={}
-    secondary_potential={}
     secondary_field_solution={}
-    secondary_field_elements={}
+    secondary_field_field={}
+    secondary_potential={}
+    secondary_field={}
     pde.setValue(A=sigma_s*kronecker(3), y_dirac=Data())
     
     for ip in survey.getListOfInjectionStations():
     
-        pde.setValue(X=(sigma_s-SIGMA0)*grad(primary_potential[ip]))
-        secondary_potential[ip]=pde.getSolution()
-        secondary_field[ip]=-grad(secondary_potential[ip], ReducedFunction(domain))
-        if usePotentials:
-            secondary_field_solution[ip]=nodelocators(secondary_potential[ip])
-        if useFields:
-            secondary_field_elements[ip]=elementlocators(secondary_field[ip])         
-        txt1=str(secondary_potential[ip])
+        pde.setValue(X=(SIGMA0-sigma_s)*grad(primary_field_solution[ip]))
+        secondary_field_solution[ip]=pde.getSolution()
+        secondary_field_field[ip]=-grad(secondary_field_solution[ip], ReducedFunction(domain))
+        secondary_potential[ip]=nodelocators(secondary_field_solution[ip])
+        secondary_field[ip]=elementlocators(secondary_field_field[ip])         
+        txt1=str(secondary_field_solution[ip])
         if getMPIRankWorld() == 0:  print("\t%s : %s "%(ip,txt1))
-    return secondary_field, secondary_potential, secondary_field_solution, secondary_field_elements
+    return secondary_potential, secondary_field, secondary_field_solution, secondary_field_field
 
 if getMPIRankWorld() == 0: print("secondary  potentials:")
-secondary_field, secondary_potential, secondary_field_solution, secondary_field_elements = getSecondaryPotentials(sigma_true)
-if getMPIRankWorld() == 0: print(str(len(secondary_field))+" secondary potentials calculated.")
+secondary_potential, secondary_field, secondary_field_solution, secondary_field_field = getSecondaryPotentials(sigma_true)
+if getMPIRankWorld() == 0: print(str(len(secondary_field_solution))+" secondary potentials calculated.")
 
 if getMPIRankWorld() == 0: print("secondary  potentials chargeability:")
-secondary_field_hat, secondary_potential_hat, secondary_field_solution_hat, secondary_field_elements_hat = getSecondaryPotentials(sigma_true*gamma_true/(1+gamma_true)/ETA0)
-if getMPIRankWorld() == 0: print(str(len(secondary_field_hat))+" secondary potentials chargeability calculated.")
+secondary_potential_hat, secondary_field_hat, secondary_field_solution_hat, secondary_field_field_hat = getSecondaryPotentials(sigma_true*1/(1+gamma_true)/(1-ETA0))
+if getMPIRankWorld() == 0: print(str(len(secondary_field_field_hat))+" secondary potentials chargeability calculated.")
 
-1/0
-#======================================
-if hasattr(config, 'dipoles'):
-    dipoles=config.dipoles
-else:
-    dipoles=False
-if dipoles:
-    print("Dipoles at stations are used.")
+dVp=survey.makeResistencePrediction(values=primary_potential)
+dVs1=survey.makeResistencePrediction(values=secondary_potential)
+dVs2=survey.makeResistencePrediction(values=secondary_potential_hat)
+dEp=survey.makeResistencePrediction(values=primary_field)
+dEs1=survey.makeResistencePrediction(values=secondary_field)
+dEs2=survey.makeResistencePrediction(values=secondary_field_hat)
 
+#  now the data file can be created:
+if getMPIRankWorld() == 0:
 
-
-
-
-
-# set the reference conductivity:
-sigma_true=Scalar(config.sigma_background,Function(domain))
-gamma_true=Scalar(config.gamma_background,Function(domain))
-for k in config.sigma_true:
-    sigma_true.setTaggedValue(k, config.sigma_true[k])
-    gamma_true.setTaggedValue(k, config.gamma_true[k])
-
-if isinstance(config.sigma0, dict):
-    sigma0=Scalar(config.sigma_background,Function(domain))
-    for k in config.sigma0:
-        sigma0.setTaggedValue(k, config.sigma0[k])
-else:
-    sigma0=config.sigma0
-
-if isinstance(config.gamma0, dict):
-    gamma0=Scalar(config.gamma_background,Function(domain))
-    for k in config.sigma0:
-        gamma0.setTaggedValue(k, config.gamma0[k])
-else:
-    gamma0=config.gamma0
-   
-print("sigma 0 = %s"%(str(sigma0)))
-print("true sigma = %s"%(str(sigma_true)))
-print("gamma 0 = %s"%(str(gamma0)))
-print("true gamma = %s"%(str(gamma_true)))
-
-
-
-
-print("secondary potential:")
-secondary_field={}
-secondary_fieldHAT={}
-
-secondary_potential={}
-secondary_potentialHAT={}
-secondary_field_loc={}
-secondary_fieldHAT_loc={}
-
-pde.setValue(A=sigma_true*kronecker(3), y_dirac=Data())
-pdeHAT.setValue(A=sigma_true*kronecker(3), y_dirac=Data())   
-
-for ip in survey.getListOfInjectionStations():
-    
-    pde.setValue(X=(sigma0-sigma_true)*grad(primary_potential[ip]))
-    secondary_potential[ip]=pde.getSolution()
-    secondary_field[ip]=-grad(secondary_potential[ip], ReducedFunction(domain))
-    secondary_field_loc[ip]=locators(secondary_field[ip])
-    
-    pdeHAT.setValue(X=sigma_true*gamma_true*grad(primary_potential[ip]+secondary_potential[ip]) )
-    secondary_potentialHAT[ip]=pdeHAT.getSolution()
-    secondary_fieldHAT[ip]=-grad(secondary_potentialHAT[ip], ReducedFunction(domain))
-    secondary_fieldHAT_loc[ip]=locators(secondary_fieldHAT[ip])
-
-
-    print( "%s : %s : %s"%(ip, secondary_potential[ip], secondary_potentialHAT[ip]))
-print(str(len(secondary_field))+" secondary fields calculated.")
-
-dVp=survey.makeResistencePrediction(values=primary_field_loc)
-dVs=survey.makeResistencePrediction(values=secondary_field_loc)
-dVsHAT=survey.makeResistencePrediction(values=secondary_fieldHAT_loc)
-
-# create a data vector
-dataindex={}
-data=[]
-for A,B, M in dVp:
-    xA=survey.getStationLocation(A)
-    xB=survey.getStationLocation(B)
-    xM=survey.getStationLocation(M)
-    dataindex[(A,B,M)]=len(data)
-
-    if dipoles:
-        E=dVp[(A,B,M)]+dVs[(A,B,M)]
-        dE=dVsHAT[(A,B,M)]-dVs[(A,B,M)]
-        data.append((E[0], E[1], 0., dE[0], dE[1], 0.))
+    if args.noise>0:
+        std=args.noise/100.
+        print("%g %% noise added."%args.noise)
     else:
-        E= length(dVp[(A,B,M)]+dVs[(A,B,M)])  
-        gamma=inner(dVsHAT[(A,B,M)], dVs[(A,B,M)]+dVp[(A,B,M)])/E**2     
-        data.append((E, gamma))
-# add noise:
-
-data=np.array(data)
-if args.noise>0:
-    std=args.noise/100.
-    for c in range(data.shape[1]):
-        pert=np.random.normal(0.0, scale=std, size=data.shape[0])
-        data[:,c]*=(1+pert)    
-    print("%g %% noise added."%args.noise)
-else:
-    print("no noise added.")
+        std=None
+        print("no noise added.")
+    n=0
+    f=open(config.datafile,'w')
     
+    FMTX="%g"+config.datadelimiter+" %g"+config.datadelimiter+" %g"+config.datadelimiter
+    FMTG="%g"+config.datadelimiter+" "    
+    FMTI="%d"+config.datadelimiter+" "
+    for t in survey.tokenIterator(): 
+        out=""
+        if survey.hasDipoleInjections():
+            A=t[0]
+            B=t[1]
+            if config.usesStationCoordinates:
+                out=FMTX%survey.getStationLocation(A)+FMTX%survey.getStationLocation(B)
+            else:
+                out=FMTI%A + FMTI%B
+            m=t[2:]
+            s=t[:2]
+        else:    
+            A=t[0]
+            s=t[:1]
+            m=t[1:]
+            if config.usesStationCoordinates:
+                out=FMTX%survey.getStationLocation(A)
+            else:
+                out=FMTI%A
 
-f=open(config.datafile,'w')
-if config.usesStationCoordinates:
-    if dipoles:
-        FMT=("%10.15e"+config.datadelimiter)*9+("%10.15e"+config.datadelimiter)*5+" %10.15e"+"\n"
-        for A,B, M in dataindex:
-            xA=survey.getStationLocation(A)
-            xB=survey.getStationLocation(B)
-            xM=survey.getStationLocation(M)        
-            f.write(FMT%(xA[0], xA[1], xA[2], xB[0], xB[1], xB[2], xM[0], xM[1], xM[2], data[dataindex[(A,B,M)],0],data[dataindex[(A,B,M)],1], data[dataindex[(A,B,M)],2], data[dataindex[(A,B,M)],3],data[dataindex[(A,B,M)],3],data[dataindex[(A,B,M)],5]))
-    else:
-        FMT=("%10.15e"+config.datadelimiter)*9+"%10.15e"+config.datadelimiter+"%10.15e"+"\n"
-        for A,B, M in dataindex:
-            xA=survey.getStationLocation(A)
-            xB=survey.getStationLocation(B)
-            xM=survey.getStationLocation(M)        
-            f.write(FMT%(xA[0], xA[1], xA[2], xB[0], xB[1], xB[2], xM[0], xM[1], xM[2], data[dataindex[(A,B,M)],0],data[dataindex[(A,B,M)],1]  ))
-else:
-    if dipoles:
-        FMT=("%d"+config.datadelimiter)*3+("%10.15e"+config.datadelimiter)*5+"%10.15e"+"\n"
-        for A,B, M in dataindex:
-            f.write(FMT%(A,B,M, data[dataindex[(A,B,M)],0], data[dataindex[(A,B,M)],1], data[dataindex[(A,B,M)],2], data[dataindex[(A,B,M)],3], data[dataindex[(A,B,M)],4], data[dataindex[(A,B,M)],5]))
-    else:
-        FMT=("%d"+config.datadelimiter)*3+"%10.15e"+config.datadelimiter+"%10.15e"+"\n"
-        for A,B, M in dataindex:
-            f.write(FMT%(A,B,M, data[dataindex[(A,B,M)],0],data[dataindex[(A,B,M)],1] ))
-
-print(str( len(dVp))+" measurement written to file "+config.datafile)
+        if survey.hasDipoleMeasurements():
+            M=m[0]
+            N=m[1]
+            if config.usesStationCoordinates:
+                out+=FMTX%survey.getStationLocation(M)+FMTX%survey.getStationLocation(N)
+            else:
+                out+=FMTI%M + FMTI%N
+            dVpm=dVp[s+(M,)]-dVp[s+(N,)]
+            dVs1m=dVs1[s+(M,)]-dVs1[s+(N,)]
+            dVs2m=dVs2[s+(M,)]-dVs2[s+(N,)]
+            dEp=dEp[s+(M,)]-dEp[s+(N,)]
+            dEp1=dEp1[s+(M,)]-dEp1[s+(N,)]
+            dEp2=dEp2[s+(M,)]-dEp2[s+(N,)]
+        else:    
+            M=m[0]
+            if config.usesStationCoordinates:
+                out+=FMTX%survey.getStationLocation(M)
+            else:
+                out+=FMTI%M
+            dVpm=dVp[s+(M,)]
+            dVs1m=dVs1[s+(M,)]
+            dVs2m=dVs2[s+(M,)]
+            dEpm=dEp[s+(M,)]
+            dEs1m=dEs1[s+(M,)]
+            dEs2m=dEs2[s+(M,)]
+            
+        R=(dVs1m+dVpm)
+        Rhat=(dVs2m+dVpm)/(1-ETA0)
+        E=(dEs1m+dEpm)
+        Ehat=(dEs2m+dEpm)/(1-ETA0)
+        EI=sqrt(E[0]**2+E[1]**2+E[2]**2)
+        if useFields:
+            GAMMA=inner(Ehat-E, E)/EI**2           
+        else:
+            GAMMA=(R-Rhat)/R
+        ETA=GAMMA/(GAMMA+1)
+        for o in config.datacolumns:
+            if std:
+                pert=np.random.normal(0.0, scale=std)
+            else:
+                pert=0
+            if o is 'R': # resistance [V/A]
+                out+=FMTG%(R*(1+pert))
+            elif o is 'E': #  electric field intensity per charge current [V/(Am)]
+                out+=FMTG%(EI*(1+pert))
+            elif o is 'E0': #  electric field intensity per charge current [V/(Am)]
+                out+=FMTG%(E[0]*(1+pert))
+            elif o is 'E1': #  electric field intensity per charge current [V/(Am)]
+                out+=FMTG%(E[1]*(1+pert))
+            elif o is 'E2': #  electric field intensity per charge current [V/(Am)]
+                out+=FMTG%(E[2]*(1+pert))
+            elif o is 'ETA': # chargeability  [1]
+                out+=FMTG%(ETA*(1+pert))
+            elif o is 'GAMMA': # modified chargeability (=ETA/(1-ETA)) [1]
+                out+=FMTG%(GAMMA*(1+pert))
+            elif o is 'ERR_R': # resistance [V/A]
+                ERR_R=R*std
+                out+=FMTG%ERR_R
+            elif o is 'ERR_E': # electric field intensity per charge current [V/(Am)] 
+                ERR_E=E*std
+                out+=FMTG%ERR_E
+            elif o is 'ERR_ETA': # chargeability  [1]
+                ERR_ETA=ETA*std
+                out+=FMTG%ERR_ETA
+            elif o is 'ERR_GAMMA': #  modified chargeability (=ETA/(1-ETA)) [1]
+                ERR_GAMMA=GAMMA*std
+                out+=FMTG%ERR_GAMMA
+            elif o is 'RELERR_R': # resistance [1]
+                RELERR_R=std
+                out+=FMTG%RELERR_R                
+            elif o is 'RELERR_E': # electric field intensity per charge current [1]
+                ERR_GAMMA=std
+                out+=FMTG%ERR_GAMMA
+            elif o is 'RELERR_ETA': # chargeability  [1]
+                RELERR_ETA=std
+                out+=FMTG%RELERR_ETA
+            elif o is 'RELERR_GAMMA': #  modified chargeability (=ETA/(1-ETA)) [1]
+                RELERR_GAMMA=std
+                out+=FMTG%RELERR_GAMMA        
+        f.write(out[:-3]+"\n")
+        n+=1
+    f.close()
+    print(n," measurement written to file "+config.datafile)   
 
 if args.silofile is not None:
     sigma_true.expand()
-    A0, B0, M = list(dVp.keys())[0]
+    gamma_true.expand()
     if args.plotA is not None:
         A=int(args.plotA)
     else:
-        A=A0
+        A=t[0]
     if args.plotB is not None:
         B=int(args.plotB)
     else:
-        B=B0
-    Es=secondary_field[A]-secondary_field[B]
-    EsHAT=secondary_fieldHAT[A]-secondary_fieldHAT[B]
-    E=primary_field[A]-primary_field[B]+Es
-    
-    gamma=inner(EsHAT, E)/inner(E, E)
+        B=t[1]
+    Es=secondary_field_field[A]-secondary_field_field[B]
+    Es_hat=(secondary_field_field_hat[A]-secondary_ffield_field_hat[B])/(1-ETA0)
+    E=primary_field_field[A]-primary_field_field[B]+Es
+    gamma=inner(Es_hat, E)/inner(E, E)
 
-    saveSilo(args.silofile,tag=makeTagField(ReducedFunction(domain)), sigma_true=sigma_true, gamma=gamma, E_secondary=Es, Ehat_secondary=EsHAT,  E=E)
+    saveSilo(args.silofile,tag=makeTagField(ReducedFunction(domain)), sigma_true=sigma_true, gamma_true=gamma_true, gamma=gamma, Es=Es, Es_hat=EsHAT,  E=E)
     print(args.silofile+".silo with tags has been generated for injection [%d, %d]"%(A,B))
