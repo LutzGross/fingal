@@ -118,11 +118,11 @@ sigma_background=sigma0
 #.
 #. reference chargeability (property function p = log(eta/eta0))
 #.   
-eta0=0.01
+eta0=0.001
 #.
 #. chargeability outside the region of interest where the inversion happens:
 #.
-eta_background=eta0
+eta_background=0.01
 #.
 #. The function defines the true conductivity and modified chargeability. 
 #. Obviously this function is used when synthetic data are constructed or for testing and validation.
