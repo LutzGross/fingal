@@ -34,7 +34,7 @@ stationsFMT = 's%s'
 #. averaged to compare with data when predictions are not available at stations. This should
 #. be in the order of the element size near stations.
 #. 
-L_stations=1.
+L_stations=0.01
 #.
 #. If True adjustment of station location is allowed to match mesh positions.
 #.
@@ -178,7 +178,7 @@ w1=0
 #. 
 #. weighting for the |m|^2 term
 #.
-w0=0.1
+w0=1e-12
 #.
 #. property function p is the smoothed version of m. It is constructed by 
 #. solving 
