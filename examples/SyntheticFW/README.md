@@ -16,7 +16,7 @@ The core part shows the three anomalies and the position of charging electrodes 
 in the padding region which is added to eliminate boundary effects a coarser mesh is used. We will create a synthetic data set containing 
 electric field intensity and (modified) chargeability [Missing reference](XX). 
 
-The first step is to extract the location of the charging electrodes and recording stations from the `domain.geo` to create the file of station locations `stations.csv` as defined in the configuration file [`config.py`](config.py) and to generate a schedule file `synth_data.csv`  (again the name is defined in the configuration file) which will later be used to run the virtual survey: 
+The first step is to extract the location of the charging electrodes and recording stations from the 'domain.geo' to create the file of station locations 'stations.csv' as defined in the configuration file [`config.py`](config.py) and to generate a schedule file 'synth_schedule.csv'  (again the name is defined in the configuration file) which will later be used to run the virtual survey: 
 
     ./mkSchedule.py -d 10 domain.geo config
 
@@ -50,6 +50,26 @@ Notice that the the converter includes the stations and electrodes into the `fly
 Now we can create synthetic survey data:
 
     runSynthetic.py -n 5 config
+
+In this case the columns electric field intensity 'E' and modified chargeability 'GAMMA' as secified by the `datacolumns` variable in the 
+configuration file are calculatated for the survey defined by 'synth_schedule.csv'. A new file 'synth_data.csv' is created. It defines the input for the inversion.
+
+To run the inversion use
+
+    runIPFieldinversion.py --sigmaOnly -d config
+
+With the '--sigmaOnly' option only the inversion for conductivity is completed and a restart file is created which is creating input for the 
+chargeability inversion. The option '-d' switches on additional output during the iteration. When completed the results file 'sigma.silo' is written 
+where the file name is taken from the configuration file. Support for VTK file out is provided via the '--vtk' option. 
+
+
+
+
+    runIPFieldinversion.py --restart -d config
+
+
+
+
 
 
 by @LutzGross
