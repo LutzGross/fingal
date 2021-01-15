@@ -52,7 +52,22 @@ Now we can create synthetic survey data:
     runSynthetic.py -n 5 config
 
 In this case the columns electric field intensity 'E' and modified chargeability 'GAMMA' as secified by the `datacolumns` variable in the 
-configuration file are calculatated for the survey defined by 'synth_schedule.csv'. A new file 'synth_data.csv' is created. It defines the in put for the inversion.
+configuration file are calculatated for the survey defined by 'synth_schedule.csv'. A new file 'synth_data.csv' is created. It defines the input for the inversion.
+
+To run the inversion use
+
+    runIPFieldinversion.py --sigmaOnly -d config
+
+With the '--sigmaOnly' option only the inversion for conductivity is completed and a restart file is created which is creating input for the 
+chargeability inversion. The option '-d' switches on additional output during the iteration. When completed the results file 'sigma.silo' is written 
+where the file name is taken from the configuration file. Support for VTK file out is provided via the '--vtk' option. 
+
+
+
+
+    runIPFieldinversion.py --restart -d config
+
+
 
 
 
