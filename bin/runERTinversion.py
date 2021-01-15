@@ -108,7 +108,7 @@ if args.optimize or args.testSigma0:
     if args.testSigma0: 
         sys.exit()
     else:
-        costf.setSigma0(sigma_opt)
+        costf.scaleSigma0(f_opt)
 
 # test gradient:
 if False:
