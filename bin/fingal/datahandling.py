@@ -254,13 +254,50 @@ class SurveyData(object):
 
     def getFieldIntensityData(self, token):
         return self.getDataRecord(token, datatype='E')
+    def getFieldIntensityRelError(self, token):
+        if self.hasDataType("RELERR_R"):
+            return self.getDataRecord(token, datatype='RELERR_R')
+        elif self.hasDataType("ERR_E"):
+            r=self.getDataRecord(token, datatype='E')
+            e=self.getDataRecord(token, datatype='ERR_E')
+            if abs(r)>0:
+                return abs(e/r)
+            else:    
+                return e
+        else:
+            return self.default_rel_error
+
+    def getChargeabilityData(self, token):
+        return self.getDataRecord(token, datatype='ETA')
+
+    def getModifiedChargeabilityData(self, token):
+        if self.hasDataType("GAMMA"):
+            return self.getDataRecord(token, datatype='GAMMA')
+        else:
+            e=self.getChargeabilityData(token)
+            return e/(1-e)
+        
+    def getModifiedChargeabilityRelError(self, token):
+        if self.hasDataType("RELERR_GAMMA"):
+            return self.getDataRecord(token, datatype='RELERR_GAMMA')
+        elif self.hasDataType("ERR_GAMMA"):
+            r=self.getDataRecord(token, datatype='GAMMA')
+            e=self.getDataRecord(token, datatype='ERR_GAMMA')
+            if abs(r)>0:
+                return abs(e/r)
+            else:    
+                return e
+        else:
+            return self.default_rel_error
+
+
+    
     def getFieldData(self, token):
         return self.getDataRecord(token, datatype='E0'), self.getDataRecord(token, datatype='E1'), self.getDataRecord(token, datatype='E2')
+    
     def getGravityData(self, token):
         return self.getDataRecord(token, datatype='gz')
 
-    def getChargeabilityData(self, token):
-        return self.getDataRecord(token, datatype='gamma')
     
     def getFieldDifferenceData(self, token):
         return self.getDataRecord(token, datatype='dE0'), self.getDataRecord(token, datatype='dE1'), self.getDataRecord(token, datatype='dE2')
