@@ -157,11 +157,11 @@ class PotentialERT(MeteredCostFunction):
         defect*=self.sfactor
         return sigma_opt, 1./f_opt, defect
     
-    def setSigma0(self, sigma0=0.01):
+    def scaleSigma0(self, f=1.):
         """
-        set a new value for sigma0
+        rescales sigma0 by factor f
         """
-        self.sigma0=sigma0
+        self.sigma0*=f
         
     def getSigma(self, m, isSmoothed=False):
         """
