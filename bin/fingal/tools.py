@@ -5,7 +5,7 @@ by l.gross@uq.edu.au, Dec 2020.
 """
 
 
-from esys.escript import Scalar, getMPIRankWorld, integrate, hasFeature
+from esys.escript import Scalar, getMPIRankWorld, integrate, hasFeature, Function
 from esys.escript.linearPDEs import LinearSinglePDE, SolverOptions
 
 def makeTagField(functionspace):
