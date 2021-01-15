@@ -1,25 +1,27 @@
 #!/usr/bin/python3
 from esys.escript import *
 import importlib, sys, os
+from datetime import datetime
 sys.path.append(os.getcwd())
-from ERTtools import *
+from fingal import readElectrodeLocations, readSurveyData, makeTagField, DCInversionByFieldIntensity, getR2, ChargeabilityInversionByField
 from esys.finley import ReadMesh
 import numpy as np
 from esys.weipa import saveVTK, saveSilo
 import argparse
-#from esys.escript.pdetools import Locator, ArithmeticTuple, MaskFromTag
+from esys.downunder import MinimizerLBFGS
+from esys.escript.pdetools import MaskFromTag
 import logging
 
 
 parser = argparse.ArgumentParser(description='driver to invert an electric field intensity survey (aka Fullwaver). Measurements may not be dipoles.', epilog="l.gross@uq.edu.au, version Jan 2021")
 parser.add_argument(dest='config', metavar='configfile', type=str, help='python setting configuration (no py extension)')
-parser.add_argument('--sigmaonly', '-s',  dest='sigmaonly', action='store_true', default=False, help="solve for conductivity only.")
+parser.add_argument('--sigmaOnly', '-s',  dest='sigmaonly', action='store_true', default=False, help="solve for conductivity only.")
 parser.add_argument('--restart', '-r', dest = 'restart', action ='store_true', default=False, help='restart for chargeability from restart file with conductivity.')
-parser.add_argument('--optimize', '-o',  dest='optimize', action='store_true', default=False, help="Calibrated the value for sigma0 before iteration starts.")
+parser.add_argument('--optimize', '-o',  dest='optimize', action='store_true', default=False, help="Calibrated the value for sigma0 before iteration starts.(ignored)")
 parser.add_argument('--testSigma0', '-t',  dest='testSigma0', action='store_true', default=False, help="Calculates a new value for sigma0 and then stops.")
 parser.add_argument('--vtk', '-v',  dest='vtk', action='store_true', default=False, help="VTK format is used for output otherwise silo is used.")
 parser.add_argument('--xyz', '-x',  dest='xyz', action='store_true', default=False, help="XYZ file for conductivity is create.")
-parser.add_argument('--truesigma', '-t',  dest='truesigma', action='store_true', default=False, help="Use true sigma for chargeability inversion.")
+parser.add_argument('--useTrueSigma', '-u',  dest='truesigma', action='store_true', default=False, help="Use true sigma for chargeability inversion.")
 parser.add_argument('--debug', '-d',  dest='debug', action='store_true', default=False, help="shows more information.")
 args = parser.parse_args()
 
@@ -62,8 +64,9 @@ else:
 # define true properties if available:
 if not config.true_properties is None:
     sigma_true, gamma_true = config.true_properties(domain)
+    txt1, txt2 = str(sigma_true).replace("\n", ";"), str(gamma_true).replace("\n", ";")
     if getMPIRankWorld() == 0:
-        print("True properties set:\n\tsigma = %s\n\tgamma = %s"%(sigma_true, gamma_true))
+        print("True properties set:\n\tsigma = %s\n\tgamma = %s"%(txt1, txt2))
 else:
     assert args.truesigma, 'If true conductivity is used true_properties must be set.'
 
@@ -80,17 +83,18 @@ if not args.restart and not args.truesigma:
     else:
         sigma0=config.sigma0
     if getMPIRankWorld() == 0: 
-        print("Reference conductivity sigma0 = %s"%(str(sigma0)))
+        txt1=str(sigma0)
+        print("Reference conductivity sigma0 = %s"%(txt1))
         
     # create an instance of the 
-    costf=FieldFieldIntensityInversion(domain, data=survey, L_stations=config.L_stations, w0=config.w0, w1=config.w1, 
-                                            alpha0=config.alpha0, alpha1=config.alpha1, 
-                                            sigma0=sigma0, region_fixed=fixedm, 
-                                            stationsFMT=config.stationsFMT, 
-                                            adjustStationLocationsToElementCenter=config.adjustStationLocationsToElementCenter,
-                                            weightLogDefect=config.weightLogDefect, logclip=config.clip_property_function)
+    costf=DCInversionByFieldIntensity(domain, data=survey, L_stations=config.L_stations, w0=config.w0, w1=config.w1, 
+                                  alpha0=config.alpha0, alpha1=config.alpha1, 
+                                  sigma0=sigma0, region_fixed=fixedm, 
+                                  stationsFMT=config.stationsFMT, 
+                                  adjustStationLocationsToElementCenter=config.adjustStationLocationsToElementCenter,
+                                  weightLogDefect=config.weightLogDefect, logclip=config.clip_property_function)
     # this is just for testing:
-    if True:
+    if False:
         x=length(domain.getX())
         m=x/Lsup(x)*0.01
         #m=Scalar(0.2, Solution(domain) ) 
@@ -117,13 +121,13 @@ if not args.restart and not args.truesigma:
             print("Better value for sigma0 = %s, correction factor %s, defect = %s"%(sigma_opt, f_opt,  defect))
             print("update your configuration file %s"%args.config)
             if args.testSigma0: 
-                print("And goodbye")
+                print("And goodbye!")
             else:
                 print("Sigma0 will be updated.") 
         if args.testSigma0: 
             sys.exit()
         else:
-            costf.setSigma0(sigma_opt)
+            costf.scaleSigma0(f_opt)
             
     # set up solver:
     solver=MinimizerLBFGS(J=costf, m_tol=config.tolerance, J_tol=config.tolerance*10, imax=config.imax)
@@ -135,15 +139,17 @@ if not args.restart and not args.truesigma:
     m=solver.getResult()            
     solver.logSummary()
     sigma=costf.getSigma(m)
+
     del costf, solver
-    
+ 
     if not config.true_properties is None:
-        R2=getR2(log(sigma_true), log(sigma))
+        sigmai=interpolate(sigma, Function(domain))   
+        R2=getR2(log(sigma_true), log(sigmai))
         if getMPIRankWorld() == 0:
             print("R^2 for log(conductivity):")
             print("\ttotal domain = %s"%R2)
-        if config.test_region:
-            R2=getR2(log(sigma_true), log(sigma), chi=insertTaggedValues(Scalar(0., sigma.getFunctionSpace()), **{ t: 1 for t in config.core }))
+        if config.core:
+            R2=getR2(log(sigma_true), log(sigmai), chi=insertTaggedValues(Scalar(0., sigmai.getFunctionSpace()), **{ t: 1 for t in config.core }))
             if getMPIRankWorld() == 0: print("\tcore = %s"%R2)
 
 
@@ -153,26 +159,29 @@ if not args.restart and not args.truesigma:
         if getMPIRankWorld() == 0: print("restart file %s for conductivity created."%config.restartfile)
         
 else:
-    if if not config.true_properties is None:
-        sigma=sigma_true.copy()
-        if getMPIRankWorld() == 0: print(">>true sigma is used.") 
-    else:
+    if args.restart:
         sigma=load(config.restartfile, domain)
         if getMPIRankWorld() == 0: print(">>restart from file %s."%config.restartfile)
-
+    else:
+        if not config.true_properties is None:
+            sigma=sigma_true.copy()
+            if getMPIRankWorld() == 0: print(">>true sigma is used.") 
+        else:
+            raise ValueError("No sigma defined.")
+        
 # now we start the inversion for chargeability
 txt=str(sigma)
 if getMPIRankWorld() == 0: print("sigma = ",txt)
 
 if not args.sigmaonly:
     print("**** Start chargeability inversion: w0=%s, w1=%s, alpha0=%s, alpha1=%s"%(config.w0gamma, config.w1gamma, config.alpha0gamma, config.alpha1gamma ))
-    costf=FieldChargeabilityInversion(domain,data=survey, L_stations=config.L_stations, w0=config.w0gamma, w1=config.w1gamma, 
-                                                      alpha0=config.alpha0gamma, alpha1=config.alpha1gamma, gamma0=gamma0, 
+    costf=ChargeabilityInversionByField(domain,data=survey, L_stations=config.L_stations, w0=config.w0gamma, w1=config.w1gamma, 
+                                                      alpha0=config.alpha0gamma, alpha1=config.alpha1gamma, gamma0=config.eta0/(1-config.eta0), 
                                                       sigma=sigma, region_fixed=fixedm, 
-                                                      stationsFMT=config.stationsFMT,
+                                                      stationsFMT=config.stationsFMT, weightLogDefect=config.weightLogDefect, logclip=config.clip_property_function,
                                                       adjustStationLocationsToElementCenter=config.adjustStationLocationsToElementCenter)
     # this is just for testing:
-    if True:
+    if False:
         x=length(domain.getX())
         m=x/Lsup(x)*0.01
         #m=Scalar(0.2, Solution(domain) ) 
@@ -208,21 +217,22 @@ if not args.sigmaonly:
     txt2=str(eta)
     if getMPIRankWorld() == 0: print(f"gamma = {txt1}, eta={txt2}")
 
-            
     if hasattr(config, 'gamma_true') and config.gamma_true:
 
-        R2=getR2(gamma_true, gamma)
-        R2log=getR2(log(gamma_true), log(gamma))
+        gammai=interpolate(gamma, ReducedFunction(domain))  
+
+        R2=getR2(gamma_true, gammai)
+        R2log=getR2(log(gamma_true), log(gammai))
 
 
         print("R^2 modified chargeability gamma:")        
         print("\ttotal domain  = %s"%R2)
         print("\tlog, total domain = %s"%R2log)
 
-        if config.test_region:
-            mask=insertTaggedValues(Scalar(0., sigma.getFunctionSpace()), **{ t: 1 for t in config.core })
-            R2=getR2(gamma_true, gamma, chi=mask)
-            R2log=getR2(log(gamma_true), log(gamma), chi=mask)
+        if config.core:
+            mask=insertTaggedValues(Scalar(0., gammai.getFunctionSpace()), **{ t: 1 for t in config.core })
+            R2=getR2(gamma_true, gammai, chi=mask)
+            R2log=getR2(log(gamma_true), log(gammai), chi=mask)
             if getMPIRankWorld() == 0: 
                 print("\tcore = %s"%R2)
                 print("\tlog, core = %s"%R2log)
