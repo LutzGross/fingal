@@ -13,7 +13,7 @@ For installation (sorry no setup.py yet) clone the `fingal` repository
 and add the path  to the `fingal` to your executable and python path:
 
     export PATH=${PATH}:${HOME}/fingal/bin
-    export PYTHONPATH=${PYTHONPATH}:${HOME}/fingal/lib
+    export PYTHONPATH=${PYTHONPATH}:${HOME}/fingal/bin
 
 Depending on your `esys-escript` installation you also have to add the path to 
 the `esys-escript` installation to `PATH`, `LD_LIBRARY_PATH` and `PYTHONPATH`.
