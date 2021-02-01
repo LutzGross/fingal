@@ -34,11 +34,14 @@ which is creating a `sigma.silo`:
 <p>
     <img src="sigmai.png" width="600" title="surface mesh">
 </p>
-
-
+Inversion for the chargeability is restarted from the restart file `sigmarestart`:
 
     runIPFieldinversion.py --restart -d config
 
+which is updating the file `sigma.silo`: 
+<p>
+    <img src="etai.png" width="600" title="surface mesh">
+</p>
 
 
 
