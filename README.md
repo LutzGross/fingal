@@ -24,9 +24,19 @@ the `esys-escript` installation to `PATH`, `LD_LIBRARY_PATH` and `PYTHONPATH`.
 - Synthetic FullWaver data inversion: [SyntheticFW](examples/SyntheticFW/README.md)
 - Volcano with FullWaver data: [VolcanoFW](examples/VolcanoFW/README.md)
 
-# List of Functions
+# List of Command Line Functions
 
-# 
+This is a list of some of the command line function provided. Use the command line option `-h` to see the options.
 
+- `mkConfig.py` : creates an initial configuartion file that need to be adjudted to the specific case.
+ - `mkMesh.py`: uses a station file to set up a gmsh geo file to generate finite element mesh
+- `runSynthetic.py`: run a synthetic survey using a given schedule. 
+- `convertZZ.py`: converts a ZZ survey file into a station and data file.
+- `fly2silo.py`: creates a silo 3D visualization file from fly mesh file.
+- `gmsh2fly.py`: converts a gmsh msh file to fly mesh file.
+- `mph2fly.py`: converts a COMSOL mph file to fly mesh file.
+- `plotStations.py`: plot the survey stations in plane view. 
+- `runERTinversion.py`: runs ERT (an IP) inversion using potential fields.
+- `runIPFieldinversion.py`: runs ERT (an IP) inversion using electric field data (aka FullWaver).
 
 by @LutzGross
