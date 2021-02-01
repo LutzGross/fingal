@@ -1,17 +1,19 @@
-# Synthetic Field Intensity Inversion (aka [FullWaver](http://www.iris-instruments.com/v-fullwaver.html))
+# Volcano: Electric Field Intensity Inversion (aka [FullWaver](http://www.iris-instruments.com/v-fullwaver.html))
 
-This is synthetic case with three cubic anomalies where
-one cube defines anomalies in conductivity and charageability,
-one cube defines an anomaliy in conductivity and
-one cube defines an anomaliy in charageability. The doamin is defines in the gmsh file `domain.geo` which can be visualized in  [gmsh](https://gmsh.info/): 
+This is an expample for inverting IP data for a geometry with topography. The (still synthetic) data are collected using the FullWaver approach using the intensity of the electric field and the projection of the secondary electric field incerement to the primary electric field as data. 
+ 
 
-    cd examples/SuntheticFW
-    gmsh domain.geo    
+    cd examples/VolvanoFW
     
-and show this geometry setup:
+The `config.py` file is the configuration file. A plot `loc.png` of the stations can be generated:
+
+    plotStations.py config
+    
 <p>
-    <img src="domain.png" width="600" title="geometry of the domain">
+    <img src="loc.png" width="600" title="setup of stations">
 </p>
+
+
 The core part shows the three anomalies and the position of charging electrodes and recording stations. In the core region a finer mesh is used while
 in the padding region which is added to eliminate boundary effects a coarser mesh is used. We will create a synthetic data set containing 
 electric field intensity and (modified) chargeability [Missing reference](XX). 
