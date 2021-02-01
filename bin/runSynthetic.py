@@ -282,9 +282,9 @@ if args.silofile is not None:
     else:
         B=t[1]
     Es=secondary_field_field[A]-secondary_field_field[B]
-    Es_hat=(secondary_field_field_hat[A]-secondary_ffield_field_hat[B])/(1-ETA0)
+    Es_hat=(secondary_field_field_hat[A]-secondary_field_field_hat[B])/(1-ETA0)
     E=primary_field_field[A]-primary_field_field[B]+Es
     gamma=inner(Es_hat, E)/inner(E, E)
 
-    saveSilo(args.silofile,tag=makeTagField(ReducedFunction(domain)), sigma_true=sigma_true, gamma_true=gamma_true, gamma=gamma, Es=Es, Es_hat=EsHAT,  E=E)
+    saveSilo(args.silofile,tag=makeTagField(ReducedFunction(domain)), sigma_true=sigma_true, gamma_true=gamma_true, gamma=gamma, Es=Es, Es_hat=Es_hat,  E=E)
     print(args.silofile+".silo with tags has been generated for injection [%d, %d]"%(A,B))
