@@ -5,7 +5,9 @@ This is an expample for inverting IP data for a geometry with topography. The (s
 
     cd examples/VolvanoFW
     
-The `config.py` file is the configuration file. A plot `loc.png` of the stations can be generated:
+The `config.py` file is the configuration file. Please read [SyntheticFW](../SyntheticFW/README.md) for more details. 
+
+A plot `loc.png` of the stations can be generated:
 
     plotStations.py config
     
