@@ -100,13 +100,22 @@ class IPModel(object):
         
         """
         responses=np.zeros((self.numDataMax, len(sources)), dtype=float)
-        for k, ip in enumerate(sources):
-            for s,i in self.dataDCMaps[ip].items():
-                responses[i,k]=self.survey.getDataRecord((ip, s[0], s[1]), datatype='R')
-            for s,i in self.dataIPMaps[ip].items():
-                d=self.survey.getDataRecord((ip, s[0], s[1]), datatype='R')
-                e=self.survey.getDataRecord((ip, s[0], s[1]), datatype='ETA')
-                responses[i,k]=e/(1-e)*d
+        if self.survey.hasDipoleInjections():
+            for k, ip in enumerate(sources):
+                for s,i in self.dataDCMaps[ip].items():
+                    responses[i,k]=self.survey.getDataRecord(self.getInjection(ip)+ s, datatype='R')
+                for s,i in self.dataIPMaps[ip].items():
+                    d=self.survey.getDataRecord( self.getInjection(ip) + s, datatype='R')
+                    e=self.survey.getDataRecord(self.getInjection(ip) + s, datatype='ETA')
+                    responses[i,k]=e/(1-e)*d
+        else:
+            for k, ip in enumerate(sources):
+                for s,i in self.dataDCMaps[ip].items():
+                    responses[i,k]=self.survey.getDataRecord( (self.getInjection(ip),) + s, datatype='R')
+                for s,i in self.dataIPMaps[ip].items():
+                    d=self.survey.getDataRecord( (self.getInjection(ip),) + s , datatype='R')
+                    e=self.survey.getDataRecord( (self.getInjection(ip),) + s, datatype='ETA')
+                    responses[i,k]=e/(1-e)*d            
         return responses
         
     def setPrimaryPotential(self):
