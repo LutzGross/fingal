@@ -404,7 +404,7 @@ class ChargeabilityInversionByField(MeteredCostFunction):
             lslogger.debug("rescaling of misfit weights:")
         for AB in self.data.injectionIterator(): 
             self.misfit.data[AB]+=whereNonPositive(self.misfit.w[AB]) # insert 1's to avoid division by zero
-            s=integrate(self.misfit.w[AB]*self.misfit.data[AB]**2)
+            s=integrate(self.misfit.w[AB])
             assert s>0, "no observation for dipole %s. Maybe you need to increase the value for L_stations."%(str(AB))
             if s > 0:
                 self.misfit.w[AB]*=1./(s*len(self.misfit.w))
@@ -508,6 +508,7 @@ class ChargeabilityInversionByField(MeteredCostFunction):
             p=m/self.alpha0
                 
         gamma=self.getGamma(p, isSmoothed=True)
+        
         gammai=interpolate(gamma,  Function(self.pde.getDomain()))
         secondary_potential=self.getSecondaryElectricPotentials(gammai, self.phi_p)
         return gammai, secondary_potential, 
@@ -557,8 +558,7 @@ class ChargeabilityInversionByField(MeteredCostFunction):
         # gradient of the regularization part:
         X=self.w1*grad(m)
         Y=self.w0*mi
-
-        self.pde.setValue(X=Data(), Y=Data(), y_dirac=Data())
+        self.pde.setValue(A=self.sigma/(1+gammai)*kronecker(3), X=Data(), Y=Data(), y_dirac=Data())
         Y2=Scalar(0.,self.misfitFunctionSpace )
         for A, B in self.data.injectionIterator():
             E =-grad(self.phi_p[A]-self.phi_p[B], Y2.getFunctionSpace())
@@ -569,13 +569,15 @@ class ChargeabilityInversionByField(MeteredCostFunction):
             #self.pde.setValue(X=self.misfit.w[(A,B)]*(self.misfit.data[(A,B)]*L_E2 - inner(DE, E))/(L_E2+self.datatol**2)**2* E)
             self.pde.setValue(X=self.misfit.w[(A,B)]*safeDiv(mfquad, self.misfit.data[(A,B)]*L_E2) * E)
             ustar=self.pde.getSolution()
-            Y2+=-inner(grad(ustar, E.getFunctionSpace()),E)
+            Y2+=-inner(grad(ustar, E.getFunctionSpace()),E+DE)
+
         if self.Spde:
             self.Spde.setValue(Y=Y2*gammai/(1+gammai)**2*self.sigma)
             Y+=self.Spde.getSolution()
         else:                
             Y+=Y2*gammai*self.sigma/self.alpha0
 
+        
         return ArithmeticTuple(Y, X)
 
         
