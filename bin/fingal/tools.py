@@ -8,6 +8,17 @@ by l.gross@uq.edu.au, Dec 2020.
 from esys.escript import Scalar, getMPIRankWorld, integrate, hasFeature, Function
 from esys.escript.linearPDEs import LinearSinglePDE, SolverOptions
 
+def makeWennerArray(numElectrodes=32, id0=0):
+    """
+    creates a schedule (A,B,M, N) for a Wenner array of length numElectrodes
+    """
+    schedule=[]
+    for a in range(1, (numElectrodes+2)//3):
+        for k in range(0, numElectrodes-3*a):
+            schedule.append((k, k+3*a, k+1*a, k+2*a))
+    return schedule
+    
+    
 def makeTagField(functionspace):
     """
     this creates a data object making the tagged regions with the corresponding tag id 
