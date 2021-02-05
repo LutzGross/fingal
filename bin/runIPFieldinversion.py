@@ -185,9 +185,9 @@ if not args.sigmaonly:
         x=length(domain.getX())
         m=x/Lsup(x)*0.01
         #m=Scalar(0.2, Solution(domain) ) 
-        dm=-abs(domain.getX()[0]/Lsup(x))**2
+        dm=-abs(domain.getX()[0]/Lsup(x))**2*100
         args=costf.getArguments(m)
-        J0=costf.getValue(m,*args)
+        J0=costf.getValue(m, *args)
         print("J0=",J0)
         G=costf.getGradient(m,*args)
 
@@ -217,7 +217,7 @@ if not args.sigmaonly:
     txt2=str(eta)
     if getMPIRankWorld() == 0: print(f"gamma = {txt1}, eta={txt2}")
 
-    if hasattr(config, 'gamma_true') and config.gamma_true:
+    if not config.true_properties is None:
 
         gammai=interpolate(gamma, ReducedFunction(domain))  
 
