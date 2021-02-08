@@ -15,7 +15,7 @@ def makeWennerArray(numElectrodes=32, id0=0):
     schedule=[]
     for a in range(1, (numElectrodes+2)//3):
         for k in range(0, numElectrodes-3*a):
-            schedule.append((k, k+3*a, k+1*a, k+2*a))
+            schedule.append((k+id0, k+3*a+id0, k+1*a+id0, k+2*a+id0))
     return schedule
     
     
