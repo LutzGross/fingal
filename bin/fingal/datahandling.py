@@ -189,8 +189,8 @@ class SurveyData(object):
         """
         return self.station_index[k]
     
-    def getKeyOfStationNumber(self, k):
-        return self.station_key[k]
+    def getKeyOfStationNumber(self, ik):
+        return self.station_key[ik]
     
     def hasDipoleInjections(self):
         return self.dipoleinjections
@@ -238,6 +238,17 @@ class SurveyData(object):
     def getResistenceData(self, token):
         return self.getDataRecord(token, datatype='R')
 
+    def getResistenceError(self, token):
+        if self.hasDataType("ERR_R"):
+            return self.getDataRecord(token, datatype='ERR_R')
+        elif self.hasDataType("RELERR_R"):
+            r=self.getDataRecord(token, datatype='R')
+            e=self.getDataRecord(token, datatype='RELERR_R')
+            return e*r
+        else:
+            return self.default_rel_error
+
+
     def getResistenceRelError(self, token):
         if self.hasDataType("RELERR_R"):
             return self.getDataRecord(token, datatype='RELERR_R')
@@ -252,6 +263,18 @@ class SurveyData(object):
             return self.default_rel_error
             
 
+    def getSecondaryResistenceData(self, token):
+        eta=self.getChargeabilityData(token)
+        r=self.getResistenceData(token)
+        return eta*r/(1-eta)
+
+    def getSecondaryResistenceError(self, token):
+        eta=self.getChargeabilityData(token)
+        r=self.getResistenceData(token)
+        eta_err=self.getChargeabilityError(token)
+        r_err=self.getResistenceError(token)
+        return r/(1-eta)**2*eta_err+eta/(1-eta)*r_err
+    
     def getFieldIntensityData(self, token):
         return self.getDataRecord(token, datatype='E')
 
@@ -273,6 +296,12 @@ class SurveyData(object):
     
     def getChargeabilityData(self, token):
         return self.getDataRecord(token, datatype='ETA')
+
+    def getChargeabilityError(self, token):
+        if self.hasDataType("ERR_ETA"):
+            return self.getDataRecord(token, datatype='ERR_ETA')
+        else:
+            return self.default_rel_error*self.getChargeabilityData(token)
 
     def getModifiedChargeabilityData(self, token):
         if self.hasDataType("GAMMA"):
