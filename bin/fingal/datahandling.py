@@ -246,7 +246,8 @@ class SurveyData(object):
             e=self.getDataRecord(token, datatype='RELERR_R')
             return e*r
         else:
-            return self.default_rel_error
+            r=self.getDataRecord(token, datatype='R')
+            return self.default_rel_error*r
 
 
     def getResistenceRelError(self, token):
