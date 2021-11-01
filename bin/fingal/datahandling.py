@@ -28,7 +28,7 @@ def readElectrodeLocations(csvfile, delimiter=','):
 
 
 def readSurveyData(csvfile, stations={}, usesStationCoordinates=False, columns=['R'], hasInjections=True, dipoleInjections=True, 
-                           dipoleMeasurements=True, delimiter=',', commend='#', printInfo=True):
+                           dipoleMeasurements=True, delimiter=',', commend='#', unDefined=-999999, printInfo=True):
     """
     creates a SurveyData object from a csvfile
     """
@@ -53,7 +53,7 @@ def readSurveyData(csvfile, stations={}, usesStationCoordinates=False, columns=[
             ns=1
         
     f=open(csvfile, 'r')
-    data=SurveyData(stations=stations, observations=columns, dipoleInjections=dipoleInjections, dipoleMeasurements=dipoleMeasurements, hasInjections=hasInjections)
+    data=SurveyData(stations=stations, observations=columns, dipoleInjections=dipoleInjections, dipoleMeasurements=dipoleMeasurements, hasInjections=hasInjections, unDefined=unDefined)
     line=f.readline().strip()
     lc=0
     distmin=1e99
@@ -112,7 +112,7 @@ class SurveyData(object):
             T=(A, B, M)
 
     or if dipoleMeasurements is not set 
-            
+            getSecondaryResistenceData
             T=(A, M, N)
 
     or if dipoleMeasurements and dipoleInjections are not set 
@@ -127,7 +127,7 @@ class SurveyData(object):
 
     """
     OBSTYPES= ['R', 'E', 'ETA', 'E0', 'E1', 'E2', 'GAMMA', 'MN', 'ERR_R', 'ERR_E', 'ERR_ETA', 'ERR_GAMMA', 'ERR_MN', 'RELERR_R', 'RELERR_E', 'RELERR_ETA', 'RELERR_GAMMA', 'ERRERR_MN',]
-    def __init__(self, stations={}, observations=[], dipoleInjections=True, dipoleMeasurements=True,  hasInjections=True, default_rel_error=0.01):
+    def __init__(self, stations={}, observations=[], dipoleInjections=True, dipoleMeasurements=True,  hasInjections=True, default_rel_error=0.01, unDefined=-999999):
         """
         :stations: dictionary of station identifer to coordinates
         
@@ -142,6 +142,7 @@ class SurveyData(object):
         self.hasinjections=hasInjections
         self.observations=observations
         self.lenObservations=len(observations)
+        self.unDefined=unDefined
         if hasInjections:
             if dipoleInjections and dipoleMeasurements:
                 ns=4
@@ -176,7 +177,12 @@ class SurveyData(object):
         else:
             return obs in cls.OBSTYPES
     
-    
+    def isUndefined(self, v):
+        if not v>self.unDefined+1:
+            return True
+        else:
+            return False
+        
     def getStationNumeration(self):
         """
         returns list of the station identifiers in a particular order
@@ -244,10 +250,16 @@ class SurveyData(object):
         elif self.hasDataType("RELERR_R"):
             r=self.getDataRecord(token, datatype='R')
             e=self.getDataRecord(token, datatype='RELERR_R')
-            return e*r
+            if self.isUndefined(r) or self.isUndefined(e):
+                return self.unDefined
+            else:
+                return e*r
         else:
             r=self.getDataRecord(token, datatype='R')
-            return self.default_rel_error*r
+            if self.isUndefined(r):
+                return self.unDefined
+            else:
+                return self.default_rel_error*r
 
 
     def getResistenceRelError(self, token):
@@ -256,25 +268,34 @@ class SurveyData(object):
         elif self.hasDataType("ERR_R"):
             r=self.getDataRecord(token, datatype='R')
             e=self.getDataRecord(token, datatype='ERR_R')
-            if abs(r)>0:
+            if self.isUndefined(r) or self.isUndefined(e):
+                return self.unDefined
+            elif abs(r)>0:
                 return abs(e/r)
             else:    
-                return e
+                return self.unDefined
         else:
             return self.default_rel_error
             
 
     def getSecondaryResistenceData(self, token):
+        # difference between u_0-u_oo
         eta=self.getChargeabilityData(token)
         r=self.getResistenceData(token)
-        return eta*r/(1-eta)
+        if self.isUndefined(r) or self.isUndefined(eta):
+            return self.unDefined
+        else:
+            return eta*r/(1-eta)
 
     def getSecondaryResistenceError(self, token):
         eta=self.getChargeabilityData(token)
         r=self.getResistenceData(token)
         eta_err=self.getChargeabilityError(token)
         r_err=self.getResistenceError(token)
-        return r/(1-eta)**2*eta_err+eta/(1-eta)*r_err
+        if self.isUndefined(r) or self.isUndefined(eta) or self.isUndefined(eta_err) or self.isUndefined(r_err) :
+            return self.unDefined
+        else:
+            return r/(1-eta)**2*eta_err+eta/(1-eta)*r_err
     
     def getFieldIntensityData(self, token):
         return self.getDataRecord(token, datatype='E')
@@ -285,10 +306,12 @@ class SurveyData(object):
         elif self.hasDataType("ERR_E"):
             r=self.getDataRecord(token, datatype='E')
             e=self.getDataRecord(token, datatype='ERR_E')
-            if abs(r)>0:
+            if self.isUndefined(r) or self.isUndefined(e):
+                return self.unDefined
+            elif abs(r)>0:
                 return abs(e/r)
             else:    
-                return e
+                return self.unDefined
         else:
             return self.default_rel_error
         
@@ -309,7 +332,10 @@ class SurveyData(object):
             return self.getDataRecord(token, datatype='GAMMA')
         else:
             e=self.getChargeabilityData(token)
-            return e/(1-e)
+            if self.isUndefined(e):
+                return self.unDefined
+            else:
+                return e/(1-e)
         
     def getModifiedChargeabilityRelError(self, token):
         if self.hasDataType("RELERR_GAMMA"):
@@ -317,10 +343,12 @@ class SurveyData(object):
         elif self.hasDataType("ERR_GAMMA"):
             r=self.getDataRecord(token, datatype='GAMMA')
             e=self.getDataRecord(token, datatype='ERR_GAMMA')
-            if abs(r)>0:
+            if self.isUndefined(r) or self.isUndefined(e):
+                return self.unDefined
+            elif abs(r)>0:
                 return abs(e/r)
             else:    
-                return e
+                return self.unDefined
         else:
             return self.default_rel_error
 
