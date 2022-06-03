@@ -285,7 +285,7 @@ class SurveyData(object):
         if self.isUndefined(r) or self.isUndefined(eta):
             return self.unDefined
         else:
-            return eta*r/(1-eta)
+            return eta*r
 
     def getSecondaryResistenceError(self, token):
         eta=self.getChargeabilityData(token)
@@ -295,7 +295,7 @@ class SurveyData(object):
         if self.isUndefined(r) or self.isUndefined(eta) or self.isUndefined(eta_err) or self.isUndefined(r_err) :
             return self.unDefined
         else:
-            return r/(1-eta)**2*eta_err+eta/(1-eta)*r_err
+            return r*eta_err+eta*r_err
     
     def getFieldIntensityData(self, token):
         return self.getDataRecord(token, datatype='E')
