@@ -6,7 +6,7 @@ by l.gross@uq.edu.au, 2021
 
 from esys.escript import *
 import numpy as np
-from esys.downunder import MeteredCostFunction
+from esys.escript.minimizer import CostFunction, MinimizerException
 from esys.escript.linearPDEs import LinearSinglePDE, SolverOptions
 from esys.escript.pdetools import Locator, ArithmeticTuple, MaskFromTag, getInfLocator
 import logging
@@ -16,7 +16,7 @@ from .tools import setupERTPDE
 
 lslogger=logging.getLogger('inv.minimizer')
 
-class DCInversionByFieldIntensity(MeteredCostFunction):
+class DCInversionByFieldIntensity(CostFunction):
     """
     cost function for electric field intensity  inversion (aka FullWaver) 
     """
@@ -308,7 +308,7 @@ class DCInversionByFieldIntensity(MeteredCostFunction):
             lslogger.debug("inverse Hessian called. search direction = %s",txt)
         return p
     
-class ChargeabilityInversionByField(MeteredCostFunction):
+class ChargeabilityInversionByField(CostFunction):
     """
     cost function for electric field intensity  inversion (aka FullWaver) 
     """
@@ -593,7 +593,7 @@ class ChargeabilityInversionByField(MeteredCostFunction):
         return p
 
 
-class DCInversionByField(MeteredCostFunction):
+class DCInversionByField(CostFunction):
     """
     cost function for electric field intensity  inversion (aka FullWaver) 
     """

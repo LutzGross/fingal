@@ -5,7 +5,7 @@ by l.gross@uq.edu.au, 2021
 """
 
 from esys.escript import *
-from esys.downunder import MeteredCostFunction
+from esys.escript.minimizer import CostFunction, MinimizerException
 from .tools import setupERTPDE
 
 import numpy as np
@@ -14,9 +14,9 @@ from esys.escript.pdetools import Locator, ArithmeticTuple, MaskFromTag, getInfL
 import logging
 from esys.weipa import saveVTK, saveSilo
 
-lslogger=logging.getLogger('inv.minimizer')
+lslogger=logging.getLogger('fingal')
 
-class PotentialERT(MeteredCostFunction):
+class PotentialERT(CostFunction):
     provides_inverse_Hessian_approximation=True
     def __init__(self, domain, data, w0=0., w1=1., alpha0=1., alpha1=0., sigma0=.01, region_fixed=Data(), stationsFMT="e%s", weightLogDefect=0., logclip=15):
         """
