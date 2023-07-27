@@ -1,6 +1,10 @@
+Workflow the synthetic dump problem:
 
 - edit file 'DumpGeometry.geo'
 - generate mesh:
+
     gmsh4 -3 -optimize_netgen -o dump.msh DumpGeometry.geo
 
--
+- generate configuration, electrode location and schedule file:
+
+    python3 ./generate -g DumpGeometry.geo

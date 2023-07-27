@@ -18,6 +18,18 @@ def makeWennerArray(numElectrodes=32, id0=0):
             schedule.append((k+id0, k+3*a+id0, k+1*a+id0, k+2*a+id0))
     return schedule
 
+def makeZZArray(numElectrodes=32, id0=0):
+    """
+    creates a schedule (A,B,M, N) for a ZZ array of length numElectrodes (full monty)
+    """
+    schedule=[]
+    for a in range(numElectrodes):
+        for b in range(a+1, numElectrodes):
+            for m in range(numElectrodes):
+                for n in range(m + 1, numElectrodes):
+                    if set([a, b]).isdisjoint([m, n]):
+                        schedule.append((a+id0, b+id0, m+id0, n+id0))
+    return schedule
 def FindNearestElectrode(x, y, z, electrodes={}):
     """
     finds the nearest electrode in the dictionary electrodes

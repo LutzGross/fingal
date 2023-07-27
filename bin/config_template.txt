@@ -97,7 +97,7 @@ usesStationCoordinates = False
 #. This file is used when generating synthetic data. The file contains lines of the for A, B, M, N (or similar)
 #. to define charging dipole (A,B) (or pole A) and measuring dipole (M,N)  (or pole M).
 #.
-schedulefile = None
+schedulefile = {schedulefile}
 #
 #  This section of the file defines the inversion
 #
@@ -199,7 +199,9 @@ outfile='sigma'
 #. This defines the core region/region of interest via tags. For instance this region is used to focus output. 
 #. If set to to None no selection is applied and the entire domain is used. 
 #.
-core=['core']
+core = {core}
+#   tag(s) for face elements (excluding top surface)
+faces = {faces}
 #.
 #. For an IP inversion the calculation can be split into the conductivity and chargeability part while 
 #. the intermediate result is saved to a restart file to allow for a faster configuration of the chargeability

@@ -21,9 +21,9 @@ PaddingZ=200;
 MeshSizeCore=8;
 MeshSizeBBox=50;
 
-NumElectrodes=32;
-SurveyLineOffsetFromTopEdge=30;
-SurveyLineOffsetFromFootEdge=30;
+NumElectrodes=64;
+SurveyLineOffsetFromTopEdge=10;
+SurveyLineOffsetFromFootEdge=5;
 
 ElectrodeSpacing=(DumpCrone-SurveyLineOffsetFromTopEdge-SurveyLineOffsetFromFootEdge)/(NumElectrodes-1);
 MeshSizeElectrodes= ElectrodeSpacing/10;
