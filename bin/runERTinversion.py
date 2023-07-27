@@ -2,7 +2,7 @@
 from esys.escript import *
 import importlib, os, sys
 sys.path.append(os.getcwd())
-from fingal import PotentialERT, readElectrodeLocations, readSurveyData, makeTagField
+from fingal import PotentialERT, readElectrodeLocations, readSurveyData, makeTagMap
 from esys.finley import ReadMesh, ReadGmsh
 import numpy as np
 from esys.weipa import saveVTK, saveSilo
@@ -151,11 +151,11 @@ else:
     sigma=costf.getSigma(m)
 
 if args.vtk:
-    saveVTK(config.outfile, sigma=sigma, tag=makeTagField(Function(domain)))
+    saveVTK(config.outfile, sigma=sigma, tag=makeTagMap(Function(domain)))
     if getMPIRankWorld() == 0: 
         print("result written to %s.vtu"%config.outfile)
 else:
-    saveSilo(config.outfile, sigma=sigma, tag=makeTagField(Function(domain)))
+    saveSilo(config.outfile, sigma=sigma, tag=makeTagMap(Function(domain)))
     if getMPIRankWorld() == 0: 
             print("result written to %s.silo"%config.outfile)
 

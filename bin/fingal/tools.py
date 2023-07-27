@@ -17,21 +17,6 @@ def makeWennerArray(numElectrodes=32, id0=0):
         for k in range(0, numElectrodes-3*a):
             schedule.append((k+id0, k+3*a+id0, k+1*a+id0, k+2*a+id0))
     return schedule
-    
-    
-def makeTagField(functionspace):
-    """
-    this creates a data object making the tagged regions with the corresponding tag id 
-    
-    :param functionspace: function space to create tags for
-    :type functionspace: `esys.escript.FunctionSpace` 
-    :return: `esys.escript.Scalar` with tags 
-    """
-    out=Scalar(-1,functionspace)
-    for t in functionspace.getListOfTags():
-        out.setTaggedValue(t,t)
-    out.expand()
-    return out
 
 def FindNearestElectrode(x, y, z, electrodes={}):
     """

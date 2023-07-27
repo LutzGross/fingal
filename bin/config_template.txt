@@ -116,21 +116,22 @@ region_fixed=[]
 #.
 sigma_background=sigma0
 #.
-#. reference chargeability (property function p = log(eta/eta0))
+#. reference normalized chargeability (property function p = log(Mn/Mn0))
 #.   
-eta0=0.01
+Mn0=sigma0
 #.
-#. chargeability outside the region of interest where the inversion happens:
+#. normalised chargeability outside the region of interest where the inversion happens:
 #.
-eta_background=0.
+Mn_background=sigma_background
 #.
 #. The function defines the true conductivity and modified chargeability. 
 #. Obviously this function is used when synthetic data are constructed or for testing and validation.
 #. 
 #def true_properties(domain):
+#    
 #    sigma_true=Scalar(sigma_background, Function(domain))
-#    gamma_true=Scalar(eta_background/(1-eta_background), Function(domain))
-#    return sigma_true, gamma_true
+#    Mn_true=Scalar(Mn_background, Function(domain))
+#    return sigma_true, Mn_true
 #. 
 #. Set to true_properties=None if the true distributions are not available 
 #

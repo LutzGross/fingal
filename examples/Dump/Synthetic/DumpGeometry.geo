@@ -1,8 +1,6 @@
 
+
 DumpCrone = 300; // length along the top of the dump
-
- 
-
 DumpAngleTop=25;
 DumpAngleFoot=25;
 ResetDumpFromTip=50;
@@ -26,6 +24,7 @@ MeshSizeBBox=50;
 NumElectrodes=32;
 SurveyLineOffsetFromTopEdge=30;
 SurveyLineOffsetFromFootEdge=30;
+
 ElectrodeSpacing=(DumpCrone-SurveyLineOffsetFromTopEdge-SurveyLineOffsetFromFootEdge)/(NumElectrodes-1);
 MeshSizeElectrodes= ElectrodeSpacing/10;
 If ( MeshSizeElectrodes > MeshSizeCore )

@@ -3,7 +3,7 @@ from esys.escript import *
 import importlib, sys, os
 from datetime import datetime
 sys.path.append(os.getcwd())
-from fingal import readElectrodeLocations, readSurveyData, makeTagField, DCInversionByFieldIntensity, getR2, ChargeabilityInversionByField
+from fingal import readElectrodeLocations, readSurveyData, makeTagMap, DCInversionByFieldIntensity, getR2, ChargeabilityInversionByField
 from esys.finley import ReadMesh
 import numpy as np
 from esys.weipa import saveVTK, saveSilo
@@ -241,7 +241,7 @@ if not args.sigmaonly:
 
 # assemblage of output: 
 sigma.expand()
-outargs={ "tag" : makeTagField(Function(domain)), "sigma":sigma } 
+outargs={ "tag" : makeTagMap(Function(domain)), "sigma":sigma }
 
 if not config.true_properties is None:
     outargs['sigma_error']=sigma/sigma_true

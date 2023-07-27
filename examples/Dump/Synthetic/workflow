@@ -1,0 +1,6 @@
+
+- edit file 'DumpGeometry.geo'
+- generate mesh:
+    gmsh4 -3 -optimize_netgen -o dump.msh DumpGeometry.geo
+
+-

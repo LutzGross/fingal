@@ -4,7 +4,7 @@ import importlib, sys, os
 import argparse
 sys.path.append(os.getcwd())
 import numpy as np
-from fingal import readElectrodeLocations, readSurveyData, makeTagField, setupERTPDE
+from fingal import readElectrodeLocations, readSurveyData, makeTagMap, setupERTPDE
 from esys.finley import ReadMesh
 
 from esys.weipa import saveVTK, saveSilo
@@ -15,15 +15,9 @@ parser.add_argument('--noise', '-n',  dest='noise', default=0., metavar='NOISE',
 parser.add_argument('--fullwaver', '-f', dest='fullwaver',  action='store_true', default=False, help='creates a fullwaver-style survey.')
 parser.add_argument(dest='config', metavar='configfile', type=str, help='python setting configuration')
 parser.add_argument('--silo', '-s',  dest='silofile', metavar='SILO', help="silo file for saving mesh file for visualization (no extension) (output if set).")
-parser.add_argument('--plotA', '-A',  dest='plotA', metavar='PLOTA', type=int, default=None, help="electrode A for output (SILO must be set)")
-parser.add_argument('--plotB', '-B',  dest='plotB', metavar='PLOTB', type=int, default=None, help="electrode B for output (SILO must be set)")
 args = parser.parse_args()
 
-
-if getMPIRankWorld() == 0: print("** This creates a synthetic survey data set**")
-
-    
-
+print("** This creates a synthetic survey data set**")
 config = importlib.import_module(args.config)
 
     
@@ -64,13 +58,13 @@ survey=readSurveyData(config.schedulefile, stations=elocations, usesStationCoord
 
 # set the true sigma and gamma:
 assert config.true_properties, f"True properties must be defined. See true_properties in {args.config}.py"
-sigma_true, gamma_true = config.true_properties(domain) 
+sigma_true, Mn_true = config.true_properties(domain) 
 
 txt1=str(sigma_true).replace("\n",';')
-txt2=str(gamma_true).replace("\n",';')
+txt2=str(Mn_true).replace("\n",';')
 if getMPIRankWorld() == 0: 
     print(f"True conductivity sigma_true = {txt1}.")
-    print(f"True modifies chargeability gamma_true = {txt2}.")
+    print(f"True normalised chargeability Mn_true = {txt2}.")
 
 
 # set locators to extract predictions:
@@ -141,7 +135,7 @@ secondary_potential, secondary_field, secondary_field_solution, secondary_field_
 if getMPIRankWorld() == 0: print(str(len(secondary_field_solution))+" secondary potentials calculated.")
 
 if getMPIRankWorld() == 0: print("secondary  potentials chargeability:")
-secondary_potential_hat, secondary_field_hat, secondary_field_solution_hat, secondary_field_field_hat = getSecondaryPotentials(sigma_true*1/(1+gamma_true)/(1-ETA0))
+secondary_potential_hat, secondary_field_hat, secondary_field_solution_hat, secondary_field_field_hat = getSecondaryPotentials(sigma_true*1/(1+Mn_true)/(1-ETA0))
 if getMPIRankWorld() == 0: print(str(len(secondary_field_field_hat))+" secondary potentials chargeability calculated.")
 
 dVp=survey.makeResistencePrediction(values=primary_potential)
@@ -272,7 +266,7 @@ if getMPIRankWorld() == 0:
 
 if args.silofile is not None:
     sigma_true.expand()
-    gamma_true.expand()
+    Mn_true.expand()
     if args.plotA is not None:
         A=int(args.plotA)
     else:
@@ -286,5 +280,5 @@ if args.silofile is not None:
     E=primary_field_field[A]-primary_field_field[B]+Es
     gamma=inner(Es_hat, E)/inner(E, E)
 
-    saveSilo(args.silofile,tag=makeTagField(ReducedFunction(domain)), sigma_true=sigma_true, gamma_true=gamma_true, gamma=gamma, Es=Es, Es_hat=Es_hat,  E=E)
+    saveSilo(args.silofile,tag=makeTagMap(ReducedFunction(domain)), sigma_true=sigma_true, Mn_true=Mn_true, gamma=gamma, Es=Es, Es_hat=Es_hat,  E=E)
     print(args.silofile+".silo with tags has been generated for injection [%d, %d]"%(A,B))
