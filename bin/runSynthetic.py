@@ -10,14 +10,14 @@ from esys.finley import ReadMesh
 from esys.weipa import saveVTK, saveSilo
 from esys.escript.pdetools import Locator, MaskFromTag
 
-parser = argparse.ArgumentParser(description='creates a synthetic survey', epilog="l.gross@uq.edu.au, version Jan 2021")
+parser = argparse.ArgumentParser(description='creates a synthetic ERT/IP survey data set', eepilog="l.gross@uq.edu.au, version 9/8/2023")
 parser.add_argument('--noise', '-n',  dest='noise', default=0., metavar='NOISE', type=int, help="%% of noise to be added. (default is 0) ")
 parser.add_argument('--fullwaver', '-f', dest='fullwaver',  action='store_true', default=False, help='creates a fullwaver-style survey.')
 parser.add_argument(dest='config', metavar='configfile', type=str, help='python setting configuration')
 parser.add_argument('--silo', '-s',  dest='silofile', metavar='SILO', help="silo file for saving mesh file and property distributions for visualization (no extension) (output if set).")
 args = parser.parse_args()
 
-print("** This creates a synthetic survey data set**")
+print("** This creates a synthetic survey data set from properties set by config.true_properties **")
 config = importlib.import_module(args.config)
 
     
