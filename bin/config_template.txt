@@ -109,7 +109,7 @@ schedulefile = '{schedulefile}'
 #.
 region_fixed=[]
 #.
-#. DC conductivity outside the region of interest where the inversion happens:
+#. Conductivity used to construct injection potentials:
 #.
 sigma_background=1e-4
 #.
@@ -117,13 +117,9 @@ sigma_background=1e-4
 #.
 sigma_ref=sigma_background
 #.
-#. normalised chargeability outside the region of interest where the inversion happens:
-#.
-Mn_background=0.01/(1-0.01)*sigma_background
-#.
 #. reference normalized chargeability (property function p = log(Mn/Mn0))
 #.
-Mn_ref=Mn_background
+Mn_ref=0.01/(1-0.01)*sigma_background
 #.
 #. The function defines the true conductivity and modified chargeability. 
 #. Obviously this function is used when synthetic data are constructed or for testing and validation.

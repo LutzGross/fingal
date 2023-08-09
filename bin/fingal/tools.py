@@ -5,7 +5,7 @@ by l.gross@uq.edu.au, Dec 2020.
 """
 
 
-from esys.escript import Scalar, getMPIRankWorld, integrate, hasFeature, Function, kronecker, Data, DiracDeltaFunctions, inner, length
+from esys.escript import Scalar, getMPIRankWorld, integrate, hasFeature, Function, kronecker, Data, DiracDeltaFunctions, inner, length, Lsup
 from esys.escript.linearPDEs import LinearSinglePDE, SolverOptions
 
 def makeWennerArray(numElectrodes=32, id0=0):
@@ -46,6 +46,7 @@ def getInjectionPotentials(domain, sigma, survey, stationsFMT=None):
         pde.setValue(d=sigma * inner(r,n)/length(r)**2) # doi:10.1190/1.1440975
         print("processing source ",A)
         injection_potential[A] = pde.getSolution()
+        assert Lsup(injection_potential[A]) > 0, "Zero potential for injection %s" % A
     return injection_potential
 
 def makeZZArray(numElectrodes=32, id0=0):

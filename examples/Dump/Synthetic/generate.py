@@ -60,7 +60,7 @@ def true_properties(domain):
     sigma_true.setTaggedValue('Dump', sigma_dump)
     sigma_true=m1h*sigma_target+(1-m1h)*sigma_true
 
-    Mn_true=Scalar(Mn_background, ReducedFunction(domain))
+    Mn_true=Scalar(0., ReducedFunction(domain))
     #Mn_true.setTaggedValue('Dump', sigma_dump)
     Mn_true=m1*Mn_target+(1-m1)*Mn_true
 

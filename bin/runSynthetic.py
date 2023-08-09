@@ -10,7 +10,7 @@ from esys.finley import ReadMesh
 from esys.weipa import saveVTK, saveSilo
 from esys.escript.pdetools import Locator, MaskFromTag
 
-parser = argparse.ArgumentParser(description='creates a synthetic ERT/IP survey data set', eepilog="l.gross@uq.edu.au, version 9/8/2023")
+parser = argparse.ArgumentParser(description='creates a synthetic ERT/IP survey data set', epilog="l.gross@uq.edu.au, version 9/8/2023")
 parser.add_argument('--noise', '-n',  dest='noise', default=0., metavar='NOISE', type=int, help="%% of noise to be added. (default is 0) ")
 parser.add_argument('--fullwaver', '-f', dest='fullwaver',  action='store_true', default=False, help='creates a fullwaver-style survey.')
 parser.add_argument(dest='config', metavar='configfile', type=str, help='python setting configuration')

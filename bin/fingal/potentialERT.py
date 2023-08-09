@@ -1,7 +1,7 @@
 """
 tools for ERT inversion including ERT cost functions for inversion
 
-by l.gross@uq.edu.au, 2021
+by l.gross@uq.edu.au, 2021, 2028
 """
 
 from esys.escript import *

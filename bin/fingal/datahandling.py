@@ -191,7 +191,7 @@ class SurveyData(object):
     
     def getStationNumber(self, k):
         """
-        returns the station number from station identfier
+        returns the station number from station identifier key
         """
         return self.station_index[k]
     

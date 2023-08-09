@@ -2,7 +2,7 @@
 from esys.escript import *
 import importlib, os, sys
 sys.path.append(os.getcwd())
-from fingal import PotentialERT, readElectrodeLocations, readSurveyData
+from fingal import IPInversion, readElectrodeLocations, readSurveyData
 from esys.finley import ReadMesh
 import numpy as np
 from esys.weipa import saveVTK, saveSilo
@@ -38,7 +38,7 @@ else:
 config = importlib.import_module(args.config)
 
 
-print("** This is an ERT inversion @ %s **"%datetime.now().strftime("%d.%m.%Y %H:%M"))
+print("** This is an IP inversion @ %s **"%datetime.now().strftime("%d.%m.%Y %H:%M"))
 print("configuration "+args.config+" imported.")
 
 elocations=readElectrodeLocations(config.stationfile, delimiter=config.stationdelimiter)
@@ -61,7 +61,15 @@ else:
     sigma_ref=config.sigma_ref
 print("Reference conductivity sigma_ref = %s"%(str(sigma_ref)))
 
-1/0
+if isinstance(config.Mn_ref, dict):
+    Mn_ref=Scalar(0.,Function(domain))
+    for k in config.Mn_ref:
+        Mn_ref.setTaggedValue(k, config.sigma_ref[k])
+else:
+    Mn_ref=config.Mn_ref
+print("Reference normalized chargeabilty Mn_ref = %s"%(str(Mn_ref)))
+print("Background conductivity sigma_background = %s"%(str(config.sigma_background)))
+
 
 # define region with fixed conductivity:
 if isinstance(config.region_fixed , list):
@@ -73,7 +81,8 @@ else:
     fixedm=whereZero(x[2]-inf(x[2]))
     del x
     print("Properties are fixed at the bottom of the domain.")
-        
+
+1/0
 # create cost function:
 costf=PotentialERT(domain, data=survey,
                            w0=config.w0, w1=config.w1, sigma_ref=sigma_ref,
