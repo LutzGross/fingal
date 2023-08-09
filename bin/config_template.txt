@@ -97,14 +97,11 @@ usesStationCoordinates = False
 #. This file is used when generating synthetic data. The file contains lines of the for A, B, M, N (or similar)
 #. to define charging dipole (A,B) (or pole A) and measuring dipole (M,N)  (or pole M).
 #.
-schedulefile = {schedulefile}
+schedulefile = '{schedulefile}'
 #
 #  This section of the file defines the inversion
 #
-#.
-#. reference conductivity (property function p = log(sigma/sigma0))
-#.
-sigma0=0.01
+
 #.
 #. This defines the region where the conductivity and chargeability is not been updated during inversion, for instance 
 #. region_fixed=["padding"] blocks updates in the padding region. If region_fixed is not a list (for instance None) 
@@ -112,17 +109,21 @@ sigma0=0.01
 #.
 region_fixed=[]
 #.
-#. conductivity outside the region of interest where the inversion happens:
+#. DC conductivity outside the region of interest where the inversion happens:
 #.
-sigma_background=sigma0
+sigma_background=1e-4
 #.
-#. reference normalized chargeability (property function p = log(Mn/Mn0))
-#.   
-Mn0=sigma0
+#. reference DC conductivity (property function p = log(sigma/sigma0))
+#.
+sigma_ref=sigma_background
 #.
 #. normalised chargeability outside the region of interest where the inversion happens:
 #.
-Mn_background=sigma_background
+Mn_background=0.01/(1-0.01)*sigma_background
+#.
+#. reference normalized chargeability (property function p = log(Mn/Mn0))
+#.
+Mn_ref=Mn_background
 #.
 #. The function defines the true conductivity and modified chargeability. 
 #. Obviously this function is used when synthetic data are constructed or for testing and validation.

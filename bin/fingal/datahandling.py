@@ -431,6 +431,7 @@ class SurveyData(object):
                     for A,M in self.tokenIterator():
                         if out.count(A) ==0:
                             out.append(A)
+            out.sort()
             self.injectionStations=out
         return self.injectionStations
     

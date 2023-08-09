@@ -5,7 +5,7 @@ by l.gross@uq.edu.au, Dec 2020.
 """
 
 
-from esys.escript import Scalar, getMPIRankWorld, integrate, hasFeature, Function
+from esys.escript import Scalar, getMPIRankWorld, integrate, hasFeature, Function, kronecker, Data, DiracDeltaFunctions, inner, length
 from esys.escript.linearPDEs import LinearSinglePDE, SolverOptions
 
 def makeWennerArray(numElectrodes=32, id0=0):
@@ -17,6 +17,36 @@ def makeWennerArray(numElectrodes=32, id0=0):
         for k in range(0, numElectrodes-3*a):
             schedule.append((k+id0, k+3*a+id0, k+1*a+id0, k+2*a+id0))
     return schedule
+
+def getInjectionPotentials(domain, sigma, survey, stationsFMT=None):
+    """
+    return the electric potential for all injections A in the survey using conductivity sigma.
+
+
+    :sigma: (primary) conductivity distribution
+    :return: dictonary of injections A->injection_potentials
+    """
+    n = domain.getNormal()
+    x = n.getX()
+
+    injection_potential = {}
+    pde = setupERTPDE(domain)
+    pde.setValue(A=sigma * kronecker(3), y_dirac=Data(), y=Data())
+    for A in survey.getListOfInjectionStations():
+        s = Scalar(0., DiracDeltaFunctions(pde.getDomain()))
+        if stationsFMT is None:
+            s.setTaggedValue(A, 1.)
+        else:
+            s.setTaggedValue(stationsFMT % A, 1.)
+        pde.setValue(y_dirac=s)
+        # ---
+        xs=survey.getStationLocation(A)
+        r=x-xs
+        Y=sigma * inner(r,n)/length(r)**2
+        pde.setValue(d=sigma * inner(r,n)/length(r)**2) # doi:10.1190/1.1440975
+        print("processing source ",A)
+        injection_potential[A] = pde.getSolution()
+    return injection_potential
 
 def makeZZArray(numElectrodes=32, id0=0):
     """

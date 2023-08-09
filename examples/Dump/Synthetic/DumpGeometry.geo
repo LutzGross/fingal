@@ -1,10 +1,10 @@
-
+Mesh.MshFileVersion = 2.2;
 
 DumpCrone = 300; // length along the top of the dump
 DumpAngleTop=25;
 DumpAngleFoot=25;
 ResetDumpFromTip=50;
-ResetDumpFromFoot=100;
+ResetDumpFromFoot=400;
 
 LengthFoot=100;
 LengthTop=100;
@@ -14,19 +14,26 @@ DumpHeightAboveTopLevel =20;
 DumpHeightAboveDumpFoot =100;
 CoreWidth=200;
 
+ThicknessHallow=20;
+TargetDepthFromCrown=80;
+TargetOffsetFromTop=150;
+
 PaddingX=300;
 PaddingY=300;
 PaddingZ=200;
 
-MeshSizeCore=8;
+//MeshSizeCore=4;
+MeshSizeCore=16;
+
 MeshSizeBBox=50;
 
-NumElectrodes=64;
+//NumElectrodes=64;
+NumElectrodes=16;
 SurveyLineOffsetFromTopEdge=10;
 SurveyLineOffsetFromFootEdge=5;
 
 ElectrodeSpacing=(DumpCrone-SurveyLineOffsetFromTopEdge-SurveyLineOffsetFromFootEdge)/(NumElectrodes-1);
-MeshSizeElectrodes= ElectrodeSpacing/10;
+MeshSizeElectrodes= ElectrodeSpacing/5;
 If ( MeshSizeElectrodes > MeshSizeCore )
 	MeshSizeElectrodes= MeshSizeCore;
 EndIf
@@ -217,12 +224,12 @@ Curve Loop(41) = {54, -47, -53, -44};
 Plane Surface(41) = {41};
 Surface Loop(5) = {41, 39, 40, 38, 35, 34, 32, 33, 36, 37, 31, 30, 29, 28, 2, 26, 17, 27, 1, 16};
 Volume(5) = {5};
-Physical Surface("OuterFaces", 65) = {29, 31, 32, 40, 41, 30};
+Physical Surface("OuterFaces", 65) = {29, 31, 40, 41, 30};
 Physical Volume("BBox") = {5};
 
 B3=80;
 For num In {1:NumElectrodes}
 	Point(B3+num)={SurveyLineOffsetFromTopEdge + (num-1) * ElectrodeSpacing, 0, 0, MeshSizeElectrodes};
 	Point{B3+num} In Surface{22};
-	Physical Point(1000+num) = {B3+num};
+	// Physical Point(1000+num) = {B3+num};
 EndFor
