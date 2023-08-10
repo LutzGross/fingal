@@ -14,7 +14,7 @@ from specsim3d import spectral_random_field
 from esys.escript.pdetools import Locator
 
 
-parser = argparse.ArgumentParser(description='creates a synthetic IP survey with geostats data', epilog="l.gross@uq.edu.au, version 18/4/2018")
+parser = argparse.ArgumentParser(description='creates a synthetic ERT/IP survey data set.', epilog="l.gross@uq.edu.au, version 9/8/2023")
 parser.add_argument(dest='config', metavar='configfile', type=str, help='python setting configuration')
 parser.add_argument('--noise', '-n',  dest='noise', default=0., metavar='NOISE', type=float, help="%% of noise to be added. (default is 0) ")
 parser.add_argument('--silo', '-s',  dest='silofile', metavar='SILO', help="silo file for saving mesh file for visualization (no extension) (output if set).")
@@ -23,7 +23,7 @@ parser.add_argument('--plot', '-p',  dest='plot', action='store_true', default=F
 args = parser.parse_args()
 
 
-print("** This is a IP synthetic dataset for randomized true conductivity **")
+print("** This is a ERT/IP synthetic dataset for true property distribution from config. **")
 
 
 config = importlib.import_module(args.config)
