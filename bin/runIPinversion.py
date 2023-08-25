@@ -9,7 +9,7 @@ from esys.weipa import saveVTK, saveSilo
 import argparse
 #from esys.downunder import MinimizerLBFGS
 from esys.escript.pdetools import MaskFromTag
-
+from esys.escript.minimizer import MinimizerLBFGS
 #from esys.escript.pdetools import Locator, ArithmeticTuple, MaskFromTag
 
 
@@ -20,6 +20,9 @@ from datetime import datetime
 
 parser = argparse.ArgumentParser(description='driver to invert an ERT survey', epilog="version 16/3/2018")
 parser.add_argument(dest='config', metavar='configfile', type=str, help='python setting configuration')
+parser.add_argument('--restartfile', '-R', dest='RESTARTFN', metavar='RESTARTFN', type=None, default="restart", help='reststart file name')
+parser.add_argument('--restart', '-r',  dest='restart', action='store_true', default=False, help="start from restart file. RESTARTFN need to be set and exist.")
+
 parser.add_argument('--optimize', '-o',  dest='optimize', action='store_true', default=False, help="Calibrated the value for sigma_ref before iteration starts.")
 parser.add_argument('--test', '-t',  dest='testsigma_ref', action='store_true', default=False, help="Calculates a new value for sigma_ref and then stops.")
 parser.add_argument('--query', '-q',  dest='query', type=str, default=None, help="file name (if set) for output of (A,B,M,N, observation, prediction) ")
@@ -61,7 +64,7 @@ else:
     sigma_ref=config.sigma_ref
 print("Reference conductivity sigma_ref = %s"%(str(sigma_ref)))
 
-if isinstance(config.Mn_ref, dict):
+if config.Mn_ref and isinstance(config.Mn_ref, dict):
     Mn_ref=Scalar(0.,Function(domain))
     for k in config.Mn_ref:
         Mn_ref.setTaggedValue(k, config.sigma_ref[k])
@@ -72,7 +75,7 @@ print("Background conductivity sigma_background = %s"%(str(config.sigma_backgrou
 
 
 # define region with fixed conductivity:
-if isinstance(config.region_fixed , list):
+if config.region_fixed and isinstance(config.region_fixed , list):
     fixedm=MaskFromTag(domain, *tuple(config.region_fixed))
     if len(config.region_fixed)> 0:
         print("Tags of regions with fixed property function : %s"%(config.region_fixed) )
@@ -82,55 +85,81 @@ else:
     del x
     print("Properties are fixed at the bottom of the domain.")
 
-1/0
+
 # create cost function:
-costf=PotentialERT(domain, data=survey,
-                           w0=config.w0, w1=config.w1, sigma_ref=sigma_ref,
-                           region_fixed=fixedm, stationsFMT=config.stationsFMT,
-                           alpha0=config.alpha0, alpha1=config.alpha1, weightLogDefect=config.weightLogDefect, logclip=config.clip_property_function)
+costf=IPInversion(domain, data=survey,
+                  sigma_0_ref=sigma_ref, Mn_ref=Mn_ref, sigma_background=config.sigma_background,
+                  w1=config.w1, theta=config.theta, usel1=config.usel1, epsl1=config.epsl1,
+                  mask_fixed_property=fixedm,
+                  weighting_misfit_ERT=config.weighting_misfit_ERT, pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
+                  EPSILON=1e-8, logger=logger)
 
 
-if args.optimize or args.testsigma_ref:
-    sigma_opt, f_opt,  defect = costf.optimizesigma_ref()
-    if getMPIRankWorld() == 0: 
-         print("Better value for sigma_ref = %s, correction factor %s, defect = %s"%(sigma_opt, f_opt,  defect))
-         print("update your configuration file %s"%args.config)
-         if args.testsigma_ref: 
-            print("And goodbye")
-         else:
-            print("sigma_ref will be updated.") 
-    if args.testsigma_ref: 
-        sys.exit()
-    else:
-        costf.scalesigma_ref(f_opt)
+#if args.optimize or args.testsigma_ref:
+#    sigma_opt, f_opt,  defect = costf.optimizesigma_ref()
+#    if getMPIRankWorld() == 0:
+#         print("Better value for sigma_ref = %s, correction factor %s, defect = %s"%(sigma_opt, f_opt,  defect))
+#         print("update your configuration file %s"%args.config)
+#         if args.testsigma_ref:
+#            print("And goodbye")
+#         else:
+#            print("sigma_ref will be updated.")
+#    if args.testsigma_ref:
+#        sys.exit()
+#    else:
+#        costf.scalesigma_ref(f_opt)
 
 # test gradient:
 if False:
     x=length(domain.getX())
-    m=(x/Lsup(x))**3*4
+    m=(x/Lsup(x))*[1,1]
+    m+=(domain.getX()[1]/Lsup(x))*[1,0]
 
-    dm=(domain.getX()[0]+domain.getX()[1]+0.5*domain.getX()[2])/Lsup(x)/3*0.01
-
-    J0=costf.getValue(m)
+    ddm=(domain.getX()[0]+domain.getX()[1]+0.5*domain.getX()[2])/Lsup(x)/3*10
+    print(str(m))
+    print(str(ddm))
+    dm=ddm*[1,0]
+    J0=costf.getValueAndCount(m)
     print("J0=%e"%J0)	
-    G=costf.getGradient(m)
+    G=costf.getGradientAndCount(m)
     #print("gradient = %s"%str(G))
-    Dex=costf.getDualProduct(dm,G)
+    Dex=costf.getDualProductAndCount(dm,G)
+    print("XX log(a):\tJ0\t\tJ(a)\t\tnum. D\t\tD\t\terror O(a)\t\tO(1)")
     for k in range(4, 13):
         a=0.5**k
-        J=costf.getValue(m+a*dm)
+        J=costf.getValueAndCount(m+a*dm)
         D=(J-J0)/a
-        print("XX %d, %e %e, %e %e, %e"%(k,J0, J, D, Dex, (D-Dex)/a) )
+        print("XX \t%d:\t%e\t%e\t%e\t%e\t%e\t%e"%(k,J0, J, D, Dex, D-Dex, (D-Dex)/a) )
 
 # set up solver:
-solver=MinimizerLBFGS(J=costf, m_tol=config.tolerance, J_tol=config.tolerance*10, imax=config.imax)
-solver.setOptions(interpolationOrder=config.interpolation_order, truncation=config.truncation, restart=config.restart)
 
+def myCallback(iterCount, m, dm, Fm, grad_Fm, norm_m, norm_gradFm, args_m, failed):
+    if args.RESTARTFN and iterCount >0:
+        m.dump(args.RESTARTFN)
+        if getMPIRankWorld() == 0:
+            print("restart file %s for step %s created."%(iterCount, args.RESTARTFN))
+    #print(f"snapshot for step {k} saved.")
+    #saveSilo("snapshot_"+args.OUTFILE, m=x)
+
+
+# set up solver:
+solver= MinimizerLBFGS(F=costf, iterMax=config.imax, logger=logger)
+solver.getLineSearch().setOptions(interpolationOrder=config.interpolation_order)
+solver.setOptions(m_tol=config.m_tolerance, truncation=config.truncation, restart=config.restart, grad_tol=config.g_tolerance)
+solver.setCallback(myCallback)
+# initial solution
+if args.restart and args.restart:
+   kk=[v for i,v in enumerate(os.listdir()) if v.startswith(args.RESTARTFN) ]
+   if kk:
+     m_init=load(args.RESTARTFN, domain)
+     txt=str(m_init)
+     if getMPIRankWorld() == 0:
+             print("restart file %s read. initial M = %s"%(args.RESTARTFN, txt))
+else:
+    m_init = Data(0.,(2,), Solution(domain))
 # run solver:
-m_init=Scalar(0., Solution(domain) ) 
 solver.run(m_init)
 m=solver.getResult()
-
 
 
 if args.query:

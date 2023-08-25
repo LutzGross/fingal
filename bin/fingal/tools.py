@@ -21,9 +21,7 @@ def makeWennerArray(numElectrodes=32, id0=0):
 def getInjectionPotentials(domain, sigma, survey, stationsFMT=None):
     """
     return the electric potential for all injections A in the survey using conductivity sigma.
-
-
-    :sigma: (primary) conductivity distribution
+    :sigma: (primary) conductivity
     :return: dictonary of injections A->injection_potentials
     """
     n = domain.getNormal()
@@ -42,10 +40,10 @@ def getInjectionPotentials(domain, sigma, survey, stationsFMT=None):
         # ---
         xs=survey.getStationLocation(A)
         r=x-xs
-        Y=sigma * inner(r,n)/length(r)**2
         pde.setValue(d=sigma * inner(r,n)/length(r)**2) # doi:10.1190/1.1440975
-        print("processing source ",A)
+
         injection_potential[A] = pde.getSolution()
+        print("processing source ", A, injection_potential[A])
         assert Lsup(injection_potential[A]) > 0, "Zero potential for injection %s" % A
     return injection_potential
 

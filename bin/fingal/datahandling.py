@@ -127,7 +127,7 @@ class SurveyData(object):
 
     """
     OBSTYPES= ['R', 'E', 'ETA', 'E0', 'E1', 'E2', 'GAMMA', 'MN', 'ERR_R', 'ERR_E', 'ERR_ETA', 'ERR_GAMMA', 'ERR_MN', 'RELERR_R', 'RELERR_E', 'RELERR_ETA', 'RELERR_GAMMA', 'ERRERR_MN',]
-    def __init__(self, stations={}, observations=[], dipoleInjections=True, dipoleMeasurements=True,  hasInjections=True, default_rel_error=0.01, unDefined=-999999):
+    def __init__(self, stations={}, observations=[], dipoleInjections=True, dipoleMeasurements=True,  hasInjections=True, default_rel_error=0.05, unDefined=-999999):
         """
         :stations: dictionary of station identifer to coordinates
         
@@ -212,6 +212,8 @@ class SurveyData(object):
         return self.lenObservations
     def getNumObservations(self):
         return len(self.data)
+    def getNumStations(self):
+        return len(self.station_key)
     def getStationLocation(self, s):
         return self.stations[s]
 
@@ -372,7 +374,7 @@ class SurveyData(object):
     
     def injectionIterator(self):
         """
-        returns an iterator (in form of list) of the injection dipols or stations:
+        returns an iterator (in form of list of id keys) of the injection dipols or stations:
         """
         if self.injectionIter is None:
             self.injectionIter=[]
@@ -405,7 +407,7 @@ class SurveyData(object):
     
     def getListOfInjectionStations(self):
         """
-        returns a list of the stations used for injection
+        returns a list of the stations keys used for injection
         """
         if self.injectionStations is None:
             out=[]
