@@ -2,7 +2,7 @@
 from esys.escript import *
 import importlib, os, sys
 sys.path.append(os.getcwd())
-from fingal import ERTInversion, readElectrodeLocations, readSurveyData
+from fingal import ERTInversion, readElectrodeLocations, readSurveyData, makeMaskForOuterFaces
 from esys.finley import ReadMesh
 import numpy as np
 from esys.weipa import saveVTK, saveSilo
@@ -23,8 +23,8 @@ parser.add_argument(dest='config', metavar='configfile', type=str, help='python 
 parser.add_argument('--restartfile', '-R', dest='RESTARTFN', metavar='RESTARTFN', type=None, default="restart", help='reststart file name')
 parser.add_argument('--restart', '-r',  dest='restart', action='store_true', default=False, help="start from restart file. RESTARTFN need to be set and exist.")
 
-parser.add_argument('--optimize', '-o',  dest='optimize', action='store_true', default=False, help="Calibrated the value for sigma_ref before iteration starts.")
-parser.add_argument('--test', '-t',  dest='testsigma_ref', action='store_true', default=False, help="Calculates a new value for sigma_ref and then stops.")
+parser.add_argument('--nooptimize', '-n',  dest='nooptimize', action='store_true', default=False, help="Don't Calibrated the value for config.sigma_ref before iteration starts.")
+parser.add_argument('--test', '-t',  dest='testonly', action='store_true', default=False, help="stop after rescaling config.sigma_ref.")
 #parser.add_argument('--query', '-q',  dest='query', type=str, default=None, help="file name (if set) for output of (A,B,M,N, observation, prediction) ")
 parser.add_argument('--vtk', '-v',  dest='vtk', action='store_true', default=False, help="VTK format is used for output otherwise silo is used.")
 parser.add_argument('--xyz', '-x',  dest='xyz', action='store_true', default=False, help="CSV file is create where results for the core region are written only.")
@@ -56,63 +56,61 @@ survey=readSurveyData(config.datafile, stations=elocations, usesStationCoordinat
 assert survey.getNumObservations()>0, "no data found."
 
 # set the reference conductivity:
-if isinstance(config.sigma_ref, dict):
-    sigma_ref=Scalar(config.sigma_background,Function(domain))
-    for k in config.sigma_ref:
-        sigma_ref.setTaggedValue(k, config.sigma_ref[k])
-else:
-    sigma_ref=config.sigma_ref
-print("Reference conductivity sigma_ref = %s"%(str(sigma_ref)))
-print("Background conductivity sigma_background = %s"%(str(config.sigma_background)))
-
-
+print("Reference conductivity sigma_ref = %s"%(str(config.sigma_ref)))
 # define region with fixed conductivity:
 if config.region_fixed and isinstance(config.region_fixed , list):
     fixedm=MaskFromTag(domain, *tuple(config.region_fixed))
     if len(config.region_fixed)> 0:
         print("Tags of regions with fixed property function : %s"%(config.region_fixed) )
 else:
-    x=domain.getX()
-    fixedm=whereZero(x[2]-inf(x[2]))
-    del x
-    print("Properties are fixed at the bottom of the domain.")
-
+    fixedm=None
+mask_face=makeMaskForOuterFaces(domain, taglist=config.faces)
 
 # create cost function:
 costf=ERTInversion(domain, data=survey,
-                  sigma_0_ref=sigma_ref, sigma_background=config.sigma_background,
+                  sigma_0_ref=config.sigma_ref,
+                  #sigma_0_ref=config.true_properties(domain)[0], sigma_background=config.sigma_ref,
                   w1=config.w1, usel1=config.usel1, epsl1=config.epsl1,
-                  mask_fixed_property=fixedm,
+                  mask_fixed_property=fixedm, mask_outer_faces = mask_face,
                   pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
                   EPSILON=1e-8, logger=logger)
 
 
-#if args.optimize or args.testsigma_ref:
-#    sigma_opt, f_opt,  defect = costf.optimizesigma_ref()
+#if args.optimize or args.testconfig.sigma_ref:
+#    sigma_opt, f_opt,  defect = costf.optimizeconfig.sigma_ref()
 #    if getMPIRankWorld() == 0:
-#         print("Better value for sigma_ref = %s, correction factor %s, defect = %s"%(sigma_opt, f_opt,  defect))
+#         print("Better value for config.sigma_ref = %s, correction factor %s, defect = %s"%(sigma_opt, f_opt,  defect))
 #         print("update your configuration file %s"%args.config)
-#         if args.testsigma_ref:
+#         if args.testconfig.sigma_ref:
 #            print("And goodbye")
 #         else:
-#            print("sigma_ref will be updated.")
-#    if args.testsigma_ref:
+#            print("config.sigma_ref will be updated.")
+#    if args.testconfig.sigma_ref:
 #        sys.exit()
 #    else:
-#        costf.scalesigma_ref(f_opt)
+#        costf.scaleconfig.sigma_ref(f_opt)
 
 # test gradient:
 if False:
+    #=====
+    x = domain.getX()[0]
+    y = domain.getX()[1]
+    z = domain.getX()[2]
+    pp=(x - inf(x))*(x - sup(x)) * (y - inf(y))* (y - sup(y))*(z - inf(z))
+    pp/=sup(pp)
+    #====
+
     x=length(domain.getX())
-    m=x/Lsup(x)
-    ddm=(domain.getX()[0]+domain.getX()[1]+0.5*domain.getX()[2])/Lsup(x)/3*0.01
+    m=x/Lsup(x)*pp
+    ddm=(domain.getX()[0]+domain.getX()[1]+0.5*domain.getX()[2])/Lsup(x)/3*0.01*pp
     print(str(m))
     print(str(ddm))
     dm=ddm
-    G=costf.getGradientAndCount(m)
+    args=costf.getArgumentsAndCount(m)
+    G=costf.getGradientAndCount(m, *args)
     Dex = costf.getDualProductAndCount(dm, G)
 
-    J0=costf.getValueAndCount(m)
+    J0=costf.getValueAndCount(m,  *args)
     print("J0=%e"%J0)
     #print("gradient = %s"%str(G))
 
@@ -124,8 +122,13 @@ if False:
         print("XX \t%d:\t%e\t%e\t%e\t%e\t%e\t%e"%(k,J0, J, D, Dex, D-Dex, (D-Dex)/a) )
 
 # set up solver:
-new_sigma_ref=costf.fitSigmaBackground()
-print(new_sigma_ref, config.sigma_background)
+if not args.nooptimize:
+    new_sigma_ref=costf.fitSigmaRef()
+    print("new value for config.sigma_ref =",new_sigma_ref)
+    costf.setNewSigma0Ref(new_sigma_ref)
+    costf.setNewSigmaBackground(new_sigma_ref)
+if args.testonly:
+    exit(0)
 
 def myCallback(iterCount, m, dm, Fm, grad_Fm, norm_m, norm_gradFm, args_m, failed):
     if args.RESTARTFN and iterCount >0:

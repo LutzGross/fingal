@@ -5,9 +5,25 @@ by l.gross@uq.edu.au, Dec 2020.
 """
 
 
-from esys.escript import Scalar, getMPIRankWorld, integrate, hasFeature, Function, kronecker, Data, DiracDeltaFunctions, inner, length, Lsup
+from esys.escript import Scalar, getMPIRankWorld, integrate, hasFeature, Function, kronecker, Data, DiracDeltaFunctions, inner, length, Lsup, FunctionOnBoundary, inf, sup, whereZero, wherePositive
 from esys.escript.linearPDEs import LinearSinglePDE, SolverOptions
 
+def makeMaskForOuterFaces(domain, facemask=None, taglist=None):
+    """
+    returs a mask of elements on the 'outer' faces where
+    if a mask is given this is returned, otherwise the taglist is used to create tihs m
+    """
+    if facemask is not None:
+        m = facemask
+    elif taglist:
+        m=Scalar(0., FunctionOnBoundary(domain))
+        for t in taglist:
+            m.setTaggedValue(t, 1.)
+    else:
+        X= FunctionOnBoundary(domain).getX()
+        x = domain.getX()
+        m  =wherePositive( (whereZero(X[0] - inf(x[0])) + whereZero(X[0] - sup(x[0])) + whereZero(X[1] - inf(x[1])) + whereZero(X[1] - sup(x[1])) + whereZero(X[2] - inf(x[2]))) )
+    return m
 def makeWennerArray(numElectrodes=32, id0=0):
     """
     creates a schedule (A,B,M, N) for a Wenner array of length numElectrodes
@@ -18,13 +34,14 @@ def makeWennerArray(numElectrodes=32, id0=0):
             schedule.append((k+id0, k+3*a+id0, k+1*a+id0, k+2*a+id0))
     return schedule
 
-def getInjectionPotentials(domain, sigma, survey, stationsFMT=None):
+def getInjectionPotentials(domain, sigma, survey, mask_outer_faces = None, stationsFMT=None):
     """
     return the electric potential for all injections A in the survey using conductivity sigma.
     :sigma: (primary) conductivity
     :return: dictonary of injections A->injection_potentials
     """
-    n = domain.getNormal()
+    mm=makeMaskForOuterFaces(domain, facemask=mask_outer_faces)
+    n = domain.getNormal() * mm
     x = n.getX()
 
     injection_potential = {}
@@ -41,7 +58,6 @@ def getInjectionPotentials(domain, sigma, survey, stationsFMT=None):
         xs=survey.getStationLocation(A)
         r=x-xs
         pde.setValue(d=sigma * inner(r,n)/length(r)**2) # doi:10.1190/1.1440975
-
         injection_potential[A] = pde.getSolution()
         print("processing source ", A, injection_potential[A])
         assert Lsup(injection_potential[A]) > 0, "Zero potential for injection %s" % A

@@ -1,7 +1,7 @@
 #
 # this is a fingal configuration file
 #
-created = '22.08.2023 16:13'
+created = '29.08.2023 18:26'
 project='Wenner'
 # 
 #   name of the mesh file
@@ -30,13 +30,12 @@ schedulefile = 'data.csv'
 #
 
 region_fixed=[]
-sigma_background=0.0006*0+0.02132941887325601
-sigma_ref=sigma_background
-Mn_ref=0.01/(1-0.01)*sigma_background
+sigma_ref=0.005
+Mn_ref=0.01/(1-0.01)*sigma_ref
 #def true_properties(domain):
-#    
-#    sigma_true=Scalar(sigma_background, Function(domain))
-#    Mn_true=Scalar(Mn_background, Function(domain))
+#    from esys.escript import Scalar, Function
+#    sigma_true=Scalar(sigma_ref, Function(domain))
+#    Mn_true=Scalar(Mn_ref, Function(domain))
 #    return sigma_true, Mn_true
 #
 #
@@ -45,15 +44,15 @@ Mn_ref=0.01/(1-0.01)*sigma_background
 weighting_misfit_ERT=0.5
 clip_property_function=10
 m_tolerance=1.e-4
-g_tolerance=1.e-4
+g_tolerance=1.e-6
 interpolation_order=3
 imax=400
 truncation=20
 restart=60
-pde_tol=1e-8
-w1=1.e1
-usel1=False #or True
-epsl1=1e-15
+pde_tol=1e-10
+w1=0.5e-5
+usel1=False
+epsl1=1e-4
 w0=0.0
 theta=0
 alpha0=1
@@ -71,4 +70,21 @@ core = ['Core']
 faces = ['faces']
 restartfile = 'restart'
 
-true_properties=None
+def true_properties(domain):
+    DD=5 # depth of high conductivity area.
+    KAPPA=0.3 # curvture factor
+    x0=40 # horizontal offset of high conductivit area
+    InterfaceDepth=2000
+    sigma_low =sigma_ref
+    sigma_high = sigma_ref*100
+    from esys.escript import Scalar, ReducedFunction, interpolate, Function, whereNegative, wherePositive
+    X=ReducedFunction(domain).getX()
+    z=X[2]
+    x=X[0]
+    h=-DD-KAPPA*(x-x0)**2
+    mc=Scalar(0., ReducedFunction(domain))
+    mc.setTaggedValue("core", 1.)
+    mp=wherePositive(whereNegative(z-h)+whereNegative(z+InterfaceDepth))*mc
+    sigma_true=sigma_high * mp + (1-mp) * sigma_low
+    Mn_true=Scalar(Mn_ref, Function(domain))
+    return interpolate(sigma_true, Function(domain)), Mn_true

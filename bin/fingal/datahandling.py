@@ -169,7 +169,7 @@ class SurveyData(object):
         self.injectionIter=None    # list of injection dipoles or stations
         self.injectionStations=None # list of injection stations
         self.observationElectrodes=None
-    
+        self._resistence_max=None
     @classmethod 
     def checkObservationType(cls, obs):
         if isinstance(obs, list):
@@ -242,7 +242,11 @@ class SurveyData(object):
             return self.data[token][i]
     def hasDataType(self, datatype):
         return datatype in self.observations
-    
+
+    def getMaximumResistence(self):
+        if self._resistence_max is None:
+            self._resistence_max = max([ self.getResistenceData(t) for t in self.tokenIterator() ] )
+        return self._resistence_max
     def getResistenceData(self, token):
         return self.getDataRecord(token, datatype='R')
 
@@ -255,13 +259,9 @@ class SurveyData(object):
             if self.isUndefined(r) or self.isUndefined(e):
                 return self.unDefined
             else:
-                return e*r
+                return abs(r*e)
         else:
-            r=self.getDataRecord(token, datatype='R')
-            if self.isUndefined(r):
-                return self.unDefined
-            else:
-                return self.default_rel_error*r
+            return self.default_rel_error*self.getMaximumResistence()
 
 
     def getResistenceRelError(self, token):

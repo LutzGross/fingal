@@ -4,7 +4,7 @@ import importlib, sys, os
 import argparse
 sys.path.append(os.getcwd())
 import numpy as np
-from fingal import readElectrodeLocations, readSurveyData, setupERTPDE, getInjectionPotentials
+from fingal import readElectrodeLocations, readSurveyData, setupERTPDE, getInjectionPotentials, makeMaskForOuterFaces
 from esys.finley import ReadMesh
 
 from esys.weipa import saveVTK, saveSilo
@@ -74,6 +74,8 @@ txt2=str(Mn_true).replace("\n",';')
 print(f"True conductivity sigma_0_true = {txt1}.")
 print(f"True normalised chargeability Mn_true = {txt2}.")
 
+
+
 # set locators to extract predictions:
 station_locations=[]
 for s in survey.getStationNumeration():
@@ -84,12 +86,19 @@ elementlocators=Locator(ReducedFunction(domain), station_locations)
 
 print( str(len(station_locations))+ " station locators calculated.")
 
-SIGMA_S=config.sigma_background
+SIGMA_S=config.sigma_ref
+mask_face=makeMaskForOuterFaces(domain, taglist=config.faces)
 
+if args.silofile is not None:
+    mask_face.expand()
+    sigma_0_true.expand()
+    Mn_true.expand()
+    saveSilo(args.silofile,tag=makeTagMap(ReducedFunction(domain)), face=mask_face, sigma_0_true=sigma_0_true, Mn_true=Mn_true)
+    print(args.silofile+".silo with tags has been generated.")
 
 print("... injection field:")
 print("sigma_S= ",SIGMA_S)
-injection_potential=getInjectionPotentials(domain, SIGMA_S, survey, stationsFMT=config.stationsFMT)
+injection_potential=getInjectionPotentials(domain, SIGMA_S, survey, mask_outer_faces = mask_face, stationsFMT=config.stationsFMT)
 
 injection_field={}
 injection_potential_at_station={}
@@ -107,11 +116,6 @@ print(str(len(injection_field))+" injection fields calculated.")
 
 # PDE:
 pde=setupERTPDE(domain)
-x=pde.getDomain().getX()[0]
-y=pde.getDomain().getX()[1]
-z=pde.getDomain().getX()[2]
-q=whereZero(x-inf(x))+whereZero(x-sup(x))+ whereZero(y-inf(y))+whereZero(y-sup(y))+whereZero(z-inf(z))
-pde.setValue(q=q)
 
 # -div(sigma_S grad(V_i))=S
 # V_S = injection potential
@@ -125,7 +129,15 @@ potential_0_at_stations = {}
 field_0_at_stations = {}
 pde.setValue(A=sigma_0_true * kronecker(3), y_dirac=Data())
 
+n = domain.getNormal()
+x = FunctionOnBoundary(domain).getX()
+
 for ip in survey.getListOfInjectionStations():
+
+    r = x - survey.getStationLocation(ip)
+    ff = inner(r, n) / length(r) ** 2 * mask_face
+    pde.setValue(d=config.sigma_ref * ff, y=-(config.sigma_ref - SIGMA_S) * ff)
+
     pde.setValue(X=(SIGMA_S-sigma_0_true) * grad(injection_potential[ip]))
     potential_0[ip] = pde.getSolution()
     field_0[ip] = -grad(potential_0[ip], ReducedFunction(domain))
@@ -145,7 +157,13 @@ secondary_potential = {}
 secondary_field = {}
 secondary_potential_at_stations = {}
 secondary_field_at_stations = {}
-pde.setValue(A=sigma_oo_true * kronecker(3), y_dirac=Data())
+pde.setValue(A=sigma_oo_true * kronecker(3), y_dirac=Data(), y=Data(), d=Data())
+
+x=pde.getDomain().getX()[0]
+y=pde.getDomain().getX()[1]
+z=pde.getDomain().getX()[2]
+q=whereZero(x-inf(x))+whereZero(x-sup(x))+ whereZero(y-inf(y))+whereZero(y-sup(y))+whereZero(z-inf(z))
+pde.setValue(q=q)
 
 for ip in survey.getListOfInjectionStations():
     pde.setValue(X=Mn_true * grad(potential_0[ip]+injection_potential[ip]))
@@ -281,8 +299,4 @@ if getMPIRankWorld() == 0:
     f.close()
     print(n," measurement written to file "+config.datafile)   
 
-if args.silofile is not None:
-    sigma_0_true.expand()
-    Mn_true.expand()
-    saveSilo(args.silofile,tag=makeTagMap(ReducedFunction(domain)), sigma_0_true=sigma_0_true, Mn_true=Mn_true)
-    print(args.silofile+".silo with tags has been generated for injection [%d, %d]"%(A,B))
+

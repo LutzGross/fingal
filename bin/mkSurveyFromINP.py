@@ -22,8 +22,8 @@ parser.add_argument('--topo', '-t', dest='topo', action='store_true', default=Fa
                     help="topography is added from station locations (ignored)")
 parser.add_argument('--core', '-i', dest='core', type=int, default=20,
                     help="core around area of electrodes in %% of its diameter (default 20)")
-parser.add_argument('--padding', '-o', dest='padding', type=int, default=150,
-                    help="relative padding padding around core in %% of core (default 80)")
+parser.add_argument('--padding', '-o', dest='padding', type=int, default=500,
+                    help="relative padding padding around core in %% of core (default 500)")
 parser.add_argument('--depth', '-d', dest='depth', type=int, default=45,
                     help="depth relative to core width around core in %% (default 45)")
 
@@ -41,7 +41,7 @@ parser.add_argument('--stations', '-S', dest='stationfile', type=str, default="s
 parser.add_argument('--config', '-C', dest='configfile', type=str, default="config", help="name of the configuration file to be generated.")
 
 args = parser.parse_args()
-CDTEMPLATE="../../../bin"
+CDTEMPLATE=os.path.dirname(__file__)
 stationsFMT="s%s"
 silofile="mesh"
 
@@ -284,7 +284,7 @@ CHANGE = {
     "dipoleMeasurements": True,
     "datacolumns": ['R' ],
     "alpha1": 1.,
-    "core": ["Core"],
+    "core": ["core"],
     "faces": ["faces"]
 }
 FN = args.configfile + ".py"

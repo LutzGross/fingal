@@ -109,25 +109,21 @@ schedulefile = '{schedulefile}'
 #.
 region_fixed=[]
 #.
-#. Conductivity used to construct injection potentials (needs to be a constant!!)
+#. reference DC conductivity (property function p = log(sigma/sigma_ref))
 #.
-sigma_background=1e-4
-#.
-#. reference DC conductivity (property function p = log(sigma/sigma0))
-#.
-sigma_ref=sigma_background
+sigma_ref=1
 #.
 #. reference normalized chargeability (property function p = log(Mn/Mn0))
 #.
-Mn_ref=0.01/(1-0.01)*sigma_background
+Mn_ref=0.01/(1-0.01)*sigma_ref
 #.
 #. The function defines the true conductivity and modified chargeability. 
 #. Obviously this function is used when synthetic data are constructed or for testing and validation.
 #. 
 #def true_properties(domain):
-#    
-#    sigma_true=Scalar(sigma_background, Function(domain))
-#    Mn_true=Scalar(Mn_background, Function(domain))
+#    from esys.escript import Scalar, Function
+#    sigma_true=Scalar(sigma_ref, Function(domain))
+#    Mn_true=Scalar(Mn_ref, Function(domain))
 #    return sigma_true, Mn_true
 #. 
 #. Set to true_properties=None if the true distributions are not available 
