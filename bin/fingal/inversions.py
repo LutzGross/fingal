@@ -696,7 +696,7 @@ class ERTMisfitCostFunction(CostFunction):
         # build the misfit data (indexed by source index):
         self.misfit_0 = {}  # potential increment to injection field to get DC potential
         nd0 = 0 # counting number of data
-        useLogMisfit=False
+        useLogMisfit=True
         for A, B in self.data.injectionIterator():
             obs = self.data.getObservations(A, B)
             iA = self.data.getStationNumber(A)
@@ -784,7 +784,6 @@ class ERTMisfitCostFunction(CostFunction):
                     s2 += sum(E.weightings )
             else:
                     ValueError("unknown data misfit function.")
-        print(s1, s2, ccL, ccQ)
         if ccL >0 and ccQ > 0:
             ValueError("mixed data misfit function.")
         factor=1

@@ -245,7 +245,7 @@ class SurveyData(object):
 
     def getMaximumResistence(self):
         if self._resistence_max is None:
-            self._resistence_max = max([ self.getResistenceData(t) for t in self.tokenIterator() ] )
+            self._resistence_max = max([ abs(self.getResistenceData(t)) for t in self.tokenIterator() ] )
         return self._resistence_max
     def getResistenceData(self, token):
         return self.getDataRecord(token, datatype='R')

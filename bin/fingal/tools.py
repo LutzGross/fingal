@@ -130,6 +130,8 @@ def setupERTPDE(domain, tolerance=1e-8, poisson=True, debug=0):
         optionsG.setTrilinosParameter("verbosity", "none")
         optionsG.setTrilinosParameter("number of equations", 1)
         optionsG.setTrilinosParameter("problem: symmetric", True)
+    #print("TO DO")
+    #optionsG.setSolverMethod(SolverOptions.DIRECT)
  
     return pde
 

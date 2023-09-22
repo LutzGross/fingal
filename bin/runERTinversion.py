@@ -73,7 +73,7 @@ costf=ERTInversion(domain, data=survey,
                   w1=config.w1, usel1=config.usel1, epsl1=config.epsl1,
                   mask_fixed_property=fixedm, mask_outer_faces = mask_face,
                   pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
-                  EPSILON=1e-8, logger=logger)
+                  logger=logger)
 
 
 #if args.optimize or args.testconfig.sigma_ref:
@@ -97,12 +97,13 @@ if False:
     y = domain.getX()[1]
     z = domain.getX()[2]
     pp=(x - inf(x))*(x - sup(x)) * (y - inf(y))* (y - sup(y))*(z - inf(z))
-    pp/=sup(pp)
+    pp/=sup(abs(pp))
     #====
 
     x=length(domain.getX())
     m=x/Lsup(x)*pp
-    ddm=(domain.getX()[0]+domain.getX()[1]+0.5*domain.getX()[2])/Lsup(x)/3*0.01*pp
+    ddm=(domain.getX()[0]+domain.getX()[1]+0.5*domain.getX()[2])/Lsup(x)/3*0.001*pp
+    ddm=pp*0.01
     print(str(m))
     print(str(ddm))
     dm=ddm
@@ -120,7 +121,7 @@ if False:
         J=costf.getValueAndCount(m+a*dm)
         D=(J-J0)/a
         print("XX \t%d:\t%e\t%e\t%e\t%e\t%e\t%e"%(k,J0, J, D, Dex, D-Dex, (D-Dex)/a) )
-
+    1/0
 # set up solver:
 if not args.nooptimize:
     new_sigma_ref=costf.fitSigmaRef()
