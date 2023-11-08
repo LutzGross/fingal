@@ -4,7 +4,7 @@ import importlib, sys, os
 import argparse
 sys.path.append(os.getcwd())
 import numpy as np
-from fingal import readElectrodeLocations, readSurveyData, setupERTPDE, getInjectionPotentials, makeMaskForOuterFaces
+from fingal import readElectrodeLocations, readSurveyData, setupERTPDE, getInjectionPotentials, makeMaskForOuterSurface
 from esys.finley import ReadMesh
 
 from esys.weipa import saveVTK, saveSilo
@@ -87,7 +87,7 @@ elementlocators=Locator(ReducedFunction(domain), station_locations)
 print( str(len(station_locations))+ " station locators calculated.")
 
 SIGMA_S=config.sigma_ref
-mask_face=makeMaskForOuterFaces(domain, taglist=config.faces)
+mask_face=makeMaskForOuterSurface(domain, taglist=config.faces)
 
 if args.silofile is not None:
     mask_face.expand()

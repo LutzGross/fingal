@@ -2,7 +2,7 @@
 from esys.escript import *
 import importlib, os, sys
 sys.path.append(os.getcwd())
-from fingal import ERTInversion, readElectrodeLocations, readSurveyData, makeMaskForOuterFaces
+from fingal import ERTInversion, readElectrodeLocations, readSurveyData, makeMaskForOuterSurface
 from esys.finley import ReadMesh
 import numpy as np
 from esys.weipa import saveVTK, saveSilo
@@ -64,16 +64,16 @@ if config.region_fixed and isinstance(config.region_fixed , list):
         print("Tags of regions with fixed property function : %s"%(config.region_fixed) )
 else:
     fixedm=None
-mask_face=makeMaskForOuterFaces(domain, taglist=config.faces)
-
+mask_face=makeMaskForOuterSurface(domain, taglist=config.faces)
+useLogMisfit=False
 # create cost function:
 costf=ERTInversion(domain, data=survey,
-                  sigma_0_ref=config.sigma_ref,
-                  #sigma_0_ref=config.true_properties(domain)[0], sigma_background=config.sigma_ref,
-                  w1=config.w1, usel1=config.usel1, epsl1=config.epsl1,
-                  mask_fixed_property=fixedm, mask_outer_faces = mask_face,
-                  pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
-                  logger=logger)
+                   sigma_0_ref=config.sigma_ref,
+                   #sigma_0_ref=config.true_properties(domain)[0], sigma_background=config.sigma_ref,
+                   w1=config.w1, useL1Norm=config.useL1Norm, epsilonL1Norm=config.epsilonL1Norm,
+                   mask_fixed_property=fixedm, mask_outer_faces = mask_face,
+                   pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
+                   useLogMisfit= useLogMisfit, logger=logger)
 
 
 #if args.optimize or args.testconfig.sigma_ref:
@@ -126,8 +126,8 @@ if False:
 if not args.nooptimize:
     new_sigma_ref=costf.fitSigmaRef()
     print("new value for config.sigma_ref =",new_sigma_ref)
-    costf.setNewSigma0Ref(new_sigma_ref)
-    costf.setNewSigmaBackground(new_sigma_ref)
+    costf.setSigma0Ref(new_sigma_ref)
+    #costf.setSigmaSrc(new_sigma_ref)
 if args.testonly:
     exit(0)
 

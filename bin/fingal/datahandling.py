@@ -214,9 +214,12 @@ class SurveyData(object):
         return len(self.data)
     def getNumStations(self):
         return len(self.station_key)
-    def getStationLocation(self, s):
-        return self.stations[s]
-
+    def getStationLocation(self, k):
+        return self.getStationLocationByKey(k)
+    def getStationLocationByKey(self, k):
+        return self.stations[k]
+    def getStationLocationByNumber(self, ik):
+        return self.getStationLocationByKey(self.getKeyOfStationNumber(ik))
     def setDataRecord(self, token, data=()):
         """
         sets observation by token.

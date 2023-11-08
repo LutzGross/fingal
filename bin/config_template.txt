@@ -165,8 +165,8 @@ w1=1
 #.
 #. use sqrt(|grad(m)|^2+epsl1**2) for regularization
 #.
-usel1=False
-epsl1=1e-4
+useL1Norm=False
+epsilonL1Norm=1e-4
 #. 
 #. weighting for the |m|^2 term
 #.
