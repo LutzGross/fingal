@@ -56,7 +56,7 @@ survey=readSurveyData(config.datafile, stations=elocations, usesStationCoordinat
 assert survey.getNumObservations()>0, "no data found."
 
 # set the reference conductivity:
-print("Reference conductivity sigma_ref = %s"%(str(config.sigma_ref)))
+
 # define region with fixed conductivity:
 if config.region_fixed and isinstance(config.region_fixed , list):
     fixedm=MaskFromTag(domain, *tuple(config.region_fixed))
@@ -70,7 +70,7 @@ useLogMisfit=False
 costf=ERTInversion(domain, data=survey,
                    sigma_0_ref=config.sigma_ref,
                    #sigma_0_ref=config.true_properties(domain)[0], sigma_background=config.sigma_ref,
-                   w1=config.w1, useL1Norm=config.useL1Norm, epsilonL1Norm=config.epsilonL1Norm,
+                   w1=config.w1*0, useL1Norm=config.useL1Norm, epsilonL1Norm=config.epsilonL1Norm,
                    mask_fixed_property=fixedm, mask_outer_faces = mask_face,
                    pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
                    useLogMisfit= useLogMisfit, logger=logger)
@@ -91,12 +91,13 @@ costf=ERTInversion(domain, data=survey,
 #        costf.scaleconfig.sigma_ref(f_opt)
 
 # test gradient:
-if False:
+if True:
     #=====
     x = domain.getX()[0]
     y = domain.getX()[1]
     z = domain.getX()[2]
     pp=(x - inf(x))*(x - sup(x)) * (y - inf(y))* (y - sup(y))*(z - inf(z))
+    #pp = (z - inf(z))
     pp/=sup(abs(pp))
     #====
 
