@@ -70,7 +70,7 @@ useLogMisfit=False
 costf=ERTInversion(domain, data=survey,
                    sigma_0_ref=config.sigma_ref,
                    #sigma_0_ref=config.true_properties(domain)[0], sigma_background=config.sigma_ref,
-                   w1=config.w1*0, useL1Norm=config.useL1Norm, epsilonL1Norm=config.epsilonL1Norm,
+                   w1=config.w1, useL1Norm=config.useL1Norm, epsilonL1Norm=config.epsilonL1Norm,
                    mask_fixed_property=fixedm, mask_outer_faces = mask_face,
                    pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
                    useLogMisfit= useLogMisfit, logger=logger)
@@ -91,27 +91,27 @@ costf=ERTInversion(domain, data=survey,
 #        costf.scaleconfig.sigma_ref(f_opt)
 
 # test gradient:
-if True:
+if False:
     #=====
     x = domain.getX()[0]
     y = domain.getX()[1]
     z = domain.getX()[2]
-    pp=(x - inf(x))*(x - sup(x)) * (y - inf(y))* (y - sup(y))*(z - inf(z))
-    #pp = (z - inf(z))
+    #pp=(x - inf(x))*(x - sup(x)) * (y - inf(y))* (y - sup(y))*(z - inf(z))
+    pp = (z - inf(z))
     pp/=sup(abs(pp))
     #====
 
     x=length(domain.getX())
     m=x/Lsup(x)*pp
-    ddm=(domain.getX()[0]+domain.getX()[1]+0.5*domain.getX()[2])/Lsup(x)/3*0.001*pp
-    ddm=pp*0.01
+    ddm=(domain.getX()[0]+domain.getX()[1]+0.5*domain.getX()[2])/Lsup(x)/3*10*pp
+    #ddm=pp*0.01
     print(str(m))
     print(str(ddm))
     dm=ddm
+    m*=0
     args=costf.getArgumentsAndCount(m)
     G=costf.getGradientAndCount(m, *args)
     Dex = costf.getDualProductAndCount(dm, G)
-
     J0=costf.getValueAndCount(m,  *args)
     print("J0=%e"%J0)
     #print("gradient = %s"%str(G))

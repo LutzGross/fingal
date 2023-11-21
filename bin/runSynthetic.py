@@ -74,19 +74,7 @@ txt2=str(Mn_true).replace("\n",';')
 print(f"True conductivity sigma_0_true = {txt1}.")
 print(f"True normalised chargeability Mn_true = {txt2}.")
 
-
-
 # set locators to extract predictions:
-station_locations=[]
-for s in survey.getStationNumeration():
-   station_locations.append(survey.getStationLocation(s))
-
-nodelocators=Locator(Solution(domain), station_locations)
-elementlocators=Locator(ReducedFunction(domain), station_locations)
-
-print( str(len(station_locations))+ " station locators calculated.")
-
-SIGMA_S=config.sigma_ref
 mask_face=makeMaskForOuterSurface(domain, taglist=config.faces)
 
 if args.silofile is not None:
@@ -96,22 +84,33 @@ if args.silofile is not None:
     saveSilo(args.silofile,tag=makeTagMap(ReducedFunction(domain)), face=mask_face, sigma_0_true=sigma_0_true, Mn_true=Mn_true)
     print(args.silofile+".silo with tags has been generated.")
 
-print("... injection field:")
+
+
+station_locations=[]
+for s in survey.getStationNumeration():
+   station_locations.append(survey.getStationLocation(s))
+
+nodelocators=Locator(Solution(domain), station_locations)
+elementlocators=Locator(ReducedFunction(domain), station_locations)
+stationlocators=Locator(Function(domain), station_locations)
+print( str(len(station_locations))+ " station locators calculated.")
+
+print("... source fields:")
+SIGMA_S=1.
 print("sigma_S= ",SIGMA_S)
-injection_potential=getInjectionPotentials(domain, SIGMA_S, survey, mask_outer_faces = mask_face, stationsFMT=config.stationsFMT)
+source_potential=getSourcePotentials(domain, SIGMA_S, survey, mask_outer_faces = mask_face, stationsFMT=config.stationsFMT)
 
-injection_field={}
-injection_potential_at_station={}
-injection_field_at_station={}
-
+source_field={}
+source_potential_at_station={}
+source_field_at_station={}
 
 for ip in survey.getListOfInjectionStations():
-    injection_field[ip]=-grad(injection_potential[ip], ReducedFunction(domain))
-    injection_potential_at_station[ip]=nodelocators(injection_potential[ip])
-    injection_field_at_station[ip]=elementlocators(injection_field[ip]) 
-    txt1=str(injection_potential[ip])
+    source_field[ip]=-grad(source_potential[ip], ReducedFunction(domain))
+    source_potential_at_station[ip]=nodelocators(source_potential[ip])
+    source_field_at_station[ip]=elementlocators(source_field[ip])
+    txt1=str(source_potential[ip])
     print("\t%s : %s "%(ip,txt1))
-print(str(len(injection_field))+" injection fields calculated.")
+print(str(len(source_field)) + " injection fields calculated.")
 
 
 # PDE:
@@ -121,7 +120,7 @@ pde=setupERTPDE(domain)
 # V_S = injection potential
 # secondary potential -div(sigma_0 grad(V_2) = -div(sigma_S-sigma_0 grad(V_i))
 #  DC potenential V_0 = V_S + V_2
-print(".... DC potential : (increment from injection)")
+print(".... DC potential : (increment from source)")
 print("sigma_0= ",sigma_0_true)
 potential_0 = {}
 field_0 = {}
@@ -132,25 +131,23 @@ pde.setValue(A=sigma_0_true * kronecker(3), y_dirac=Data())
 n = domain.getNormal()
 x = FunctionOnBoundary(domain).getX()
 
-for ip in survey.getListOfInjectionStations():
+for A in survey.getListOfInjectionStations():
 
-    r = x - survey.getStationLocation(ip)
-    ff = inner(r, n) / length(r) ** 2 * mask_face
-    pde.setValue(d=config.sigma_ref * ff, y=-(config.sigma_ref - SIGMA_S) * ff)
+    r = x - survey.getStationLocation(A)
+    fA = inner(r, n) / length(r) ** 2 * mask_face
+    pde.setValue(d=config.sigma_ref * fA, y=-(config.sigma_ref - SIGMA_S) * fA)
 
-    pde.setValue(X=(SIGMA_S-sigma_0_true) * grad(injection_potential[ip]))
-    potential_0[ip] = pde.getSolution()
-    field_0[ip] = -grad(potential_0[ip], ReducedFunction(domain))
-    potential_0_at_stations[ip] = nodelocators(potential_0[ip])
-    field_0_at_stations[ip] = elementlocators(field_0[ip])
-    txt1 = str(potential_0[ip])
-    print("\t%s : %s " % (ip, txt1))
+    pde.setValue(X=(SIGMA_S-sigma_0_true) * grad(source_potential[A]))
+    potential_0[A] = pde.getSolution()
+    field_0[A] = -grad(potential_0[A], ReducedFunction(domain))
+    potential_0_at_stations[A] = nodelocators(potential_0[ip])
+    print("\t%s : %s " % (ip,  str(potential_0[ip])))
 print(str(len(potential_0))+" secondary potentials calculated.")
 
 
 # secondary potential -div(sigma_oo grad(V_over) = -div(Mn grad(V_DC))
 #  ETA= V_over/V_DC
-print(".... secondary potentials:")
+print(".... IP potentials:")
 sigma_oo_true=Mn_true+sigma_0_true
 print("sigma_oo= ",sigma_oo_true)
 secondary_potential = {}
@@ -159,26 +156,20 @@ secondary_potential_at_stations = {}
 secondary_field_at_stations = {}
 pde.setValue(A=sigma_oo_true * kronecker(3), y_dirac=Data(), y=Data(), d=Data())
 
-x=pde.getDomain().getX()[0]
-y=pde.getDomain().getX()[1]
-z=pde.getDomain().getX()[2]
-q=whereZero(x-inf(x))+whereZero(x-sup(x))+ whereZero(y-inf(y))+whereZero(y-sup(y))+whereZero(z-inf(z))
-pde.setValue(q=q)
 
-for ip in survey.getListOfInjectionStations():
-    pde.setValue(X=Mn_true * grad(potential_0[ip]+injection_potential[ip]))
-    secondary_potential[ip] = pde.getSolution()
-    secondary_field[ip] = -grad(secondary_potential[ip], ReducedFunction(domain))
-    secondary_potential_at_stations[ip] = nodelocators(secondary_potential[ip])
-    secondary_field_at_stations[ip] = elementlocators(secondary_field[ip])
-    txt1 = str(secondary_potential[ip])
-    print("\t%s : %s " % (ip, txt1))
+for A in survey.getListOfInjectionStations():
+    pde.setValue(X=Mn_true * grad(potential_0[A] + source_potential[A]))
+    secondary_potential[A] = pde.getSolution()
+    secondary_field[A] = -grad(secondary_potential[A], ReducedFunction(domain))
+    secondary_potential_at_stations[A] = nodelocators(secondary_potential[ip])
+    secondary_field_at_stations[A] = elementlocators(secondary_field[ip])
+    print("\t%s : %s " % (A, str(secondary_potential[ip])))
 print(str(len(secondary_potential))+" M potentials calculated.")
 
-dV_i=survey.makeResistencePrediction(values=injection_potential_at_station)
+dV_i=survey.makeResistencePrediction(values=source_potential_at_station)
 dV_0=survey.makeResistencePrediction(values=potential_0_at_stations)
 dV_2=survey.makeResistencePrediction(values=secondary_potential_at_stations)
-dE_i=survey.makeResistencePrediction(values=injection_field_at_station)
+dE_i=survey.makeResistencePrediction(values=source_field_at_station)
 dE_0=survey.makeResistencePrediction(values=field_0_at_stations)
 dE_2=survey.makeResistencePrediction(values=secondary_field_at_stations)
 

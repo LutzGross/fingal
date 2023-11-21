@@ -49,6 +49,7 @@ class DataMisfitQuad(object):
         else:
             diff = u[self.iMs]
         res = diff - self.data
+
         dd = abs(res) ** 2 * self.weightings
         return 0.5 * sum(dd)
 
@@ -181,8 +182,6 @@ class DataMisfitLog2(object):
 
     def rescaleWeight(self, weight=1.):
         self.weightings *= weight
-
-
 
 
 class IPMisfitCostFunction(CostFunction):
@@ -342,8 +341,7 @@ class IPMisfitCostFunction(CostFunction):
             self.forward_pde.setValue(X=(self.sigma_background - sigma_0) * grad(self.injection_potential[A]))
             Potentials_0[iA] = self.forward_pde.getSolution()
             Potentials_0_at_Stations[iA] = np.array(self.grabValues(Potentials_0[iA]))
-        if getMPIRankWorld() == 0:
-            self.logger.debug("%s DC potentials calculated." % len(Potentials_0))
+        self.logger.debug("%s DC potentials calculated." % len(Potentials_0))
         Potentials_2_at_Stations = {}  # Vs
         Potentials_2 = {}
 
@@ -354,8 +352,7 @@ class IPMisfitCostFunction(CostFunction):
             Potentials_2[iA] = self.forward_pde.getSolution()
             Potentials_2_at_Stations[iA] = np.array(self.grabValues(Potentials_2[iA]))
 
-        if getMPIRankWorld() == 0:
-            self.logger.debug("%s secondary potentials calculated." % len(Potentials_2))
+        self.logger.debug("%s secondary potentials calculated." % len(Potentials_2))
 
         return Potentials_0, Potentials_2, Potentials_0_at_Stations, Potentials_2_at_Stations
 
@@ -481,7 +478,6 @@ class IPInversion(IPMisfitCostFunction):
                 pde.getSolverOptions().setTolerance(min(sqrt(pde_tol), 1e-3))
         else:
             self.Hpde = setupERTPDE(self.domain)
-            print(self.w1, str(self.mask_fixed_property))
             self.Hpde.setValue(A=self.w1 * kronecker(3), q=self.mask_fixed_property)
             self.Hpde.getSolverOptions().setTolerance(min(sqrt(pde_tol), 1e-3))
 
@@ -653,27 +649,15 @@ class ERTMisfitCostFunction(CostFunction):
         self.forward_pde = setupERTPDE(domain)
         self.forward_pde.getSolverOptions().setTolerance(pde_tol)
         # self.forward_pde.getSolverOptions().setTrilinosParameter("reVs_ooe: type","full")
-        # self.forward_pde=setupERTPDE(domain)
-        #x = self.forward_pde.getDomain().getX()[0]
-        #y = self.forward_pde.getDomain().getX()[1]
-        #z = self.forward_pde.getDomain().getX()[2]
-        #q = whereZero(x - inf(x)) + whereZero(x - sup(x)) + whereZero(y - inf(y)) + whereZero(y - sup(y)) + whereZero(
-        #    z - inf(z))
-        # self.forward_pde.setValue(q=q)
         self.data = data
         self.useLogMisfit=useLogMisfit
-
-        # set up stations in a specific order so one can work with arrays D
-        # extracted by the Locator
-        # D[i] = value at station M for i=getStationNumber(M) or M=getKeyOfStationNumber(i)
+        # extract values  by the Locator
         station_locations = []
         for k in data.getStationNumeration():
             station_locations.append(data.getStationLocationByKey(k))
-        self.__grab_values_at_stations = Locator(Solution(domain), station_locations)
-        # self.grabValues=Locator(DiracDeltaFunctions(domain), station_locations)
+        self.__grab_values_at_stations = Locator(Solution(domain), station_locations) # Dirac?
 
         self.sigma_src = sigma_src # needs to be a constant.
-        self.logger.info("source conductivity sigma_src = %s" % (str(self.sigma_src)))
         self.setSourcePotentials()  # S_s is in the notes
 
         # build the misfit data (indexed by source index):
@@ -683,13 +667,6 @@ class ERTMisfitCostFunction(CostFunction):
             obs = self.data.getObservations(A, B)
             iA = self.data.getStationNumber(A)
             iB = self.data.getStationNumber(B)
-            #print(A,B,"->",iA, iB)
-            # ====
-            # print(" --- ", A,B, " --- ")
-            # for M, N in obs:
-            #  print(M, N, self.data.getResistenceError((A,B,M,N))/self.data.getResistenceData((A,B,M,N)), "- ",
-            #        self.data.getSecondaryResistenceError((A,B,M,N))/self.data.getSecondaryResistenceData((A,B,M,N))  )
-            # ====
             iMs = [self.data.getStationNumber(M) for M, N in obs]
             iNs = [self.data.getStationNumber(N) for M, N in obs]
             data_0 = np.array([self.data.getResistenceData((A, B, M, N)) for M, N in obs])  # u_oo
@@ -701,9 +678,8 @@ class ERTMisfitCostFunction(CostFunction):
                 self.misfit_0[(iA, iB)] = DataMisfitQuad(iMs=iMs, data=data_0, iNs=iNs, injections=(A,B),
                                                                   weightings=1. / error_0 ** 2)
 
-            #nd0 += len(self.misfit_0[(iA, iB)])
             nd0+= len(self.misfit_0[(iA, iB)])
-            self.logger.info("%d DC data records detected." % (nd0))
+        self.logger.info("%d DC data records detected." % (nd0))
 
         if nd0 > 0:
             for iA, iB in self.misfit_0:
@@ -721,7 +697,7 @@ class ERTMisfitCostFunction(CostFunction):
         obs = self.data.getObservations(A, B)
         iA = self.data.getStationNumber(A)
         iB = self.data.getStationNumber(B)
-        injectionsAB= alpha_sigma_0_A * self.source_potential_at_stations[iA] - alpha_sigma_0_B * self.source_potential_at_stations[iB]
+        injectionsAB= alpha_sigma_0_A * self.source_potentials_at_stations[iA] - alpha_sigma_0_B * self.source_potentials_at_stations[iB]
         source_obs=np.array([injectionsAB[self.data.getStationNumber(M)] - injectionsAB[self.data.getStationNumber(N)] for M, N in obs])
         return source_obs
     def setNewSigmaSrc(self, new_sigma_src):
@@ -729,9 +705,9 @@ class ERTMisfitCostFunction(CostFunction):
         updated sigma_background
         """
         factor= self.sigma_src / new_sigma_src
-        for iA in self.source_potential:
-            self.source_potential[iA]*=factor
-            self.source_potential_at_stations[iA]*=factor
+        for iA in self.source_potentials:
+            self.source_potentials[iA]*=factor
+            self.source_potentials_at_stations[iA]*=factor
         self.sigma_src=new_sigma_src
     def setSourcePotentials(self):
         """
@@ -740,11 +716,12 @@ class ERTMisfitCostFunction(CostFunction):
         :return: dictonary of injections (A,B)->primary_Field
         """
         self.logger.debug("source conductivity sigma_src =  %s" % (str(self.sigma_src)))
-        self.source_potential = getSourcePotentials(self.domain, self.sigma_src, self.data, mask_outer_faces =self.mask_outer_faces, stationsFMT=self.stationsFMT)
-        self.source_potential_at_stations = {}
+        self.source_potentials = getSourcePotentials(self.domain, self.sigma_src, self.data, mask_outer_faces =self.mask_outer_faces, stationsFMT=self.stationsFMT)
+        self.source_potentials_at_stations = {}
 
-        for iA in self.source_potential:
-            self.source_potential_at_stations[iA] = self.grabValuesAtStations(self.source_potential[iA])
+        for iA in self.source_potentials:
+            self.source_potentials_at_stations[iA] = self.grabValuesAtStations(self.source_potentials[iA])
+            
     def fitSigmaRef(self):
         """
         finds a new sigma_ref that gives a better data fit then
@@ -756,7 +733,10 @@ class ERTMisfitCostFunction(CostFunction):
         ccQ=0
         s1,s2=0.0, 0.0
         for E in self.misfit_0.values():
-            obs0=self.getObservationsFromSourcePotential(*E.injections)
+            A, B = E.injections
+            obs = self.data.getObservations(A, B)
+            injectionsAB= self.source_potentials_at_stations[self.data.getStationNumber(A)] - self.source_potentials_at_stations[self.data.getStationNumber(B)]
+            obs0=np.array([injectionsAB[self.data.getStationNumber(M)] - injectionsAB[self.data.getStationNumber(N)] for M, N in obs])
             if isinstance(E, DataMisfitQuad):
                 ccQ+=len(E)
                 s1 += sum(E.weightings * obs0 * E.data)
@@ -784,58 +764,55 @@ class ERTMisfitCostFunction(CostFunction):
         returns the IP model + its responses for given secondary conductivity sigma_0 and sigma_0_face
         they should be given on integration nodes.
         """
-        txt2 = str(sigma_0)
-        txt3 = str(sigma_0_face)
-        if getMPIRankWorld() == 0:
-            self.logger.debug("sigma_0 = %s" % (txt2))
-            self.logger.debug("sigma_0_face = %s" % (txt3))
-            self.logger.debug("sigma_0_stations = %s - %s " % (min(sigma_0_stations), max(sigma_0_stations)))
-        Potentials_0 = {}  # Ws
-        Potentials_0_at_Stations = {}
+        self.logger.info("sigma_0 = %s" % (str(sigma_0)))
+        self.logger.debug("sigma_0_face = %s" % (str(sigma_0_face)))
+        self.logger.debug("sigma_0_stations = %s - %s " % (min(sigma_0_stations), max(sigma_0_stations)))
+        secondary_potentials_0 = {}  # Ws
+        secondary_potentials_0_at_stations = {}
         alpha_sigma_0={}
 
         n = self.domain.getNormal()
         x = FunctionOnBoundary(self.domain).getX()
 
         self.forward_pde.setValue(A=sigma_0 * kronecker(self.forward_pde.getDim()), d=Data(), X=Data(), Y=Data(), y=Data(), y_dirac=Data())
-        for iA in self.source_potential:
+        for iA in self.source_potentials:
             alpha_sigma_0[iA]=self.sigma_src/sigma_0_stations[iA]
-            self.forward_pde.setValue(X=(self.sigma_src-alpha_sigma_0[iA]*sigma_0) * grad(self.source_potential[iA]))
+            self.forward_pde.setValue(X=(self.sigma_src-alpha_sigma_0[iA]*sigma_0) * grad(self.source_potentials[iA]))
             r = x -  self.data.getStationLocationByNumber(iA)
             fA=inner(r, n) / length(r) ** 2 * self.mask_outer_faces
             self.forward_pde.setValue(d=sigma_0_face * fA,
-                                      y=(self.sigma_src - alpha_sigma_0[iA]*sigma_0_face) * fA *self.source_potential[iA])  # doi:10.1190/1.1440975
-            # full potential for A and sigma_0 is Potentials_0[iA]+self.source_potential[iA]*alpha_sigma_0[iA]
-            Potentials_0[iA] = self.forward_pde.getSolution()
-            Potentials_0_at_Stations[iA] = self.grabValuesAtStations(Potentials_0[iA])
-            self.logger.debug("DC potential @ %d :%s" % (iA, str(Potentials_0[iA]) ) )
-        self.logger.info("%s DC potentials calculated." % len(Potentials_0))
-        return Potentials_0, Potentials_0_at_Stations, alpha_sigma_0
+                                      y=(self.sigma_src - alpha_sigma_0[iA]*sigma_0_face) * fA *self.source_potentials[iA])  # doi:10.1190/1.1440975
+            # full potential for A and sigma_0 is secondary_potentials_0[iA]+self.source_potentials[iA]*alpha_sigma_0[iA]
+            secondary_potentials_0[iA] = self.forward_pde.getSolution()
+            secondary_potentials_0_at_stations[iA] = self.grabValuesAtStations(secondary_potentials_0[iA])        # self.grabValues=Locator(DiracDeltaFunctions(domain), station_locations)
+            self.logger.debug("DC secondary potential %d :%s" % (iA, str(secondary_potentials_0[iA])))
+        self.logger.info("%s DC secondary potentials calculated." % len(secondary_potentials_0))
+        return secondary_potentials_0, secondary_potentials_0_at_stations, alpha_sigma_0
 
-    def getMisfit(self, sigma_0, sigma_0_face, sigma_0_stations, Potentials_0, Potentials_0_at_Stations, alpha_sigma_0, *args):
+    def getMisfit(self, sigma_0, sigma_0_face, sigma_0_stations, secondary_potentials_0, secondary_potentials_0_at_stations, alpha_sigma_0, *args):
         """
         return the misfit in potential and chargeaiBlity weighted by weighting_misfit_ERT factor
         """
+        potentials_0_at_stations = {}
+        for iA in secondary_potentials_0_at_stations:
+            potentials_0_at_stations[iA] = self.source_potentials_at_stations[iA] * alpha_sigma_0[iA] + secondary_potentials_0_at_stations[iA]
         misfit_0 = 0.
         for iA, iB in self.misfit_0:
-            obs0 = self.getObservationsFromSourcePotential(*self.misfit_0[(iA, iB)].injections,
-                                                          alpha_sigma_0_A=alpha_sigma_0[iA], alpha_sigma_0_B=alpha_sigma_0[iB])
             misfit_0 += self.misfit_0[(iA, iB)].getValue(
-                Potentials_0_at_Stations[iA] - Potentials_0_at_Stations[iB]+obs0)  # test against Ws
-        # print(misfit_2, misfit_0)
+                potentials_0_at_stations[iA] - potentials_0_at_stations[iB])
         return misfit_0
-    def getDMisfit(self, sigma_0, sigma_0_face, sigma_0_stations, Potentials_0, Potentials_0_at_Stations, alpha_sigma_0, *args):
+    def getDMisfit(self, sigma_0, sigma_0_face, sigma_0_stations, secondary_potentials_0, secondary_potentials_0_at_stations, alpha_sigma_0, *args):
         """
         returns the derivative of the misfit function with respect to sigma_0 with respect to Mn
         """
         SOURCES=np.zeros( (self.data.getNumStations(), self.data.getNumStations()), float)
+        potentials_0_at_stations = {}
+        for iA in secondary_potentials_0_at_stations:
+            potentials_0_at_stations[iA] = self.source_potentials_at_stations[iA] * alpha_sigma_0[iA] + secondary_potentials_0_at_stations[iA]
 
         for iA, iB in self.misfit_0:
-            obs0 = self.getObservationsFromSourcePotential(*self.misfit_0[(iA, iB)].injections,
-                                                          alpha_sigma_0_A=alpha_sigma_0[iA],
-                                                           alpha_sigma_0_B=alpha_sigma_0[iB])
             dmis_0 = self.misfit_0[(iA, iB)].getWeightedDifference(
-                Potentials_0_at_Stations[iA] - Potentials_0_at_Stations[iB]+obs0)
+                potentials_0_at_stations[iA] - potentials_0_at_stations[iB])
             for i in range(len(self.misfit_0[(iA, iB)])):
                 iM = self.misfit_0[(iA, iB)].iMs[i]
                 iN = self.misfit_0[(iA, iB)].iNs[i]
@@ -851,11 +828,8 @@ class ERTMisfitCostFunction(CostFunction):
         n = self.domain.getNormal()
         x = FunctionOnBoundary(self.domain).getX()
 
-        for iA in Potentials_0.keys():
+        for iA in secondary_potentials_0.keys():
                 s = Scalar(0., DiracDeltaFunctions(self.forward_pde.getDomain()))
-                #iA = self.data.getStationNumber(A)
-                A=None
-                print(A, iA)
                 for M in self.data.getStationNumeration():
                     iM = self.data.getStationNumber(M)
                     if self.stationsFMT is None:
@@ -864,19 +838,15 @@ class ERTMisfitCostFunction(CostFunction):
                         s.setTaggedValue(self.stationsFMT % M,  SOURCES[iA, iM])
                 self.forward_pde.setValue(y_dirac=s)
                 r = x - self.data.getStationLocationByNumber(iA)
-                fA = inner(r, n) / length(r) ** 2
+                fA = inner(r, n) / length(r) ** 2 * self.mask_outer_faces
                 self.forward_pde.setValue(d=sigma_0_face * fA )
                 VA_star=self.forward_pde.getSolution()
-                #self.logger.debug("adjoint potential @ %d :%s" % (A, str(VA_star)))
-                print(A, iA, self.source_potential[iA])
-                print(A, iA, alpha_sigma_0[iA] )
-                print(A, iA, Potentials_0[iA])
-                VA=self.source_potential[iA]*alpha_sigma_0[iA] + Potentials_0[iA]
+                self.logger.debug("DC adjoint potential %d :%s" % (iA, str(VA_star)))
+                VA= self.source_potentials[iA] * alpha_sigma_0[iA] + secondary_potentials_0[iA]
                 DMisfitDsigma_0 -= inner(grad(VA_star), grad(VA))
                 DMisfitDsigma_0_face -= ( fA * VA_star ) * VA
 
-        if getMPIRankWorld() == 0:
-            self.logger.info("%s adjoint potentials calculated." % self.data.getNumStations())
+        self.logger.info("%s adjoint potentials calculated." % len(secondary_potentials_0.keys()))
         return DMisfitDsigma_0, DMisfitDsigma_0_face
 
 
@@ -886,7 +856,7 @@ class ERTInversion(ERTMisfitCostFunction):
     """
 
     def __init__(self, domain=None, data=None,
-                 sigma_0_ref=1e-4, sigma_src=1., w1=1., useL1Norm=False, epsilonL1Norm=1e-4,
+                 sigma_0_ref=1e-4, sigma_src=None, w1=1., useL1Norm=False, epsilonL1Norm=1e-4,
                  mask_fixed_property = None, mask_outer_faces = None,
                  pde_tol=1.e-8, reg_tol=None, stationsFMT="e%s", logclip=5,
                  useLogMisfit=False, logger=None, EPSILON=1e-15, **kargs):
@@ -917,7 +887,7 @@ class ERTInversion(ERTMisfitCostFunction):
         # its is assumed that sigma_ref on the gaces is not updated!!!
         if mask_fixed_property is None:
             z = self.forward_pde.getDomain().getX()[2]
-            self.mask_fixed_property  = whereZero( whereZero(z - inf(z)) )
+            self.mask_fixed_property  =  whereZero(z - inf(z))
         else:
             self.mask_fixed_property = wherePositive( mask_fixed_property)
         self.sigma_0_ref = sigma_0_ref
@@ -967,9 +937,7 @@ class ERTInversion(ERTMisfitCostFunction):
         im = interpolate(m, Function(self.domain))
         im_face =interpolate(m, FunctionOnBoundary(self.domain))
         im_stations = self.grabValuesAtStations(m)
-        txt2 = str(im)
-        if getMPIRankWorld() == 0:
-            self.logger.debug("m = %s" % (txt2))
+        self.logger.debug("m = %s" % ( str(im)))
 
         isigma_0 = self.getSigma0(im)
         isigma_0_face = self.getSigma0(im_face)
@@ -1008,13 +976,13 @@ class ERTInversion(ERTMisfitCostFunction):
 
         DMisfitDsigma_0,  DMisfitDsigma_0_face = self.getDMisfit(isigma_0, isigma_0_face, isigma_0_stations, *args2)
 
-        Dsigma_0Dm0 = self.getDsigma0Dm(isigma_0, im)
-        Dsigma_0Dm0_face = self.getDsigma0Dm(isigma_0_face, im_face)
-        Y = DMisfitDsigma_0 * Dsigma_0Dm0
-        y = DMisfitDsigma_0_face * Dsigma_0Dm0_face
+        Dsigma_0Dm = self.getDsigma0Dm(isigma_0, im)
+        Dsigma_0Dm_face = self.getDsigma0Dm(isigma_0_face, im_face)
+        Y = DMisfitDsigma_0 * Dsigma_0Dm
+        y = DMisfitDsigma_0_face * Dsigma_0Dm_face
         return ArithmeticTuple(Y, X, y)
 
-    def getInverseHessianApproximation(self, r, im, im_face, isigma_0, isigma_0_face, isigma_0_stations, args2, initializeHessian=False):
+    def getInverseHessianApproximation(self, r, m, im, im_face, isigma_0, isigma_0_face, isigma_0_stations, args2, initializeHessian=False):
         """
         returns an approximation of inverse of the Hessian. Overwrites `getInverseHessianApproximation` of `MeteredCostFunction`
         """
@@ -1025,10 +993,7 @@ class ERTInversion(ERTMisfitCostFunction):
 
         self.Hpde.setValue(X=r[1], Y=r[0], y=r[2])
         dm = self.Hpde.getSolution()
-
-        txt = str(dm)
-        if getMPIRankWorld() == 0:
-                 self.logger.debug(f"search direction component = {txt}.")
+        self.logger.debug(f"search direction component = {str(dm)}.")
         return dm
 
     def getDualProduct(self, m, r):

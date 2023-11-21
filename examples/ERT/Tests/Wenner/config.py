@@ -30,7 +30,7 @@ schedulefile = 'data.csv'
 #
 
 region_fixed=[]
-sigma_ref=0.005
+sigma_ref=1
 Mn_ref=0.01/(1-0.01)*sigma_ref
 #def true_properties(domain):
 #    from esys.escript import Scalar, Function
@@ -49,8 +49,8 @@ interpolation_order=3
 imax=400
 truncation=20
 restart=60
-pde_tol=1e-10
-w1=0.5e-5
+pde_tol=1e-8
+w1=0.5e-4
 useL1Norm=False
 epsilonL1Norm=1e-4
 w0=0.0
