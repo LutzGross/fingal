@@ -24,7 +24,7 @@ parser.add_argument('--core', '-i', dest='core', type=int, default=20,
                     help="core around area of electrodes in %% of its diameter (default 20)")
 parser.add_argument('--paddingh', '-H', dest='paddingh', type=int, default=100,
                     help="relative horizontal padding padding around core in %% of core (default 100)")
-parser.add_argument('--paddingz', '-Z', dest='paddingz', type=int, default=200,
+parser.add_argument('--paddingz', '-Z', dest='paddingz', type=int, default=100,
                     help="relative vertical padding padding around core in %% of core (default 100)")
 parser.add_argument('--depth', '-d', dest='depth', type=int, default=45,
                     help="depth relative to core width around core in %% (default 45)")
@@ -32,7 +32,7 @@ parser.add_argument('--depth', '-d', dest='depth', type=int, default=45,
 #parser.add_argument('--plot', '-P', dest='plot', type=str, default=None, help="file name to plot topography")
 parser.add_argument('--coremeshfactor', '-c', dest='coremeshfactor', type=float, default=1.,
                     help="factor for element size relative electrode distance (default 1)")
-parser.add_argument('--stationmeshfactor', '-s', dest='stationmeshfactor', type=float, default=0.3,
+parser.add_argument('--stationmeshfactor', '-s', dest='stationmeshfactor', type=float, default=0.4,
                     help="refinement factor at stations relative to electrode distance (default 0.3)")
 parser.add_argument('--paddingmesh', '-p', dest='paddingmesh', type=float, default=10,
                     help="number of element on the longest edge of the padding region (default 10)")

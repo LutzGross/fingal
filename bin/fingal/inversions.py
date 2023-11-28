@@ -898,14 +898,17 @@ class ERTInversion(ERTMisfitCostFunction):
 
         # regularization
         self.w1 = w1
+        self.factor2D=5000
         self.Hpde = setupERTPDE(self.domain)
         self.Hpde.setValue(q=self.mask_fixed_property)
         if not reg_tol:
             reg_tol=min(sqrt(pde_tol), 1e-3)
         self.logger.debug(f'Tolerance for solving regularization PDE is set to {reg_tol}')
         self.Hpde.getSolverOptions().setTolerance(reg_tol)
-        if not self.useL1Norm:
-            self.Hpde.setValue(A=self.w1 * kronecker(3))
+        self.HpdeUpdateCount=2
+        K=kronecker(3)
+        K[1,1]*=self.factor2D
+        self.Hpde.setValue(A=self.w1 * K)
 
         #  reference conductivity:
         self.setSigma0Ref(sigma_0_ref)
@@ -952,10 +955,11 @@ class ERTInversion(ERTMisfitCostFunction):
         misfit_0 = self.getMisfit(isigma_0, isigma_0_face, isigma_0_stations, *args2)
 
         gm=grad(m, where=im.getFunctionSpace())
+        lgm2=gm[0]**2+self.factor2D*gm[1]**2+gm[2]**2
         if self.useL1Norm:
-            R=  self.w1 * integrate(sqrt(length(gm) ** 2 + self.epsilonL1Norm ** 2))
+            R=  self.w1 * integrate(sqrt(lgm2 + self.epsilonL1Norm ** 2))
         else:
-            R = self.w1 / 2 * integrate(length(gm) ** 2)
+            R = self.w1 / 2 * integrate(lgm2)
 
         V = R + misfit_0
         if getMPIRankWorld() == 0:
@@ -970,10 +974,12 @@ class ERTInversion(ERTMisfitCostFunction):
         returns the gradient of the cost function. Overwrites `getGradient` of `MeteredCostFunction`
         """
         gm=grad(m, where=im.getFunctionSpace())
-        X = self.w1 * gm
+        X =gm
+        X[1]*=self.factor2D
         if self.useL1Norm:
-            X *= 1/sqrt(length(gm) ** 2 + self.epsilonL1Norm ** 2)
-
+            lgm2 = gm[0] ** 2 + self.factor2D * gm[1] ** 2 + gm[2] ** 2
+            X *= 1/sqrt(lgm2 + self.epsilonL1Norm ** 2)
+        X*=self.w1
         DMisfitDsigma_0,  DMisfitDsigma_0_face = self.getDMisfit(isigma_0, isigma_0_face, isigma_0_stations, *args2)
 
         Dsigma_0Dm = self.getDsigma0Dm(isigma_0, im)
@@ -986,10 +992,14 @@ class ERTInversion(ERTMisfitCostFunction):
         """
         returns an approximation of inverse of the Hessian. Overwrites `getInverseHessianApproximation` of `MeteredCostFunction`
         """
-        if initializeHessian and self.useL1Norm:
-            gm=grad(m)
-            L = sqrt(length(gm) ** 2 + self.epsilonL1Norm ** 2)
-            self.Hpde.setValue(A=self.w1 * ( 1/L**3 * kronecker(3) - 1/L * outer(gm, gm)) )
+        if self.useL1Norm:
+            if self.HpdeUpdateCount > 1:
+                gm=grad(m)
+                lgm2 = gm[0] ** 2 + self.factor2D * gm[1] ** 2 + gm[2] ** 2
+                L = sqrt(lgm2 + self.epsilonL1Norm ** 2)
+                self.Hpde.setValue(A=self.w1 * ( 1/L  * kronecker(3) - 1/L**3 * outer(gm, gm)) )
+                self.HpdeUpdateCount+=1
+                print("TO DO")
 
         self.Hpde.setValue(X=r[1], Y=r[0], y=r[2])
         dm = self.Hpde.getSolution()

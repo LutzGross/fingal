@@ -147,7 +147,7 @@ solver.getLineSearch().setOptions(interpolationOrder=config.interpolation_order)
 solver.setOptions(m_tol=config.m_tolerance, truncation=config.truncation, restart=config.restart, grad_tol=config.g_tolerance)
 solver.setCallback(myCallback)
 # initial solution
-if args.restart and args.restart:
+if args.restart:
    kk=[v for i,v in enumerate(os.listdir()) if v.startswith(args.RESTARTFN) ]
    if kk:
      m_init=load(args.RESTARTFN, domain)
@@ -155,7 +155,7 @@ if args.restart and args.restart:
      if getMPIRankWorld() == 0:
              print("restart file %s read. initial M = %s"%(args.RESTARTFN, txt))
 else:
-    m_init = Scalar(0., Solution(domain))
+    m_init = Scalar(0.0, Solution(domain))
 # run solver:
 solver.run(m_init)
 m=solver.getResult()
