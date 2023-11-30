@@ -26,6 +26,8 @@ class IPSynthetic(object)
         assert issubclass(schedule, SurveyData)
         self.printinfo=printinfo
         self.datacolumns = datacolumns
+        self.createFieldData="E" in datacolumns
+        self.createSecondaryData = "ETA" in datacolumns or "R2" in datacolumns or "E2" in datacolumns
         self.schedule = schedule
         self.sigma_src=sigma_src
         self.stationsFMT=stationsFMT
@@ -45,8 +47,9 @@ class IPSynthetic(object)
         self.source_field_at_station = {}
 
         for iA in self.source_potential:
-            self.source_field[iA] = -grad(self.source_potential[iA], ReducedFunction(self.domain))
             self.source_potential_at_station[iA] = self.nodelocators(self.source_potential[iA])
+
+            self.source_field[iA] = -grad(self.source_potential[iA], ReducedFunction(self.domain))
             self.source_field_at_station[ip] = self.elementlocators(self.source_field[iA])
             if self.printinfo:
                 print("\tSource: %s : %s " % (iA, str(self.source_potential[iA])))
@@ -57,6 +60,86 @@ class IPSynthetic(object)
             print("%s electrode locations found" % (len(self.station_locations)))
             print(str(len(station_locations)) + " station locators calculated.")
             print(str(len(self.source_field)) + " source fields calculated.")
+
+    def setProperties(self, sigma_0=1., sigma_0_faces=None, M_n=None, M_n_faces=None):
+        """
+        sets the DC conductivity sigma_0 and normalized chargeability.
+        if M_n=None, IP data are not generated.
+        """
+
+        if self.printinfo:
+            print(".... DC potential : (increment from source)")
+            print("sigma_0= ", sigma_0)
+
+        # -div(sigma_src grad(U_A))=S_A
+        # V_S = injection potential
+        # secondary potential -div(sigma_0 grad(W_A) = -div(sigma_src-alpha_A*sigma_0 grad(U_A))
+        #  DC potenential V_0 = W_A + alpha_A * U_A
+        pde = setupERTPDE(domain)
+
+        self.alpha={}
+        self.potential_0 = {}
+        self.potential_0_at_stations = {}
+        self.createFieldData:
+            self.field_0_at_stations = {}
+            self.field_0 = {}
+
+        sigma_0_at_stations=self.stationlocators(sigma_0)
+        n = domain.getNormal()*mask_face
+        x_bc = FunctionOnBoundary(domain).getX()
+
+        pde.setValue(A=sigma_0 * kronecker(3), y_dirac=Data())
+        for iA in self.source_potential():
+            self.alpha_A[iA] = self.sigma_src/sigma_0_at_stations[iA]
+            xA = survey.getStationLocationByIndex(iA)
+            r = x_bc - xA
+            fA=inner(r, n) / length(r) ** 2
+            pde.setValue(d=sigma_0_face * fA, y=-(self.sigma_src - self.alpha_A[iA] * sigma_0_faces) * fA * self.source_potential[iA])
+            pde.setValue(X=(self.sigma_src - self.alpha_A[iA]*sigma_0) * grad(self.source_potential[iA]))
+            self.potential_0[iA] = pde.getSolution()
+            self.potential_0_at_stations[iA] = self.nodelocators(self.potential_0[iA])
+            if self.createFieldData:
+                self.field_0[iA] = -grad(self.potential_0[A], ReducedFunction(domain))
+                self.field_0_at_stations[iA] = self.elementlocators(self.field_0[iA])
+            if self.printinfo:
+                print("\t%s : %s " % (iA, str(potential_0[iA])))
+
+            if self.printinfo:
+                print(str(len(self.potential_0)) + " DC potentials calculated.")
+                self.createFieldData:
+                    print(str(len(self.field_0)) + " DC fields calculated.")
+
+        if self.createSecondaryData:
+            # secondary potential -div(sigma_oo grad(V_2) = -div(-Mn grad(V_0))
+            if M_n is None or M_n_faces is None:
+                raise ValueError("Secondary potential needed but no normalized chargeability M_n or M_n_faces give")
+                sigma_oo = M_n + sigma_0
+                sigma_oo_faces = M_n_faces + sigma_0_faces
+                if self.printinfo:
+                    print(".... secondary (IP) potentials:")
+                    print("sigma_oo= ", sigma_oo_true)
+
+                self.secondary_potential = {}
+                self.secondary_potential_at_stations = {}
+                if self.createFieldData:
+                    self.secondary_field = {}
+                    self.secondary_field_at_stations = {}
+                pde.setValue(A=sigma_oo * kronecker(3), y_dirac=Data())
+                for iA in self.source_potential():
+                    V_0=self.potential_0[iA] + self.alpha_A[iA] * self.source_potential[iA]
+                    xA = survey.getStationLocationByIndex(iA)
+                    r = x_bc - xA
+                    fA = inner(r, n) / length(r) ** 2
+                    pde.setValue(d=sigma_oo_faces * fA, y=-M_n_faces * fA * V_0)
+                    pde.setValue(X=-M_n * grad(V_0))
+
+                    self.secondary_potential[iA] = pde.getSolution()
+                    secondary_potential_at_stations[iA] = self.nodelocators(self.secondary_potential[iA])
+                    if self.createFieldData:
+                        self.secondary_field[iA] = -grad(self.secondary_potential[iA], ReducedFunction(domain))
+                        self.secondary_field_at_stations[iA] = self.elementlocators(self.secondary_field[iA])
+    print("\t%s : %s " % (A, str(secondary_potential[ip])))
+print(str(len(secondary_potential)) + " M potentials calculated.")
 
 #=====================================
 print("** This creates a synthetic survey data set from properties set by config.true_properties **")
@@ -137,54 +220,6 @@ print("sigma_S= ", SIGMA_S)
 
 
 # PDE:
-pde = setupERTPDE(domain)
-
-# -div(sigma_S grad(V_i))=S
-# V_S = injection potential
-# secondary potential -div(sigma_0 grad(V_2) = -div(sigma_S-sigma_0 grad(V_i))
-#  DC potenential V_0 = V_S + V_2
-print(".... DC potential : (increment from source)")
-print("sigma_0= ", sigma_0_true)
-potential_0 = {}
-field_0 = {}
-potential_0_at_stations = {}
-field_0_at_stations = {}
-pde.setValue(A=sigma_0_true * kronecker(3), y_dirac=Data())
-
-n = domain.getNormal()
-x = FunctionOnBoundary(domain).getX()
-
-for A in survey.getListOfInjectionStations():
-    r = x - survey.getStationLocation(A)
-    fA = inner(r, n) / length(r) ** 2 * mask_face
-    pde.setValue(d=config.sigma_ref * fA, y=-(config.sigma_ref - SIGMA_S) * fA)
-
-    pde.setValue(X=(SIGMA_S - sigma_0_true) * grad(source_potential[A]))
-    potential_0[A] = pde.getSolution()
-    field_0[A] = -grad(potential_0[A], ReducedFunction(domain))
-    potential_0_at_stations[A] = nodelocators(potential_0[ip])
-    print("\t%s : %s " % (ip, str(potential_0[ip])))
-print(str(len(potential_0)) + " secondary potentials calculated.")
-
-# secondary potential -div(sigma_oo grad(V_over) = -div(Mn grad(V_DC))
-#  ETA= V_over/V_DC
-print(".... IP potentials:")
-sigma_oo_true = Mn_true + sigma_0_true
-print("sigma_oo= ", sigma_oo_true)
-secondary_potential = {}
-secondary_field = {}
-secondary_potential_at_stations = {}
-secondary_field_at_stations = {}
-pde.setValue(A=sigma_oo_true * kronecker(3), y_dirac=Data(), y=Data(), d=Data())
-
-for A in survey.getListOfInjectionStations():
-    pde.setValue(X=Mn_true * grad(potential_0[A] + source_potential[A]))
-    secondary_potential[A] = pde.getSolution()
-    secondary_field[A] = -grad(secondary_potential[A], ReducedFunction(domain))
-    secondary_potential_at_stations[A] = nodelocators(secondary_potential[ip])
-    secondary_field_at_stations[A] = elementlocators(secondary_field[ip])
-    print("\t%s : %s " % (A, str(secondary_potential[ip])))
-print(str(len(secondary_potential)) + " M potentials calculated.")
 
 dV_i = survey.makeResistencePrediction(values=source_potential_at_station)
 dV_0 = survey.makeResistencePrediction(values=potential_0_at_stations)

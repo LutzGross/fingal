@@ -124,9 +124,21 @@ class SurveyData(object):
     
     The location of the injecting or observing electrode A is given by stationlocations[A]
 
+    V_ABMN = V_A(X_M)-V_B(X_M)-V_A(X_N)-V_B(X_N)
+    V_0 = voltage for sigma(omega=0)
+    V_oo = voltage for sigma(omega=oo)
+    V2 = V_oo-V_0 secondary voltage (or over-voltage)
 
+    R = resistence V_0/I
+    R2 = V2/I =  ETA * R = secondary resistance
+    ETA = R2/R =V2/V_0 = intrinsic chargeabilityETA
+
+    E = magnitude of electric field E0 of sigma(omega=0) divided by I
+    E2 = (E_oo-E0).E0/|E0| = secondary electric field component (divided by I)
     """
-    OBSTYPES= ['R', 'E', 'ETA', 'E0', 'E1', 'E2', 'GAMMA', 'MN', 'ERR_R', 'ERR_E', 'ERR_ETA', 'ERR_GAMMA', 'ERR_MN', 'RELERR_R', 'RELERR_E', 'RELERR_ETA', 'RELERR_GAMMA', 'ERRERR_MN',]
+    OBSTYPES= ['R',      'E',     'ETA',     'R2',     'E2',
+               'ERR_R', 'ERR_E', 'ERR_ETA', 'ERR_R2', 'ERR_E2',
+               'RELERR_R', 'RELERR_E', 'RELERR_ETA', 'RELERR_R2', 'RELERR_E2']
     def __init__(self, stations={}, observations=[], dipoleInjections=True, dipoleMeasurements=True,  hasInjections=True, default_rel_error=0.05, unDefined=-999999):
         """
         :stations: dictionary of station identifer to coordinates
@@ -170,6 +182,7 @@ class SurveyData(object):
         self.injectionStations=None # list of injection stations
         self.observationElectrodes=None
         self._resistence_max=None
+        self._secondary_resistence_max=None
     @classmethod 
     def checkObservationType(cls, obs):
         if isinstance(obs, list):
@@ -250,6 +263,11 @@ class SurveyData(object):
         if self._resistence_max is None:
             self._resistence_max = max([ abs(self.getResistenceData(t)) for t in self.tokenIterator() ] )
         return self._resistence_max
+    def getMaximumSecondaryResistence(self):
+        if self._secondary_resistence_max is None:
+            self._secondary_resistence_max = max([ abs(self.getSecondaryResistenceData(t)) for t in self.tokenIterator() ] )
+        return self._secondary_resistence_max
+    # ======================
     def getResistenceData(self, token):
         return self.getDataRecord(token, datatype='R')
 
@@ -264,9 +282,7 @@ class SurveyData(object):
             else:
                 return abs(r*e)
         else:
-            return self.default_rel_error*self.getMaximumResistence()
-
-
+            return self.default_rel_error * self.getMaximumResistence()
     def getResistenceRelError(self, token):
         if self.hasDataType("RELERR_R"):
             return self.getDataRecord(token, datatype='RELERR_R')
@@ -281,34 +297,55 @@ class SurveyData(object):
                 return self.unDefined
         else:
             return self.default_rel_error
-            
 
+    # ======================
     def getSecondaryResistenceData(self, token):
-        # difference between u_0-u_oo
-        eta=self.getChargeabilityData(token)
-        r=self.getResistenceData(token)
-        if self.isUndefined(r) or self.isUndefined(eta):
-            return self.unDefined
+        if self.hasDataType("R2"):
+            return self.getDataRecord(token, datatype='R2')
         else:
-            return eta*r
+            eta=self.getChargeabilityData(token)
+            r=self.getResistenceData(token)
+            if self.isUndefined(r) or self.isUndefined(m):
+                return self.unDefined
+            else:
+                return eta * r
 
     def getSecondaryResistenceError(self, token):
-        eta=self.getChargeabilityData(token)
-        r=self.getResistenceData(token)
-        eta_err=self.getChargeabilityError(token)
-        r_err=self.getResistenceError(token)
-        if self.isUndefined(r) or self.isUndefined(eta) or self.isUndefined(eta_err) or self.isUndefined(r_err) :
-            return self.unDefined
+        if self.hasDataType("ERR_R2"):
+            return self.getDataRecord(token, datatype='ERR_R2')
+        elif self.hasDataType("ERR_ETA"):
+            raise TypeError("REVISE")
+            eta=self.getChargeabilityData(token)
+            r=self.getResistenceData(token)
+            eta_err=self.getChargeabilityError(token)
+            r_err=self.getResistenceError(token)
+            if self.isUndefined(r) or self.isUndefined(eta) or self.isUndefined(eta_err) or self.isUndefined(r_err) :
+                return self.unDefined
+            else:
+                return r*eta_err+eta*r_err
         else:
-            return r*eta_err+eta*r_err
-    
+            return self.default_rel_error * self.getMaximumSecondaryResistence()
+    # =========================================
     def getFieldIntensityData(self, token):
         return self.getDataRecord(token, datatype='E')
+    def getFieldIntensityError(self, token):
+        if self.hasDataType("ERR_E"):
+            return self.getDataRecord(token, datatype='ERR_E')
+        elif self.hasDataType("RELERR_E"):
+            r=self.getDataRecord(token, datatype='E')
+            e=self.getDataRecord(token, datatype='RELERR_E')
+            if self.isUndefined(r) or self.isUndefined(e):
+                return self.unDefined
+            else:
+                return abs(e * r)
+        else:
+            return self.default_rel_error * self.getMaximumFieldIntensity()
 
     def getFieldIntensityRelError(self, token):
-        if self.hasDataType("RELERR_R"):
-            return self.getDataRecord(token, datatype='RELERR_R')
+        if self.hasDataType("RELERR_E"):
+            return self.getDataRecord(token, datatype='RELERR_E')
         elif self.hasDataType("ERR_E"):
+            raise TypeError("REVISE")
             r=self.getDataRecord(token, datatype='E')
             e=self.getDataRecord(token, datatype='ERR_E')
             if self.isUndefined(r) or self.isUndefined(e):
@@ -319,56 +356,7 @@ class SurveyData(object):
                 return self.unDefined
         else:
             return self.default_rel_error
-        
-    def getNormalizedChargeabilityData(self, token):
-        return self.getDataRecord(token, datatype='MN')
-    
-    def getChargeabilityData(self, token):
-        return self.getDataRecord(token, datatype='ETA')
 
-    def getChargeabilityError(self, token):
-        if self.hasDataType("ERR_ETA"):
-            return self.getDataRecord(token, datatype='ERR_ETA')
-        else:
-            return self.default_rel_error*self.getChargeabilityData(token)
-
-    def getModifiedChargeabilityData(self, token):
-        if self.hasDataType("GAMMA"):
-            return self.getDataRecord(token, datatype='GAMMA')
-        else:
-            e=self.getChargeabilityData(token)
-            if self.isUndefined(e):
-                return self.unDefined
-            else:
-                return e/(1-e)
-        
-    def getModifiedChargeabilityRelError(self, token):
-        if self.hasDataType("RELERR_GAMMA"):
-            return self.getDataRecord(token, datatype='RELERR_GAMMA')
-        elif self.hasDataType("ERR_GAMMA"):
-            r=self.getDataRecord(token, datatype='GAMMA')
-            e=self.getDataRecord(token, datatype='ERR_GAMMA')
-            if self.isUndefined(r) or self.isUndefined(e):
-                return self.unDefined
-            elif abs(r)>0:
-                return abs(e/r)
-            else:    
-                return self.unDefined
-        else:
-            return self.default_rel_error
-
-
-    
-    def getFieldData(self, token):
-        return self.getDataRecord(token, datatype='E0'), self.getDataRecord(token, datatype='E1'), self.getDataRecord(token, datatype='E2')
-    
-    def getGravityData(self, token):
-        return self.getDataRecord(token, datatype='gz')
-
-    
-    def getFieldDifferenceData(self, token):
-        return self.getDataRecord(token, datatype='dE0'), self.getDataRecord(token, datatype='dE1'), self.getDataRecord(token, datatype='dE2')
-        
     def tokenIterator(self):
         """
         returns a list of tokens (e.g. list of (A,B,M,N)s)
