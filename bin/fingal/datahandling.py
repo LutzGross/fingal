@@ -619,7 +619,7 @@ class SurveyData(object):
         return out   
 
 
-    def makePrediction(self, values={}):
+    def makePrediction(self, values={}, valuesKeysAreStationKeys = True):
         """
         creates prediction for the values[S] predicted by the (single electrode!) injection at station S in getListOfInjectionStations()
         at the measurement stations in order getStationNumeration(), ie. values[S][i] is the predicted potential when injecting at station S and measuring at station getKeyOfStationNumber[i]  
@@ -628,16 +628,34 @@ class SurveyData(object):
         if self.hasInjections():
             if self.hasDipoleInjections() and self.hasDipoleMeasurements():
                 for A,B,M,N in self.tokenIterator():
-                    out[(A,B,M,N)] = values[A][self.getStationNumber(M)]-values[B][self.getStationNumber(M)]-values[A][self.getStationNumber(N)]+values[B][self.getStationNumber(N)]
+                    if valuesKeysAreStationKeys:
+                        iA, iB = A, B
+                    else:
+                        iA, iB = self.getStationNumber(A), self.getStationNumber(B)
+                    out[(A,B,M,N)] = (values[iA][self.getStationNumber(M)]-values[iB][self.getStationNumber(M)]-
+                                      values[iA][self.getStationNumber(N)]+values[iB][self.getStationNumber(N)])
             elif not self.hasDipoleInjections() and self.hasDipoleMeasurements():
                 for A,M,N in self.tokenIterator():
-                    out[(A,M,N)] = values[A][self.getStationNumber(M)]-values[A][self.getStationNumber(N)]
+                    if valuesKeysAreStationKeys:
+                        iA =  A
+                    else:
+                        iA = getStationNumber(A)
+
+                    out[(A,M,N)] = values[iA][self.getStationNumber(M)]-values[iA][self.getStationNumber(N)]
             elif self.hasDipoleInjections() and not self.hasDipoleMeasurements():
                 for A,B,M in self.tokenIterator():
-                    out[(A,B,M)] = values[A][self.getStationNumber(M)]-values[B][self.getStationNumber(M)]
+                    if valuesKeysAreStationKeys:
+                        iA, iB = A, B
+                    else:
+                        iA, iB = self.getStationNumber(A), self.getStationNumber(B)
+                    out[(A,B,M)] = values[iA][self.getStationNumber(M)]-values[iB][self.getStationNumber(M)]
             else:
                 for A,M in self.tokenIterator():
-                    out[(A,M)] = values[A][self.getStationNumber(M)]
+                    if valuesKeysAreStationKeys:
+                        iA =  A
+                    else:
+                        iA= getStationNumber(A)
+                    out[(A,M)] = values[iA][self.getStationNumber(M)]
         else:
             if self.hasDipoleMeasurements():
                 for M,N in self.tokenIterator():
@@ -649,12 +667,12 @@ class SurveyData(object):
         return out
     
         
-    def makeResistencePrediction(self, values={}):
+    def makeResistencePrediction(self, values={}, **kwargs ):
         """
         creates prediction for the resistance based on the potentials values[S] predicted by the (single electrode!) injection at station S in getListOfInjectionStations()
         at the measurement stations in order getStationNumeration(), ie. values[S][i] is the predicted potential when injecting at station S and measuring at station getKeyOfStationNumber[i]  
         """
-        return self.makePrediction(values)
+        return self.makePrediction(values, **kwargs)
     
     def saveDataToCSV(self, fn):
         raise NotImplementedErrior

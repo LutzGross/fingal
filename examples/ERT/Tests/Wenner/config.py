@@ -30,8 +30,9 @@ schedulefile = 'data.csv'
 #
 
 region_fixed=[]
-sigma_ref=1
-Mn_ref=0.01/(1-0.01)*sigma_ref
+sigma_ref=0.01
+M_ref = 0.01
+Mn_ref=M_ref/(1-M_ref)*sigma_ref
 #def true_properties(domain):
 #    from esys.escript import Scalar, Function
 #    sigma_true=Scalar(sigma_ref, Function(domain))
@@ -68,6 +69,7 @@ outfile='sigma'
 core = ['Core']
 #   tag(s) for face elements (excluding top surface)
 faces = ['faces']
+
 restartfile = 'restart'
 
 def true_properties(domain):

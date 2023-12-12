@@ -6,3 +6,4 @@ from .datahandling import *
 #from .fieldERT import *
 from .inversions import *
 from .datamapping import mapToDomain
+from .synthetics import IPSynthetic
