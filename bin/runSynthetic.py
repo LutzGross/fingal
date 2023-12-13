@@ -69,7 +69,6 @@ M_n = Scalar(config.Mn_ref, ReducedFunction(domain))
 anomaly_mask_Mn = whereNonPositive(length(X - (center - direction * (args.offset + args.radius)  )) - args.radius )
 M_n+= (config.Mn_ref * args.increase - M_n ) * anomaly_mask_Mn
 
-
 # -----------------------------------------------------------------------------------
 runner=IPSynthetic(domain, schedule,  sigma_src=1,
                     mask_faces = makeMaskForOuterSurface(domain, taglist=config.faces),
@@ -88,4 +87,17 @@ runner.write(config.datafile , datacolumns = config.datacolumns, addNoise = args
                             iFMT="%d", dFMT="%.5g", xFMT="%e")
 # -----------------------------------------------------------------------------------
 if args.silofile:
-    saveSilo(args.silofile , M=M_n, s=sigma_0)
+    kwargs = { "Mn" : M_n, "sigma0" : sigma_0}
+    A=list(elocations.keys())[0]
+    iA=schedule.getStationNumber(A)
+    kwargs[f'VS_s{A}'] = runner.source_potential[iA]
+    kwargs[f'dV0_s{A}'] = runner.potential_0[iA]
+    kwargs[f'V0_s{A}'] = runner.potential_0[iA] + runner.source_potential[iA]
+    kwargs[f'V2_s{A}'] = runner.secondary_potential[iA]
+    if runner.createFieldData:
+        kwargs[f'ES_s{A}'] = runner.source_field[iA]
+        kwargs[f'dE0_s{A}'] = runner.field_0[iA]
+        kwargs[f'E0_s{A}'] = runner.field_0[iA] + runner.source_field[iA]
+        kwargs[f'E2_s{A}'] = runner.secondary_field[iA]
+    saveSilo(args.silofile , **kwargs)
+    print(f'values {kwargs.keys()} written to file {args.silofile}.')
