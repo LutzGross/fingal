@@ -4,7 +4,7 @@ import importlib, sys, os
 sys.path.append(os.getcwd())
 import numpy as np
 from .datahandling import SurveyData
-from fingal import readElectrodeLocations, readSurveyData, setupERTPDE, getSourcePotentials, makeMaskForOuterSurface
+from fingal import readElectrodeLocations, readSurveyData, setupERTPDE, getSourcePotentials, makeMaskForOuterSurface, getSecondaryPotentials
 
 from esys.escript.pdetools import Locator, MaskFromTag
 
@@ -50,27 +50,26 @@ class IPSynthetic(object):
         self.elementlocators = Locator(ReducedFunction(domain), station_locations)
         self.stationlocators = Locator(Function(domain), station_locations)
 
-        self.source_potential = getSourcePotentials(domain, sigma_src, self.schedule, mask_outer_faces=mask_faces,
+        self.source_potential = getSourcePotentials(domain, sigma_src, self.schedule, mask_outer_faces=self.mask_faces,
                                                     stationsFMT=self.stationsFMT)
 
         self.source_field = {}
         self.source_potential_at_station = {}
         self.source_field_at_station = {}
-        self.sigma_src = {}
+        self.sigma_src = sigma_src
 
         for iA in self.source_potential:
             self.source_potential_at_station[iA] = self.nodelocators(self.source_potential[iA])
-            self.sigma_src[iA] = sigma_src
             self.source_field[iA] = -grad(self.source_potential[iA], ReducedFunction(self.domain))
             self.source_field_at_station[iA] = self.elementlocators(self.source_field[iA])
-            if self.printinfo:
-                print("\tSource: %s : sigma = %s " % (iA, str(self.sigma_src[iA])))
 
 
         if self.printinfo:
-            print("%s electrode locations found" % (len(self.sigma_src)))
+            print("source potential = %s"%str(self.sigma_src))
+            print("%s electrode locations found" % (len(self.source_potential_at_station)))
             print(str(len(station_locations)) + " station locators calculated.")
             print(str(len(self.source_field)) + " source fields calculated.")
+
 
     def setProperties(self, sigma_0=1., sigma_0_faces=None, M_n=None, M_n_faces=None):
         """
@@ -79,56 +78,41 @@ class IPSynthetic(object):
         """
 
         if self.printinfo:
-            print(".... DC potential : (increment from source)")
+            print(".... DC potential : (increment from source potential)")
             print("sigma_0 = ", str(sigma_0) )
 
         # -div(sigma_src/alpha_A grad(U_A*alpha_A))=S_A
         # U_S = injection potential
-        # secondary potential -div(sigma_0 grad(W_A) = -div( (sigma_src/alpha_A - sigma_0) grad(U_A*alpha_A))
+        # secondary potential -div(sigma_0 grad(V_0) = -div( (sigma_src/alpha_A - sigma_0) grad(U_A*alpha_A))
         #  DC potenential V_0 = W_A + U_A*alpha_A)
         pde = setupERTPDE(self.domain)
 
-        self.alpha={}
-        self.potential_0 = {}
-        self.potential_0_at_stations = {}
+        sigma_0_at_stations = self.stationlocators(sigma_0)
+        self.potential_0 = getSecondaryPotentials(pde,
+                                                  sigma = sigma_0,
+                                                  sigma_at_face = sigma_0_faces,
+                                                  schedule = self.schedule,
+                                                  sigma_at_station = sigma_0_at_stations,
+                                                  source_potential = self.source_potential,
+                                                  sigma_src = self.sigma_src,
+                                                  mask_faces = self.mask_faces)
+
+        self.potential_0_at_stations = { iA: self.nodelocators(self.potential_0[iA])  for iA in self.potential_0 }
         if self.createFieldData:
-            self.field_0_at_stations = {}
-            self.field_0 = {}
-
-        sigma_0_at_stations=self.stationlocators(sigma_0)
-        n = self.domain.getNormal() * self.mask_faces
-        x_bc = FunctionOnBoundary(self.domain).getX()
-
-        pde.setValue(A=sigma_0 * kronecker(3), y_dirac=Data())
-        for iA in self.source_potential:
-            alpha_A = self.sigma_src[iA]/sigma_0_at_stations[iA]
-            self.source_potential[iA]*= alpha_A
-            self.sigma_src[iA]*= 1./alpha_A
-
-            xA = self.schedule.getStationLocationByNumber(iA)
-            r = x_bc - xA
-            fA=inner(r, n) / length(r) ** 2
-            pde.setValue(d=sigma_0_faces * fA, y= ( self.sigma_src[iA] - sigma_0_faces ) * fA * self.source_potential[iA])
-            pde.setValue(X=(self.sigma_src[iA] - sigma_0) * grad(self.source_potential[iA]))
-            self.potential_0[iA] = pde.getSolution()
-            self.potential_0_at_stations[iA] = self.nodelocators(self.potential_0[iA])
-            if self.createFieldData:
-                self.field_0[iA] = -grad(self.potential_0[A], ReducedFunction(self.domain))
-                self.field_0_at_stations[iA] = self.elementlocators(self.field_0[iA])
-            if self.printinfo:
-                print("\t%s : dV0 = %s " % (iA, str(self.potential_0[iA])))
-
+            self.field_0 = { iA: -grad(self.potential_0[A], ReducedFunction(self.domain)) for iA in self.potential_0 }
+            self.field_0_at_stations = { iA : self.elementlocators(self.field_0[iA]) for iA in self.potential_0 }
         if self.printinfo:
             print(str(len(self.potential_0)) + " DC potentials calculated.")
             if self.createFieldData:
                 print(str(len(self.field_0)) + " DC fields calculated.")
 
         if self.createSecondaryData:
-            # secondary potential -div(sigma_oo grad(V_2) = -div(-Mn grad(V_0))
+            # secondary potential -div(sigma_oo grad(V_2) = -div((sigma_src-sigma_oo) grad(V_s))
             if M_n is None or M_n_faces is None:
                 raise ValueError("Secondary potential needed but no normalized chargeability M_n or M_n_faces give")
             sigma_oo = M_n + sigma_0
             sigma_oo_faces = M_n_faces + sigma_0_faces
+            sigma_oo_at_stations = self.stationlocators(sigma_oo)
             if self.printinfo:
                 print(".... secondary (IP) potentials:")
                 print("sigma_oo = ", str(sigma_oo))
@@ -136,31 +120,23 @@ class IPSynthetic(object):
                 print("M_n = ", str(M_n))
                 print("M_n_faces = ", str(M_n_faces))
 
-            self.secondary_potential = {}
-            self.secondary_potential_at_stations = {}
-            if self.createFieldData:
-                self.secondary_field = {}
-                self.secondary_field_at_stations = {}
-            pde.setValue(A=sigma_oo * kronecker(3), y_dirac=Data())
-            for iA in self.source_potential:
-                V_0=self.potential_0[iA] + self.source_potential[iA]
-                xA = self.schedule.getStationLocationByNumber(iA)
-                r = x_bc - xA
-                fA = inner(r, n) / length(r) ** 2
-                pde.setValue(d=sigma_oo_faces * fA, y=-M_n_faces * fA * V_0)
-                pde.setValue(X=-M_n * grad(V_0))
+            self.potential_oo = getSecondaryPotentials(pde,
+                                                       sigma = sigma_oo,
+                                                       sigma_at_face = sigma_oo_faces,
+                                                       schedule = self.schedule,
+                                                       sigma_at_station = sigma_oo_at_stations,
+                                                       source_potential = self.source_potential,
+                                                       sigma_src = self.sigma_src,
+                                                       mask_faces = self.mask_faces)
 
-                self.secondary_potential[iA] = pde.getSolution()
-                self.secondary_potential_at_stations[iA] = self.nodelocators(self.secondary_potential[iA])
-                if self.createFieldData:
-                    self.secondary_field[iA] = -grad(self.secondary_potential[iA], ReducedFunction(self.domain))
-                    self.secondary_field_at_stations[iA] = self.elementlocators(self.secondary_field[iA])
-                if self.printinfo:
-                    print("\t%s : V2 = %s " % (iA, str(self.secondary_potential[iA])))
+            self.potential_oo_at_stations = {iA: self.nodelocators(self.potential_oo[iA]) for iA in self.potential_oo}
+            if self.createFieldData:
+                self.field_oo = {iA: -grad(self.potential_oo[A], ReducedFunction(self.domain)) for iA in self.potential_oo}
+                self.field_oo_at_station = {iA: self.elementlocators(self.field_oo[iA]) for iA in self.potential_oo}
             if self.printinfo:
-                print(str(len(self.secondary_potential)) + " secondary potentials calculated.")
+                print(str(len(self.potential_oo)) + " instantaneous potentials calculated.")
                 if self.createFieldData:
-                    print(str(len(self.secondary_field)) + " secondary fields calculated.")
+                    print(str(len(self.field_oo)) + " instantaneous fields calculated.")
     def write(self, filename, datacolumns = ['R'], addNoise = False,
                             rel_error=5, delimiter=",", usesStationCoordinates= False,
                             iFMT="%d", dFMT="%.5g", xFMT="%e"):
@@ -183,13 +159,13 @@ class IPSynthetic(object):
             else:
                 print(f"assumed relative error {rel_error} (not added).")
 
-        dV_s = self.schedule.makeResistencePrediction(values=self.source_potential_at_station, valuesKeysAreStationKeys = False)
+        dV_src = self.schedule.makeResistencePrediction(values=self.source_potential_at_station, valuesKeysAreStationKeys = False)
         dV_0 = self.schedule.makeResistencePrediction(values=self.potential_0_at_stations, valuesKeysAreStationKeys = False)
-        dV_2 = self.schedule.makeResistencePrediction(values=self.secondary_potential_at_stations, valuesKeysAreStationKeys = False)
+        dV_oo = self.schedule.makeResistencePrediction(values=self.potential_oo_at_stations, valuesKeysAreStationKeys = False)
         if self.createFieldData:
-            dE_s = self.schedule.makeResistencePrediction(values=self.source_field_at_station, valuesKeysAreStationKeys = False)
+            dE_src = self.schedule.makeResistencePrediction(values=self.source_field_at_station, valuesKeysAreStationKeys = False)
             dE_0 = self.schedule.makeResistencePrediction(values=self.field_0_at_stations, valuesKeysAreStationKeys = False)
-            dE_2 = self.schedule.makeResistencePrediction(values=self.secondary_field_at_stations, valuesKeysAreStationKeys = False)
+            dE_oo = self.schedule.makeResistencePrediction(values=self.field_oo_at_station, valuesKeysAreStationKeys = False)
 
         #  now the data file can be created:
         if getMPIRankWorld() == 0:
@@ -236,15 +212,18 @@ class IPSynthetic(object):
                     pert = np.random.uniform(low = -rel_error, high = rel_error)
                 else:
                     pert = 0
-                V_0   = (dV_0[t] + dV_s[t]) * (1 + pert)  # ERT potential
-                V_2   = dV_2[t] * (1 + pert)              # secondary potential
-                V_oo  = V_0 + V_2
+                V_0  = ( dV_0[t] + dV_src[t]) * (1 + pert)  # ERT potential
+                V_2  = (dV_0[t] - dV_oo[t]) * (1 + pert)  # over-voltage potential
+                V_oo = V_0 - V_2
                 ETA   = V_2 / V_0
+
                 if self.createFieldData:
                     raise ValueError("CHECK E FIELD DATA")
-                    E_0 = ( dE_0[t] + dE_s[t]) * (1 + pert)
-                    E_2 = dE_2[t] * (1 + pert) # secondary potential
-                    E_oo = E_0 + E_2
+                    E_0 = ( dE_0[t] + dE_src[t]) * (1 + pert)
+                    E_2 = ( dE_0[t] - dE_oo[t])  * (1 + pert)
+                    E_oo = E_0 - E_2
+
+
                     EI = sqrt(E_0[0] ** 2 + E_0[1] ** 2 + E_0[2] ** 2)
                     GAMMA = inner(E_2, E_0) / EI ** 2
 

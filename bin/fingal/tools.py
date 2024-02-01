@@ -5,7 +5,7 @@ by l.gross@uq.edu.au, Dec 2020.
 """
 
 from esys.escript import Scalar, getMPIRankWorld, integrate, hasFeature, Function, kronecker, Data, DiracDeltaFunctions, \
-    inner, length, Lsup, FunctionOnBoundary, inf, sup, whereZero, wherePositive
+    inner, length, Lsup, FunctionOnBoundary, inf, sup, whereZero, wherePositive, grad
 from esys.escript.linearPDEs import LinearSinglePDE, SolverOptions
 
 
@@ -85,6 +85,56 @@ def getSourcePotentials(domain, sigma, survey, sigma_surface=None, mask_outer_fa
         assert Lsup(source_potential[iA]) > 0, "Zero potential for injection %s" % A
     return source_potential
 
+
+def getSecondaryPotentials(pde, sigma, sigma_at_face, schedule, sigma_at_station=None, source_potential={},
+                           sigma_src=1., sigma_src_at_face=None, sigma_src_at_station=None, mask_faces=None):
+    """
+    calculates the extra/secondary potentials V_A for given sigma and source potentials for sigma_src
+
+    :param pde: PDE used to get the secondary potential. Coefficients are altered.
+    :param sigma: electrical conductivity
+    :param sigma_at_face: electrical conductivity at faces
+    :param schedule: schedule of the survey 'ABMN' (or AMN, etc)
+    :type schedule: `SurveyData`
+    :param sigma_at_station:electric conductivity at stations
+    :type sigma_at_station:  `dict` of `float`
+    :param source_potential: potentionals for a sources with assumed conductivity sigma_src
+    :type source_potential: `dict` of `Scalar`
+    :param sigma_src: conductivity used to calculate source potentials
+    :param sigma_src_at_face: conductivity for source potentials  at surfaces. If not set  'sigma_src' is used.
+    :param sigma_src_at_stations: conductivity for source potentials  at stations. If not set  'sigma_src' is used.
+    :param mask_faces: mask of surface elements to apply `radiation` conditions.
+        If not set to bottom, front, back, left, right elements.
+    :type mask_faces: `None` or `Scalar` with `FunctionOnBoundary` attribute
+    :return:  secondar/incremental potential to source potential due to conductivity sigma
+    """
+    if mask_faces is None:
+        mask_faces = makeMaskForOuterSurface(pde.getDomain())
+    if sigma_src_at_face is None:
+        sigma_src_at_face = sigma_src
+    if sigma_src_at_station is None:
+        sigma_src_at_station = {iA: sigma_src for iA in source_potential}
+    n = pde.getDomain().getNormal() * mask_faces
+    x_bc = FunctionOnBoundary(pde.getDomain()).getX()
+
+    potential = {}
+    pde.setValue(A=sigma * kronecker(3), y_dirac=Data(), X=Data(), Y=Data())
+    for iA in source_potential:
+        if sigma_at_station is None:
+            alpha_A = 1.
+        elif isinstance(sigma_src_at_station, dict):
+            alpha_A = sigma_src_at_station[iA] / sigma_at_station[iA]
+        else:
+            alpha_A = sigma_src_at_station / sigma_at_station[iA]
+        xA = schedule.getStationLocationByNumber(iA)
+        r = x_bc - xA
+        fA = inner(r, n) / length(r) ** 2
+        pde.setValue(d=sigma_at_face * fA, y=(sigma_src_at_face - sigma_at_face * alpha_A) * fA * source_potential[iA])
+        pde.setValue(X=(sigma_src - sigma * alpha_A) * grad(source_potential[iA]))
+        potential[iA] = pde.getSolution() + (alpha_A - 1.) * source_potential[iA]
+        print("processing station number ", iA, ": alpha=", alpha_A, "sol. V ", pde.getSolution(), " DV =", potential[iA])
+
+    return potential
 
 def makeZZArray(numElectrodes=32, id0=0):
     """
