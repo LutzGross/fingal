@@ -65,7 +65,7 @@ if config.region_fixed and isinstance(config.region_fixed , list):
 else:
     fixedm=None
 mask_face=makeMaskForOuterSurface(domain, taglist=config.faces)
-useLogMisfit=False
+
 # create cost function:
 costf=ERTInversion(domain, data=survey,
                    sigma_0_ref=config.sigma_ref,
@@ -73,22 +73,8 @@ costf=ERTInversion(domain, data=survey,
                    w1=config.w1, useL1Norm=config.useL1Norm, epsilonL1Norm=config.epsilonL1Norm,
                    mask_fixed_property=fixedm, mask_outer_faces = mask_face,
                    pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
-                   useLogMisfit= useLogMisfit, logger=logger)
+                   useLogMisfit= config.useLogMisfit, logger=logger)
 
-
-#if args.optimize or args.testconfig.sigma_ref:
-#    sigma_opt, f_opt,  defect = costf.optimizeconfig.sigma_ref()
-#    if getMPIRankWorld() == 0:
-#         print("Better value for config.sigma_ref = %s, correction factor %s, defect = %s"%(sigma_opt, f_opt,  defect))
-#         print("update your configuration file %s"%args.config)
-#         if args.testconfig.sigma_ref:
-#            print("And goodbye")
-#         else:
-#            print("config.sigma_ref will be updated.")
-#    if args.testconfig.sigma_ref:
-#        sys.exit()
-#    else:
-#        costf.scaleconfig.sigma_ref(f_opt)
 
 # test gradient:
 if False:
@@ -176,7 +162,6 @@ if args.xyz:
     sigmas=interpolate(sigma, ReducedFunction(domain))
     X=sigmas.getFunctionSpace().getX()
     if isinstance(config.core, list):
-        m=insertTaggedValues(Scalar(0., sigmas.getFunctionSpace()), **{ t: 1 for t in config.core })
         saveDataCSV(config.outfile+".csv", d0=X[0], d1=X[1], d2=X[2], sigma =sigmas, mask=m)
         if getMPIRankWorld() == 0:
             print("result written to %s.csv. Core region is %s."%(config.outfile, config.core))

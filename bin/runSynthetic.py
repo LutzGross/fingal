@@ -29,6 +29,7 @@ print(f"Data columns to be generated: {config.datacolumns}")
 
 
 
+
 domain=ReadMesh(config.meshfile)
 print("mesh read from "+config.meshfile)
 
@@ -60,13 +61,15 @@ print(f'center electrodes = {center}.')
 print(f'direction = {direction}.')
 print(f'mean electrode distance = {delectrodes}.')
 
-sigma_0=Scalar(config.sigma_ref, ReducedFunction(domain))
+core=insertTaggedValues(Scalar(0., ReducedFunction(domain)), **{ t: 1 for t in config.core })
+
+sigma_0=Scalar(config.sigma_ref, core.getFunctionSpace())
 X=sigma_0.getX()
-anomaly_mask_0 = whereNonPositive(length(X - (center + direction * (args.offset + args.radius)  )) - args.radius )
+anomaly_mask_0 = core * whereNonPositive(length( ( X - (center + direction * (args.offset + args.radius)  )) * [1,0,1]) - args.radius )
 sigma_0+= (config.sigma_ref * args.increase - sigma_0 ) * anomaly_mask_0
 
-M_n = Scalar(config.Mn_ref, ReducedFunction(domain))
-anomaly_mask_Mn = whereNonPositive(length(X - (center - direction * (args.offset + args.radius)  )) - args.radius )
+M_n = Scalar(config.Mn_ref, core.getFunctionSpace())
+anomaly_mask_Mn =  core * whereNonPositive(length( ( X - (center - direction * (args.offset + args.radius)  )) * [1,0,1]) - args.radius )
 M_n+= (config.Mn_ref * args.increase - M_n ) * anomaly_mask_Mn
 
 M_n_faces = config.Mn_ref
@@ -88,7 +91,7 @@ runner.write(config.datafile , datacolumns = config.datacolumns, addNoise = args
                             iFMT="%d", dFMT="%.5g", xFMT="%e")
 # -----------------------------------------------------------------------------------
 if args.silofile:
-    kwargs = { "Mn" : M_n, "sigma0" : sigma_0}
+    kwargs = { "Mn" : M_n, "sigma0" : sigma_0, "tag" : makeTagMap(Function(domain)) }
     A=list(elocations.keys())[0]
     iA=schedule.getStationNumber(A)
     kwargs[f'VS_s{A}'] = runner.source_potential[iA]

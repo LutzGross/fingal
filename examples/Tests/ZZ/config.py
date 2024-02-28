@@ -44,16 +44,18 @@ Mn_ref=eta_ref/(1-eta_ref)*sigma_ref
 #
 weighting_misfit_ERT=0.5
 clip_property_function=10
-m_tolerance=1.e-4
-g_tolerance=1.e-4
+m_tolerance=1.e-3
+g_tolerance=1.e-6
 interpolation_order=3
 imax=400
 truncation=20
 restart=60
 pde_tol=1e-10
-w1=1e-4
-usel1=False
-epsl1=1e-4
+w1=1E-3
+useL1Norm=False
+epsilonL1Norm=1e-4
+useLogMisfit = False
+
 w0=0.0
 theta=0
 alpha0=1
