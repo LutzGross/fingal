@@ -226,7 +226,7 @@ MSHN3 = args.geofile + ".msh"
 
 open(GEOFN2, 'w').write(out)
 print("geometry has been written to %s" % GEOFN2)
-rp = subprocess.run(["gmsh", "-3", "optimize_netgen", "-o", MSHN3, GEOFN2])
+rp = subprocess.run(["gmsh", "-3", "-optimize_netgen", "-o", MSHN3, GEOFN2])
 print(">> GMSH mesh file %s was generated." % MSHN3)
 
 dts = []

@@ -214,8 +214,9 @@ class IPSynthetic(object):
                     pert = 0
                 V_0  = ( dV_0[t] + dV_src[t]) * (1 + pert)  # ERT potential
                 V_2  = (dV_0[t] - dV_oo[t]) * (1 + pert)  # over-voltage potential
-                V_oo = V_0 - V_2
+                #V_oo = V_0 - V_2
                 ETA   = V_2 / V_0
+                #ETA = dV_0[t]/V_0*100
 
                 if self.createFieldData:
                     raise ValueError("CHECK E FIELD DATA")
@@ -266,7 +267,8 @@ class IPSynthetic(object):
                         raise ValueError("check RELERR_GAMMA ")
                         RELERR_GAMMA = rel_error
                         out += FMTG % RELERR_GAMMA
-                f.write(out[:-3] + "\n")
+                #f.write(out[:-3] + "\n")
+                f.write(out + "\n")
                 n += 1
             f.close()
             if self.printinfo:

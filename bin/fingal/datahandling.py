@@ -80,7 +80,10 @@ def readSurveyData(csvfile, stations={}, usesStationCoordinates=False, columns=[
                 S=tuple(S)
 
             if nc >0:
-                F=[ float(ll[i+ns*c]) for i in range(nc) ]
+                try:
+                    F=[ float(ll[i+ns*c]) for i in range(nc) ]
+                except ValueError:
+                    raise ValueError(f"unable to read line {lc}: {line}")
                 data.setDataRecord(S,tuple(F))
             else:
                 data.setDataRecord(S,None)

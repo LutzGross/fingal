@@ -1,8 +1,8 @@
 #
 # this is a fingal configuration file
 #
-created = '31.08.2023 15:10'
-project='ZZ'
+created = 'today'
+project='Wanner'
 # 
 #   name of the mesh file
 # 
@@ -51,10 +51,21 @@ imax=400
 truncation=20
 restart=60
 pde_tol=1e-10
-w1=1.e-4
+
 useL1Norm=False
 epsilonL1Norm=1e-4
+
+w1=1.e-4
+w1=1e-6 # ok.
+w1=1e-5 # not bad
+w1=1e-5 # ok.
+
+
 useLogMisfit = True
+
+#w1=5.e-7
+#useLogMisfit = False
+
 
 #
 # Output handeling:

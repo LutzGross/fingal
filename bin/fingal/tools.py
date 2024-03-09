@@ -76,6 +76,7 @@ def getSourcePotentials(domain, sigma, survey, sigma_surface=None, mask_outer_fa
     for A in survey.getListOfInjectionStations():
         iA=survey.getStationNumber(A)
         pde.setValue(y_dirac=makePointSource(A, pde.getDomain(), stationsFMT=stationsFMT))
+        #pde.setValue(y=1)
         # ---
         xA = survey.getStationLocationByKey(A)
         r = x - xA
@@ -116,6 +117,7 @@ def getSecondaryPotentials(pde, sigma, sigma_at_face, schedule, sigma_at_station
         sigma_src_at_station = {iA: sigma_src for iA in source_potential}
     n = pde.getDomain().getNormal() * mask_faces
     x_bc = FunctionOnBoundary(pde.getDomain()).getX()
+
 
     potential = {}
     pde.setValue(A=sigma * kronecker(3), y_dirac=Data(), X=Data(), Y=Data(), y=Data())

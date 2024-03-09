@@ -11,9 +11,9 @@ from esys.weipa import saveVTK, saveSilo
 #from esys.escript.pdetools import Locator, MaskFromTag
 
 parser = argparse.ArgumentParser(description='creates a synthetic ERT/IP survey data set', epilog="l.gross@uq.edu.au, version 9/8/2023")
-parser.add_argument('--topdepth', '-t',  dest='topdepth', default=5, type=int, help="depth of top of the anomaly in term of mean electrode difference")
-parser.add_argument('--radius', '-r',  dest='radius', default=6, type=int, help="radius of the anomaly in term of mean electrode difference")
-parser.add_argument('--offset', '-o',  dest='offset', default=5, type=int, help="offset of the anomaly form the center in term of mean electrode difference")
+parser.add_argument('--topdepth', '-t',  dest='topdepth', default=5 type=int, help="depth of top of the anomaly in term %% of survey area")
+parser.add_argument('--radius', '-r',  dest='radius', default=15, type=int, help="radius of the anomaly  in term %% of survey area")
+parser.add_argument('--offset', '-o',  dest='offset', default=0, type=int, help="offset of the anomaly  in term %% of survey area")
 parser.add_argument('--increase', '-i',  dest='increase', default=100, type=float, help="raise factor for sigma and Mn in anomaly")
 parser.add_argument('--noise', '-n',  dest='noise', default=0., metavar='NOISE', type=int, help="%% of noise to be added. (default is 0) ")
 parser.add_argument('--fullwaver', '-f', dest='fullwaver',  action='store_true', default=False, help='creates a fullwaver-style survey.')
@@ -48,33 +48,43 @@ stationlocations = np.array( [ elocations[s].tolist() for s in elocations])
 x_min, x_max=min(stationlocations[:,0]), max(stationlocations[:,0])
 y_min, y_max=min(stationlocations[:,1]), max(stationlocations[:,1])
 z_min, z_max=min(stationlocations[:,2]), max(stationlocations[:,2])
+delectrode = 1./(np.mean([ 1./np.linalg.norm(stationlocations[i]-stationlocations[i+1:], axis=1).min() for i in range(stationlocations.shape[0]-1)] ))
+diameter = sqrt( (x_max-x_min)**2 + (y_max-y_min)**2 )
 
-delectrodes = 1./(np.mean([ 1./np.linalg.norm(stationlocations[i]-stationlocations[i+1:], axis=1).min() for i in range(stationlocations.shape[0]-1)] ))
-center = np.array( [ (x_min+x_max)/2, (y_min+y_max)/2, (z_min+z_max)/2 - (args.topdepth + args.radius) * delectrodes ] )
+center = np.array( [ (x_min+x_max)/2, (y_min+y_max)/2, (z_min+z_max)/2 - (args.topdepth + args.radius)/100. * diameter ] )
 direction =  np.array( [ (x_min-x_max), (y_min-y_max), (z_min-z_max) ] )
 direction*=-1/np.linalg.norm(direction)
 
 print(f'x-range electrodes = {x_min} - {x_max}.')
 print(f'y-range electrodes = {y_min} - {y_max}.')
 print(f'z-range electrodes = {z_min} - {z_max}.')
-print(f'center electrodes = {center}.')
+print(f'center anomaly = {center}.')
 print(f'direction = {direction}.')
-print(f'mean electrode distance = {delectrodes}.')
+print(f'diameter of survey area = {diameter}.')
+print(f'mean electrode distance = {delectrode}.')
+print(f'background sigma = {config.sigma_ref}')
+print(f'anomaly sigma = {config.sigma_ref * args.increase}')
 
-core=insertTaggedValues(Scalar(0., ReducedFunction(domain)), **{ t: 1 for t in config.core })
+core=insertTaggedValues(Scalar(0., Function(domain)), **{ t: 1 for t in config.core })
 
 sigma_0=Scalar(config.sigma_ref, core.getFunctionSpace())
 X=sigma_0.getX()
-anomaly_mask_0 = core * whereNonPositive(length( ( X - (center + direction * (args.offset + args.radius)  )) * [1,0,1]) - args.radius )
+r = length( ( X - (center - direction * (args.offset + args.radius)/100.  * diameter  )) * [1,0,1])
+anomaly_mask_0 = core * exp(-(r/( args.radius/100.  * diameter))**2/2)
+#anomaly_mask_0 = core * whereNonPositive(r - args.radius )
 sigma_0+= (config.sigma_ref * args.increase - sigma_0 ) * anomaly_mask_0
-
 M_n = Scalar(config.Mn_ref, core.getFunctionSpace())
-anomaly_mask_Mn =  core * whereNonPositive(length( ( X - (center - direction * (args.offset + args.radius)  )) * [1,0,1]) - args.radius )
+anomaly_mask_Mn =  core * whereNonPositive(r - args.radius/100.  * diameter )
 M_n+= (config.Mn_ref * args.increase - M_n ) * anomaly_mask_Mn
 
 M_n_faces = config.Mn_ref
+if args.silofile:
+    kwargs = { "Mn" : M_n, "sigma0" : sigma_0, "tag" : makeTagMap(Function(domain)) }
+    saveSilo(args.silofile , **kwargs)
+    print(f'values {kwargs.keys()} written to file {args.silofile}.')
+
 # -----------------------------------------------------------------------------------
-runner=IPSynthetic(domain, schedule,  sigma_src=1,
+runner=IPSynthetic(domain, schedule,  sigma_src=config.sigma_ref,
                     mask_faces = makeMaskForOuterSurface(domain, taglist=config.faces),
                     stationsFMT=config.stationsFMT,
                     createSecondaryData=True,

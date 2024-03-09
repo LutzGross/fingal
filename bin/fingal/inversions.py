@@ -663,6 +663,10 @@ class ERTMisfitCostFunction(CostFunction):
         self.sigma_src = sigma_src # needs to be a constant.
         self.setSourcePotentials()  # S_s is in the notes
 
+
+        #geometry_factors = self.data.makeResistencePrediction(values=self.source_potentials_at_stations,
+        #                                                      valuesKeysAreStationKeys=False)
+
         # build the misfit data (indexed by source index):
         self.misfit_0 = {}  # potential increment to injection field to get DC potential
         nd0 = 0 # counting number of data
@@ -672,14 +676,17 @@ class ERTMisfitCostFunction(CostFunction):
             iB = self.data.getStationNumber(B)
             iMs = [self.data.getStationNumber(M) for M, N in obs]
             iNs = [self.data.getStationNumber(N) for M, N in obs]
+
             data_0 = np.array([self.data.getResistenceData((A, B, M, N)) for M, N in obs])
             rel_error_0 = np.array([self.data.getResistenceRelError((A, B, M, N)) for M, N in obs])
             #error_0 =  max(abs(data_0)*rel_error_0)/abs(data_0)
-            error_0 = rel_error_0
-            print(rel_error_0, error_0, data_0)
+
+            #print(rel_error_0, error_0, data_0)
             if self.useLogMisfit:
+                error_0 = rel_error_0
                 self.misfit_0[(iA, iB)] =  DataMisfitLog(iMs=iMs, data=data_0, iNs=iNs, injections=(A,B), weightings=1. / error_0**2)
             else:
+                error_0 = 1. / abs(data_0)
                 self.misfit_0[(iA, iB)] = DataMisfitQuad(iMs=iMs, data=data_0, iNs=iNs, injections=(A,B),
                                                                   weightings=1. / error_0 ** 2)
 
@@ -886,7 +893,7 @@ class ERTInversion(ERTMisfitCostFunction):
 
         # regularization
         self.w1 = w1
-        self.factor2D=5000
+        self.factor2D=1
         self.Hpde = setupERTPDE(self.domain)
         self.Hpde.setValue(q=self.mask_fixed_property)
         if not reg_tol:
@@ -980,6 +987,7 @@ class ERTInversion(ERTMisfitCostFunction):
         """
         returns an approximation of inverse of the Hessian. Overwrites `getInverseHessianApproximation` of `MeteredCostFunction`
         """
+        clip_property_function=10
         if self.useL1Norm:
             if self.HpdeUpdateCount > 1:
                 gm=grad(m)
@@ -991,9 +999,10 @@ class ERTInversion(ERTMisfitCostFunction):
 
         self.Hpde.setValue(X=r[1], Y=r[0], y=r[2])
         dm = self.Hpde.getSolution()
+        #dm.copyWithMask(clip_property_function+0*m, wherePositive(m+dm-clip_property_function))
+        #dm.copyWithMask(-clip_property_function+0*m, wherePositive(-clip_property_function-(m+dm)))
         self.logger.debug(f"search direction component = {str(dm)}.")
         return dm
-
     def getDualProduct(self, m, r):
         """
         dual product of gradient `r` with increment `m`. Overwrites `getDualProduct` of `MeteredCostFunction`
