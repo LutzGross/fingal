@@ -14,7 +14,7 @@ import logging
 
 
 parser = argparse.ArgumentParser(description='driver to invert an electric field intensity survey (aka Fullwaver). Measurements may not be dipoles.', epilog="l.gross@uq.edu.au, version Jan 2021")
-parser.add_argument(dest='config', metavar='configfile', type=str, help='python setting configuration (no py extension)')
+parser.add_argument(dest='config', metavar='configfile', type=str, help='python setting configuration (no Ypadding extension)')
 parser.add_argument('--sigmaOnly', '-s',  dest='sigmaonly', action='store_true', default=False, help="solve for conductivity only.")
 parser.add_argument('--restart', '-r', dest = 'restart', action ='store_true', default=False, help='restart for chargeability from restart file with conductivity.')
 parser.add_argument('--optimize', '-o',  dest='optimize', action='store_true', default=False, help="Calibrated the value for sigma0 before iteration starts.(ignored)")

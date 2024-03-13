@@ -289,7 +289,7 @@ CHANGE = {
     "core": ["core"],
     "faces": ["faces"]
 }
-FN = args.configfile + ".py"
+FN = args.configfile + ".Ypadding"
 open(FN, 'w').write(out.format(**CHANGE)+"true_properties=None\n")
 print(f"Configuration file {FN} created.")
 print(f"Please check the content of the file.")

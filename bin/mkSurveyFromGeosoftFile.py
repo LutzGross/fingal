@@ -38,7 +38,7 @@ else:
   
 electrodesFN=args.project+".loc"
 dataFN=args.project+".csv"
-configFN=args.project+".py"
+configFN=args.project+".Ypadding"
 meshfile=args.project+".fly"
 
 

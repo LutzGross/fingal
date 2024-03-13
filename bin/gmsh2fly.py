@@ -11,7 +11,7 @@ import argparse
 parser = argparse.ArgumentParser(description='converts a gmsh msh file to finley fly file. Location of stations are merged.', epilog="l.gross@uq.edu.au, version 11/12/2020")
 parser.add_argument('--silo', '-s', dest='silo',  type=str, default=None, help='name silo filet to show mesh while converting')
 parser.add_argument(dest='msh', metavar='gmshFile', type=str, help='gmsh mesh file')
-parser.add_argument(dest='config', metavar='configfile', type=str, help='configuration (no py extension)')
+parser.add_argument(dest='config', metavar='configfile', type=str, help='configuration (no Ypadding extension)')
 args = parser.parse_args()
 
 

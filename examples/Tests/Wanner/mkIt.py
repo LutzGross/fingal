@@ -2,15 +2,15 @@
 #
 # ...  create station file and schedule:
 #
-#    ./mkIt.py
+#    ./mkIt.Ypadding
 #
 # ... generate mesh fly mesh
 #
-#   mkMeshFromStations.py config
+#   mkMeshFromStations.Ypadding config
 #
 # ... generate synthetic data
 #
-#   runSynthetic.py -d --silo survey config
+#   runSynthetic.Ypadding -d --silo survey config
 import importlib, sys, os
 from fingal  import makeWennerArray
 

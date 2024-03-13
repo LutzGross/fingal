@@ -13,7 +13,7 @@ parser.add_argument('--geofile', '-G',  dest='geofile', type=str,  help="name of
 parser.add_argument('--stationfile', '-S',  dest='stationfile', type=str,  help="name of the station/electrode file in format (A,B,M,N). If not set the survey name + extension 'loc' is used.")
 parser.add_argument('--padding', '-p',  dest='relPadding', type=float, default=30, help="padding in %% relative to survey extend (forming the bounding box)")
 parser.add_argument('--range', '-r',  dest='relRange', type=float, default=30, help="range of survey in %% relative to survey extend. The will be added to the extend and be updated during inversion")
-parser.add_argument('--configfile', '-c',  dest='configfile', type=str, help="name of the configuarion file to be generated. If not set the survey name + extension 'py' is used.")
+parser.add_argument('--configfile', '-c',  dest='configfile', type=str, help="name of the configuarion file to be generated. If not set the survey name + extension 'Ypadding' is used.")
 parser.add_argument('--centralize', '-z',  dest='centralize', action='store_true', default=False, help="the center of the survey is moved to (0,0).")
 
 parser.add_argument('--debug', '-d',  dest='debug', action='store_true', default=False, help="shows more information.")
@@ -364,7 +364,7 @@ if not args.nogeo:
 
 if not args.configfile:
     if args.configfile is None:
-        FN=SurveyName+".py"
+        FN=SurveyName+".Ypadding"
     else:
         FN=args.configfile 
     f=open(FN,'w')

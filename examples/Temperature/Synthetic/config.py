@@ -23,6 +23,7 @@ dipoleMeasurements = True
 datadelimiter = ','
 usesStationCoordinates = False
 schedulefile = 'schedule.csv'
+surfacetemperaturefile = "surface_temperature.csv"
 #
 #  This section of the file defines the inversion
 #

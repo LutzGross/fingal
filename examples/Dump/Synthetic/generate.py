@@ -164,7 +164,7 @@ if args.mkConfig:
         "DumpCrone" : DumpCrone,
         "TopDumpEdgeFromFoot" : TopDumpEdgeFromFoot
     }
-    FN = args.config + ".py"
+    FN = args.config + ".Ypadding"
     open(FN, 'w').write(out.format(**CHANGE)+TruePropertyDef.format(**FORMATPROPDEF))
 
     print(f"Configuration file {FN} created.")

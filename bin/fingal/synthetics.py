@@ -71,7 +71,8 @@ class IPSynthetic(object):
             print(str(len(self.source_field)) + " source fields calculated.")
 
 
-    def setProperties(self, sigma_0=1., sigma_0_faces=None, M_n=None, M_n_faces=None):
+    def setProperties(self, sigma_0=1., sigma_0_faces=None, M_n=None, M_n_faces=None,
+                      sigma_0_at_stations=None, M_n_at_stations = None):
         """
         sets the DC conductivity sigma_0 and normalized chargeability.
         if createSecondaryData M_n and M_n_faces must be given.
@@ -86,8 +87,8 @@ class IPSynthetic(object):
         # secondary potential -div(sigma_0 grad(V_0) = -div( (sigma_src/alpha_A - sigma_0) grad(U_A*alpha_A))
         #  DC potenential V_0 = W_A + U_A*alpha_A)
         pde = setupERTPDE(self.domain)
-
-        sigma_0_at_stations = self.stationlocators(sigma_0)
+        if sigma_0_at_stations is None:
+             sigma_0_at_stations = self.stationlocators(sigma_0)
         self.potential_0 = getSecondaryPotentials(pde,
                                                   sigma = sigma_0,
                                                   sigma_at_face = sigma_0_faces,
@@ -112,7 +113,10 @@ class IPSynthetic(object):
                 raise ValueError("Secondary potential needed but no normalized chargeability M_n or M_n_faces give")
             sigma_oo = M_n + sigma_0
             sigma_oo_faces = M_n_faces + sigma_0_faces
-            sigma_oo_at_stations = self.stationlocators(sigma_oo)
+            if M_n_at_stations is None or sigma_0_at_stations is None:
+                sigma_oo_at_stations = self.stationlocators(sigma_oo)
+            else:
+                sigma_oo_at_stations = [ M_n_at_stations[s] + sigma_0_at_stations[s] for s in range(len(sigma_0_at_stations)) ]
             if self.printinfo:
                 print(".... secondary (IP) potentials:")
                 print("sigma_oo = ", str(sigma_oo))

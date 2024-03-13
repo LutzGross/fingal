@@ -13,14 +13,12 @@ sys.path.append(os.getcwd())
 
 parser = argparse.ArgumentParser(description='Creates a mesh fly file using the station location information. the gmsh mesh generator is used.', epilog="fingal by l.gross@uq.edu.auversion 21/12/2020")
 parser.add_argument(dest='config', metavar='configfile', type=str, help='python setting configuration')
-parser.add_argument('--depth', '-d',  dest='depth', type=int, default=45, help="depth relative to core width around core in %% (default 45)")
-parser.add_argument('--inner', '-i',  dest='inner', type=int, default=20, help="relative inner padding within the core around electrodes in %% (default 20)")
-
-
-parser.add_argument('--outer', '-o',  dest='outer', type=int, default=150, help="relative outer padding around core in %% (default 80)")
-parser.add_argument('--coremesh', '-c',  dest='coremesh', type=float, default=50, help="number of element on the longest edge of the core region (default 50)")
-parser.add_argument('--stationmesh', '-s',  dest='stationmesh', type=float, default=0.2, help="refinement factor at stations relative to core mesh size (default 0.3)")
-parser.add_argument('--paddingmesh', '-p',  dest='paddingmesh', type=float, default=20, help="number of element on the longest edge of the padding region (default 20)")
+parser.add_argument('--coredepth', '-d',  dest='coredepth', type=int, default=45, help="core depth relative to core width around core in %% of electrode area size (default 45)")
+parser.add_argument('--extracore', '-e',  dest='extracore', type=int, default=20, help="relative extracore padding within the core around electrodes in %%  of edge legth (default 20)")
+parser.add_argument('--padding', '-p',  dest='padding', type=int, default=150, help="relative padding around core in %% of core eddge length (default 150)")
+parser.add_argument('--coremesh', '-C',  dest='coremesh', type=float, default=50, help="number of element on the longest edge of the core region (default 50)")
+parser.add_argument('--stationmeshfactor', '-s',  dest='stationmeshfactor', type=float, default=0.2, help="refinement factor at stations relative to core mesh size (default 0.2)")
+parser.add_argument('--paddingmesh', '-P',  dest='paddingmesh', type=float, default=20, help="number of element on the longest edge of the padding region (default 20)")
 parser.add_argument('--geo', '-g',  dest='geofile', type=str, default="tmp", help="name of gmsh geofile to generate")
 parser.add_argument('--mshno', '-m',  dest='mshno', action='store_true', default=False, help="if set only gmsh geo file is generated but mesh generation is not started. Useful for debugging.")
 
@@ -46,38 +44,38 @@ print("level of survey = ", zCore)
 print("x range = ", xmin, xmax)
 print("y range = ", ymin, ymax)
 
-ebox=max(xmax-xmin, ymax-ymin)
-assert ebox > 0., "area of electrodes is zero."
-fx=((xmax-xmin)*args.inner)/100.
-fy=((ymax-ymin)*args.inner)/100.
+diagonalAreaOfElectrodes= ((xmax - xmin) ** 2 + (ymax - ymin) ** 2) ** 0.5
+assert diagonalAreaOfElectrodes > 0., "area of electrodes is zero."
+XextensionCore= ((xmax - xmin) * args.extracore) / 100.
+YextensionCore= ((ymax - ymin) * args.extracore) / 100.
 
-if xmax-xmin < 1e-5 * ebox:
-  fx=fy  
-if ymax-ymin < 1e-5 * ebox:
-  fy=fx  
+if xmax-xmin < 1e-5 * diagonalAreaOfElectrodes:
+  XextensionCore=YextensionCore
+if ymax-ymin < 1e-5 * diagonalAreaOfElectrodes:
+  YextensionCore=XextensionCore
 
-fz=(max(xmax-xmin, ymax-ymin)*args.depth)/100.
-#zmincore=min(zmin, (fit[0]+fit[1]*(xmin-fx)+fit[2]*(ymin-fy)), fit[0]+fit[1]*(xmax+fx)+fit[2]*(ymin-fy), fit[0]+fit[1]*(xmax+fx)+fit[2]*(ymax+fy), fit[0]+fit[1]*(xmin-fx)+fit[2]*(ymax+fy))
+CoreThickness= (diagonalAreaOfElectrodes * args.coredepth) / 100.
+#zmincore=min(zmin, (fit[0]+fit[1]*(xmin-XextensionCore)+fit[2]*(ymin-YextensionCore)), fit[0]+fit[1]*(xmax+XextensionCore)+fit[2]*(ymin-YextensionCore), fit[0]+fit[1]*(xmax+XextensionCore)+fit[2]*(ymax+YextensionCore), fit[0]+fit[1]*(xmin-XextensionCore)+fit[2]*(ymax+YextensionCore))
 
-px=((xmax-xmin+2*fx)*args.outer)/100.
-py=((ymax-ymin+2*fy)*args.outer)/100.
-pz=min(px, py)  
-px,py=pz,pz
+Xpadding= ((xmax - xmin + 2 * XextensionCore) * args.padding) / 100.
+Ypadding= ((ymax - ymin + 2 * YextensionCore) * args.padding) / 100.
+Zpadding=min(Xpadding, Ypadding)  
+Xpadding,Ypadding=Zpadding,Zpadding
 
-XminBB = xmin-fx-px
-XmaxBB = xmax+fx+px
-YminBB = ymin-fy-py
-YmaxBB = ymax+fy+py
-ZminBB = zCore-fz-pz
-ZminCore = zCore-fz
+XminBB = xmin - XextensionCore - Xpadding
+XmaxBB = xmax + XextensionCore + Xpadding
+YminBB = ymin - YextensionCore - Ypadding
+YmaxBB = ymax + YextensionCore + Ypadding
+ZminBB = zCore - CoreThickness - Zpadding
+ZminCore = zCore - CoreThickness
 
 out=""
 out+="Mesh.MshFileVersion = 2.2;\n"
 out+="// Core:\n"
-out+="XminCore = %s;\n"%(xmin-fx)
-out+="XmaxCore = %s;\n"%(xmax+fx)
-out+="YminCore = %s;\n"%(ymin-fy)
-out+="YmaxCore = %s;\n"%(ymax+fy)
+out+="XminCore = %s;\n"%(xmin - XextensionCore)
+out+="XmaxCore = %s;\n"%(xmax + XextensionCore)
+out+="YminCore = %s;\n"%(ymin - YextensionCore)
+out+="YmaxCore = %s;\n"%(ymax + YextensionCore)
 out+="ZCore = %s;\n"%zCore
 out+="ZminCore = %s;\n"%ZminCore
 out+="\n"
@@ -90,29 +88,29 @@ out+="ZminBB = %s;\n"%ZminBB
 out+="\n"
 
 out+="// element sizes\n"
-out+="mshC = %s/%s;\n"%(max(xmax-xmin+2*fx,ymax-ymin+2*fy), args.coremesh)
-out+="mshBB = %s/%s;\n"%(max(xmax-xmin+2*fx+2*px,ymax-ymin+2*fy+2*py), args.paddingmesh)
-out+="mshE = mshC*%s;\n"%(args.stationmesh)
+out+="meshSizeCore = %s/%s;\n"%(max(xmax - xmin + 2 * XextensionCore, ymax - ymin + 2 * YextensionCore), args.coremesh)
+out+="meshSizeBB = %s/%s;\n"%(max(xmax - xmin + 2 * XextensionCore + 2 * Xpadding, ymax - ymin + 2 * YextensionCore + 2 * Ypadding), args.paddingmesh)
+out+="meshSizeElectrodes = meshSizeCore*%s;\n"%(args.stationmeshfactor)
 out+="\n"
-out+="Point(1) = {XminCore, YminCore, ZCore, mshC};\n"
-out+="Point(2) = {XmaxCore, YminCore, ZCore, mshC};\n"
-out+="Point(3) = {XmaxCore, YmaxCore, ZCore, mshC};\n"
-out+="Point(4) = {XminCore, YmaxCore, ZCore, mshC};\n"
+out+="Point(1) = {XminCore, YminCore, ZCore, meshSizeCore};\n"
+out+="Point(2) = {XmaxCore, YminCore, ZCore, meshSizeCore};\n"
+out+="Point(3) = {XmaxCore, YmaxCore, ZCore, meshSizeCore};\n"
+out+="Point(4) = {XminCore, YmaxCore, ZCore, meshSizeCore};\n"
 out+="\n"
-out+="Point(5) = {XminCore, YminCore, ZminCore, mshC};\n"
-out+="Point(6) = {XmaxCore, YminCore, ZminCore, mshC};\n"
-out+="Point(7) = {XmaxCore, YmaxCore, ZminCore, mshC};\n"
-out+="Point(8) = {XminCore, YmaxCore, ZminCore, mshC};\n"
+out+="Point(5) = {XminCore, YminCore, ZminCore, meshSizeCore};\n"
+out+="Point(6) = {XmaxCore, YminCore, ZminCore, meshSizeCore};\n"
+out+="Point(7) = {XmaxCore, YmaxCore, ZminCore, meshSizeCore};\n"
+out+="Point(8) = {XminCore, YmaxCore, ZminCore, meshSizeCore};\n"
 out+="\n"
-out+="Point(9) = {XminBB, YmaxBB, ZCore, mshBB };\n"
-out+="Point(10) = {XminBB, YminBB, ZCore, mshBB };\n"
-out+="Point(11) = {XmaxBB, YminBB, ZCore, mshBB };\n"
-out+="Point(12) = {XmaxBB, YmaxBB, ZCore, mshBB };\n"
+out+="Point(9) = {XminBB, YmaxBB, ZCore, meshSizeBB };\n"
+out+="Point(10) = {XminBB, YminBB, ZCore, meshSizeBB };\n"
+out+="Point(11) = {XmaxBB, YminBB, ZCore, meshSizeBB };\n"
+out+="Point(12) = {XmaxBB, YmaxBB, ZCore, meshSizeBB };\n"
 out+="\n"
-out+="Point(17) = {XminBB, YmaxBB, ZminBB, mshBB };\n"
-out+="Point(18) = {XminBB, YminBB, ZminBB, mshBB };\n"
-out+="Point(19) = {XmaxBB, YminBB, ZminBB, mshBB };\n"
-out+="Point(20) = {XmaxBB, YmaxBB, ZminBB, mshBB };\n"
+out+="Point(17) = {XminBB, YmaxBB, ZminBB, meshSizeBB };\n"
+out+="Point(18) = {XminBB, YminBB, ZminBB, meshSizeBB };\n"
+out+="Point(19) = {XmaxBB, YminBB, ZminBB, meshSizeBB };\n"
+out+="Point(20) = {XmaxBB, YmaxBB, ZminBB, meshSizeBB };\n"
 out+="\n"
 out+="Line(1) = {10, 9};\n"
 out+="Line(3) = {10, 11};\n"
@@ -166,8 +164,7 @@ out+="Plane Surface(12) = {11, 12};\n"
 out+="// electrodes  (in the core)\n"
 out+="k=newp;\n"
 for i,s in enumerate(elocations):
-  print(i, s)
-  out+="Point(k+%s)={ %s, %s, ZCore, mshE};\n"%(i+1, elocations[s][0], elocations[s][1])
+  out+="Point(k+%s)={ %s, %s, ZCore, meshSizeElectrodes};\n"%(i+1, elocations[s][0], elocations[s][1])
   out+="Point{k+%s} In Surface{11};\n"%(i+1)  
   out+='Physical Point("s%s")  = { k+%s } ;\n'%(s,i+1)
 out+='Physical Surface("'+ config.faces[0] + '") = {6, 7, 8, 9, 10};\n'
