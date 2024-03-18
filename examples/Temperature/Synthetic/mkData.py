@@ -51,7 +51,7 @@ xmax=positions[:,0].max()
 ymin=positions[:,1].min()
 ymax=positions[:,1].max()
 
-print(positions.shape)
+
 DistanceElectrodes=1e999
 for i in range(len(elocations)):
     for j in range(len(elocations)):

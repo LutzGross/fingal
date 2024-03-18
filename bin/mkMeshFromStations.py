@@ -8,6 +8,7 @@ import importlib, sys, os
 from fingal import *
 import subprocess
 from esys.finley import ReadGmsh
+from esys.weipa import saveSilo
 sys.path.append(os.getcwd())
 #sys.path.append(os.getcwd())
 
@@ -16,15 +17,16 @@ parser.add_argument(dest='config', metavar='configfile', type=str, help='python 
 parser.add_argument('--coredepth', '-d',  dest='coredepth', type=int, default=45, help="core depth relative to core width around core in %% of electrode area size (default 45)")
 parser.add_argument('--extracore', '-e',  dest='extracore', type=int, default=20, help="relative extracore padding within the core around electrodes in %%  of edge legth (default 20)")
 parser.add_argument('--padding', '-p',  dest='padding', type=int, default=150, help="relative padding around core in %% of core eddge length (default 150)")
-parser.add_argument('--coremesh', '-C',  dest='coremesh', type=float, default=50, help="number of element on the longest edge of the core region (default 50)")
+parser.add_argument('--coremeshfactor', '-C',  dest='coremeshfactor', type=float, default=1., help="refinement factor of mesh in core relative to the electrode distance (default 0.1)")
 parser.add_argument('--stationmeshfactor', '-s',  dest='stationmeshfactor', type=float, default=0.2, help="refinement factor at stations relative to core mesh size (default 0.2)")
 parser.add_argument('--paddingmesh', '-P',  dest='paddingmesh', type=float, default=20, help="number of element on the longest edge of the padding region (default 20)")
 parser.add_argument('--geo', '-g',  dest='geofile', type=str, default="tmp", help="name of gmsh geofile to generate")
-parser.add_argument('--mshno', '-m',  dest='mshno', action='store_true', default=False, help="if set only gmsh geo file is generated but mesh generation is not started. Useful for debugging.")
+parser.add_argument('--noMesh', '-N',  dest='mshno', action='store_true', default=False, help="if set only gmsh geo file is generated but mesh generation is not started. Useful for debugging.")
+parser.add_argument('--silofile', '-o', dest='silofile', metavar='SILOFILE', type=str, default='mesh', help='name of silo output file for mesh (generated)')
 
 args = parser.parse_args()
 
-print("** This generates a mesh fly fil from a station file **")
+print("** This generates a mesh fly file for inversion from a station file **")
 
 config = importlib.import_module(args.config)
 print("configuration "+args.config+" imported.")
@@ -40,14 +42,21 @@ xmax=positions[:,0].max()
 ymin=positions[:,1].min()
 ymax=positions[:,1].max()
 
+DistanceElectrodes=1e999
+for i in range(len(elocations)):
+    for j in range(len(elocations)):
+        if i < j:
+            d=np.linalg.norm(positions[j]-positions[i])
+            DistanceElectrodes=min(DistanceElectrodes, d)
+
 print("level of survey = ", zCore)
 print("x range = ", xmin, xmax)
 print("y range = ", ymin, ymax)
-
+print("DistanceElectrodes =",DistanceElectrodes)
 diagonalAreaOfElectrodes= ((xmax - xmin) ** 2 + (ymax - ymin) ** 2) ** 0.5
 assert diagonalAreaOfElectrodes > 0., "area of electrodes is zero."
-XextensionCore= ((xmax - xmin) * args.extracore) / 100.
-YextensionCore= ((ymax - ymin) * args.extracore) / 100.
+XextensionCore = (max(xmax - xmin, ymax - ymin) * args.extracore) / 100.
+YextensionCore = XextensionCore
 
 if xmax-xmin < 1e-5 * diagonalAreaOfElectrodes:
   XextensionCore=YextensionCore
@@ -69,6 +78,7 @@ YmaxBB = ymax + YextensionCore + Ypadding
 ZminBB = zCore - CoreThickness - Zpadding
 ZminCore = zCore - CoreThickness
 
+
 out=""
 out+="Mesh.MshFileVersion = 2.2;\n"
 out+="// Core:\n"
@@ -88,9 +98,18 @@ out+="ZminBB = %s;\n"%ZminBB
 out+="\n"
 
 out+="// element sizes\n"
-out+="meshSizeCore = %s/%s;\n"%(max(xmax - xmin + 2 * XextensionCore, ymax - ymin + 2 * YextensionCore), args.coremesh)
-out+="meshSizeBB = %s/%s;\n"%(max(xmax - xmin + 2 * XextensionCore + 2 * Xpadding, ymax - ymin + 2 * YextensionCore + 2 * Ypadding), args.paddingmesh)
-out+="meshSizeElectrodes = meshSizeCore*%s;\n"%(args.stationmeshfactor)
+#out+="meshSizeCore = %s/%s;\n"%(max(xmax - xmin + 2 * XextensionCore, ymax - ymin + 2 * YextensionCore), args.coremesh)
+#out+="meshSizeBB = %s/%s;\n"%(max(xmax - xmin + 2 * XextensionCore + 2 * Xpadding, ymax - ymin + 2 * YextensionCore + 2 * Ypadding), args.paddingmesh)
+#out+="meshSizeElectrodes = meshSizeCore*%s;\n"%(args.stationmeshfactor)
+######
+out += "DistanceElectrodes = %g;\n" % (DistanceElectrodes)
+out += "meshSizeCore = %g * DistanceElectrodes;\n" % (args.coremeshfactor)
+out += "meshSizeBB = %g/%d;\n" % (
+max(xmax - xmin + 2 * XextensionCore + 2 * Xpadding, ymax - ymin + 2 * YextensionCore + 2 * Ypadding),
+args.paddingmesh)
+out += "meshSizeElectrodes = DistanceElectrodes * %s;\n" % (args.stationmeshfactor)
+###
+
 out+="\n"
 out+="Point(1) = {XminCore, YminCore, ZCore, meshSizeCore};\n"
 out+="Point(2) = {XmaxCore, YminCore, ZCore, meshSizeCore};\n"
@@ -169,9 +188,6 @@ for i,s in enumerate(elocations):
   out+='Physical Point("s%s")  = { k+%s } ;\n'%(s,i+1)
 out+='Physical Surface("'+ config.faces[0] + '") = {6, 7, 8, 9, 10};\n'
 
-GEOFN2=args.geofile+".geo"
-MSHN3=args.geofile+".msh"
-
 
 out+="Surface Loop(1) = {1,2,3,4,5,11};\n"
 out+="Volume(1) = {-1};\n"
@@ -179,6 +195,10 @@ out+="Surface Loop(2) = {6, -8, -9, -7, 10, 2, 1, 12, 5, 4, 3};\n"
 out+="Volume(2) = {2};\n"
 out+='Physical Volume("padding")  = { 2 } ;\n'
 out+='Physical Volume("'+ config.core[0] + '")  = { 1 } ;\n'
+
+GEOFN2=args.geofile+".geo"
+MSHN3=args.geofile+".msh"
+
 
 open(GEOFN2,'w').write(out)
 print("3D geometry has been written to %s"%GEOFN2)
@@ -200,6 +220,7 @@ if not args.mshno:
     domain=ReadGmsh(MSHN3, 3, diracPoints=dps, diracTags=dts, optimize=True )
     domain.write(config.meshfile)
     print("Mesh written to file %s"%(config.meshfile))
-
-
+    if args.silofile:
+        saveSilo(args.silofile , tag = makeTagMap(Function(domain)))
+        print(f'Mesh written to file {args.silofile}.silo.')
     
