@@ -23,7 +23,7 @@ parser.add_argument(dest='config', metavar='configfile', type=str, help='python 
 parser.add_argument('--restartfile', '-R', dest='RESTARTFN', metavar='RESTARTFN', type=None, default="restart", help='reststart file name')
 parser.add_argument('--restart', '-r',  dest='restart', action='store_true', default=False, help="start from restart file. RESTARTFN need to be set and exist.")
 
-parser.add_argument('--nooptimize', '-n',  dest='nooptimize', action='store_true', default=False, help="Don't Calibrated the value for config.sigma_ref before iteration starts.")
+parser.add_argument('--nooptimize', '-n',  dest='nooptimize', action='store_true', default=False, help="Don't calibrated the value for config.sigma_ref before iteration starts.")
 parser.add_argument('--test', '-t',  dest='testonly', action='store_true', default=False, help="stop after rescaling config.sigma_ref.")
 #parser.add_argument('--query', '-q',  dest='query', type=str, default=None, help="file name (if set) for output of (A,B,M,N, observation, prediction) ")
 parser.add_argument('--vtk', '-v',  dest='vtk', action='store_true', default=False, help="VTK format is used for output otherwise silo is used.")
@@ -72,7 +72,7 @@ costf=ERTInversion(domain, data=survey,
                    w1=config.w1, useL1Norm=config.useL1Norm, epsilonL1Norm=config.epsilonL1Norm,
                    mask_fixed_property=fixedm, mask_outer_faces = mask_face,
                    pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
-                   useLogMisfit= config.useLogMisfit, logger=logger)
+                   useLogMisfit= config.useLogMisfitERT, logger=logger)
 
 
 # test gradient:

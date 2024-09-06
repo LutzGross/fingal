@@ -55,17 +55,17 @@ def makePointSource(source_key, domain, value=1., stationsFMT=None):
     return s
 
 
-def getSourcePotentials(domain, sigma, survey, sigma_surface=None, mask_outer_faces=None, stationsFMT=None):
+def getSourcePotentials(domain, sigma, survey, sigma_at_faces=None, mask_outer_faces=None, stationsFMT=None):
     """
     return the electric potential for all injections A in the survey using conductivity sigma.
     :sigma: conductivity. Needs to a constant if sigma_source is not present.
-    :sigma_surface: surface condcutivity. If None sigma is used.
-    :mask_outer_faces
+    :sigma_at_faces: conductivity at faces. If None sigma is used.
+    :mask_outer_faces:
     :return: dictionary of injections A->injection_potentials assuming internal and surface conductivity is sigma and
              sigma_surface
     """
-    if not sigma_surface:
-        sigma_surface = sigma
+    if not sigma_at_faces:
+        sigma_at_faces = sigma
     mm = makeMaskForOuterSurface(domain, facemask=mask_outer_faces)
     n = domain.getNormal() * mm
     x = n.getX()
@@ -80,21 +80,21 @@ def getSourcePotentials(domain, sigma, survey, sigma_surface=None, mask_outer_fa
         # ---
         xA = survey.getStationLocationByKey(A)
         r = x - xA
-        pde.setValue(d=sigma * inner(r, n) / length(r) ** 2)  # doi:10.1190/1.1440975
+        pde.setValue(d=sigma_at_faces * inner(r, n) / length(r) ** 2)  # doi:10.1190/1.1440975
         source_potential[iA] = pde.getSolution()
         print("processing source ", iA, " key = ", A, source_potential[iA])
         assert Lsup(source_potential[iA]) > 0, "Zero potential for injection %s" % A
     return source_potential
 
 
-def getSecondaryPotentials(pde, sigma, sigma_at_face, schedule, sigma_at_station=None, source_potential={},
+def getSecondaryPotentials(pde, sigma, sigma_at_faces, schedule, sigma_at_station=None, source_potential={},
                            sigma_src=1., sigma_src_at_face=None, sigma_src_at_station=None, mask_faces=None):
     """
     calculates the extra/secondary potentials V_A for given sigma and source potentials for sigma_src
 
     :param pde: PDE used to get the secondary potential. Coefficients are altered.
     :param sigma: electrical conductivity
-    :param sigma_at_face: electrical conductivity at faces
+    :param sigma_at_faces: electrical conductivity at faces
     :param schedule: schedule of the survey 'ABMN' (or AMN, etc)
     :type schedule: `SurveyData`
     :param sigma_at_station:electric conductivity at stations
@@ -131,7 +131,7 @@ def getSecondaryPotentials(pde, sigma, sigma_at_face, schedule, sigma_at_station
         xA = schedule.getStationLocationByNumber(iA)
         r = x_bc - xA
         fA = inner(r, n) / length(r) ** 2
-        pde.setValue(d=sigma_at_face * fA, y=(sigma_src_at_face - sigma_at_face * alpha_A) * fA * source_potential[iA])
+        pde.setValue(d=sigma_at_faces * fA, y=(sigma_src_at_face - sigma_at_faces * alpha_A) * fA * source_potential[iA])
         pde.setValue(X=(sigma_src - sigma * alpha_A) * grad(source_potential[iA]))
         potential[iA] = pde.getSolution() + (alpha_A - 1.) * source_potential[iA]
         print("processing station number ", iA, ": alpha=", alpha_A, "sol. V ", pde.getSolution(), " DV =", potential[iA])
@@ -246,3 +246,121 @@ def getR2(y, y_fitted, chi=None):
             R2 = 1.
 
     return R2
+
+class InterpolatorWithExtension(object):
+    """
+    An interpolator of 2D cloud data. The data are first interpolated to a rectangular grid
+    using nearest naighbour interpolation. If markExtrapolation is values obtained in the interpolation
+    from the rectangular grid using extrapolated values are marked. The grid spacing is determined by the
+    smallest distance of the location of data point.
+
+    :param locations: 2D array of locations where data aer given
+    :param data: data values at locations
+    :param xmin: minimal X coordinate of interpolation domain
+    :param xmax: maximal X coordinate of interpolation domain
+    :param ymin: minimal Y coordinate of interpolation domain
+    :param ymax: maximal Y coordinate of interpolation domain
+    :param markExtrapolation: If values obtained by extrapolation are marked.
+    """
+    def __init__(self, locations, data, xmin, xmax, ymin, ymax, markExtrapolation=False):
+        from scipy.interpolate import griddata, NearestNDInterpolator, RegularGridInterpolator
+        import numpy as np
+        self.markExtrapolation = markExtrapolation
+        X, Y = locations[0], locations[1]
+        dx = 1e99
+        TOL = abs(X).max() * 1e-8
+        for i in range(len(X) - 1):
+            p = abs(X[i] - X[i + 1:]) + abs(Y[i] - Y[i + 1:])
+            dx = min(p[p > 0.].min(), dx)
+
+        nx = int((xmax - xmin) / dx + 0.5)
+        ny = int((ymax - ymin) / dx + 0.5)
+        self.grid = (nx, ny)
+        self.dx = dx
+
+        print(f"Interpolation grid is {nx} x {ny} of spacing {dx}.")
+        X = np.linspace(xmin, xmax, num=nx)
+        Y = np.linspace(ymin, ymax, num=ny)
+        grid_x, grid_y = np.meshgrid(X, Y, indexing='ij')
+        if self.markExtrapolation:
+            z_grid = griddata(locations, data, (grid_x, grid_y), method='nearest')
+            test_grid = griddata(locations, data, (grid_x, grid_y), method='linear')
+            self.interpolator_to_test_extrapolation = RegularGridInterpolator((X, Y), test_grid)
+        else:
+            z_grid = griddata(locations, data, (grid_x, grid_y), method='nearest')
+        self.interpolator = RegularGridInterpolator((X, Y), z_grid)
+
+    def __call__(self, x, y):
+        """
+        interpolate to location (x,y) within the interpolation range.
+        the value together with index 0 or 1 for 'extrapolated' or 'genuine' is returned.
+        """
+        if self.markExtrapolation:
+            v = self.interpolator_to_test_extrapolation((x, y))
+            i = 1
+            if np.isnan(v):
+                i = 0
+                v = self.interpolator((x, y))
+            return v, i
+        else:
+            return self.interpolator((x, y)), 1
+
+
+def mapToDomain2D(target, interpolator, where=None):
+    """
+    this the interpolator(x,y) to fill ``Data`` object `target`.
+    `target` annd `target_interpolated` are returned where
+     values in `target` with `target_interpolated` >0 obtained by interpolation.
+    If `where` is given only location with `where` value > 0 are set.
+    """
+    X = target.getX()
+    target.expand()
+    target_interpolated = Scalar(0., target.getFunctionSpace())
+    target_interpolated.expand()
+    if where is None:
+        for p in range(X.getNumberOfDataPoints()):
+            x = X.getTupleForDataPoint(p)
+            v, ind = interpolator(x[0], x[1])
+            target.setValueOfDataPoint(p, v)
+            target_interpolated.setValueOfDataPoint(p, ind)
+    else:
+        assert target.getFunctionSpace() == where.getFunctionSpace()
+        for p in range(X.getNumberOfDataPoints()):
+            if where.getTupleForDataPoint(p)[0] > 0:
+                x = X.getTupleForDataPoint(p)
+                v, ind = interpolator(x[0], x[1])
+                target.setValueOfDataPoint(p, v)
+                target_interpolated.setValueOfDataPoint(p, ind)
+
+    return target, target_interpolated
+
+def createBackgroundTemperature(domain, T=20., mask_fixed_temperature=None, gradT=0.03, mask_top_surface=None):
+    """
+    create a background temperature from a temperature `T` at locations marked by `mask_fixed_temperature`.
+    On the top and bottom a temperature gradient `gradT` is assumed which might be overwritten by the set temperature.
+
+    :param domain: domain
+    :param T: given surface temperature
+    :param mask_fixed_temperature: mask of locations where temperature is set (on `Solution`).
+                                 If not set the (flat) top surface is used..
+    :param gradT: temperature gradient
+    :param mask_top_surface: mask top surface (on FunctionOnBoundary). If not set the (flat) top surface is used.
+    :return: a temperature profile.
+    """
+    z=domain.getX()[2]
+    z_inf=inf(z)
+    z_sup=sup(z)
+    Z=FunctionOnBoundary(domain).getX()[2]
+    if  mask_top_surface is None:
+        mask_top_surface=whereZero(Z-z_sup)
+    mask_bottom_surface=whereZero(Z-z_inf)
+    Q=-mask_top_surface*gradT+mask_bottom_surface*gradT
+    if  mask_fixed_temperature is None:
+        mask_fixed_temperature=whereZero(z-z_sup)
+    pde=LinearSinglePDE(domain, isComplex=False)
+    pde.setSymmetryOn()
+    optionsG=pde.getSolverOptions()
+    #optionsG.setTolerance(1e-10)
+    pde.setValue(A=kronecker(3), y=Q, r=T, q=mask_fixed_temperature)
+    Tnew=pde.getSolution()
+    return Tnew

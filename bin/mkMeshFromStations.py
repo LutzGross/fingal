@@ -187,7 +187,7 @@ for i,s in enumerate(elocations):
   out+="Point{k+%s} In Surface{11};\n"%(i+1)  
   out+='Physical Point("s%s")  = { k+%s } ;\n'%(s,i+1)
 out+='Physical Surface("'+ config.faces[0] + '") = {6, 7, 8, 9, 10};\n'
-
+out+='Physical Surface("'+ config.topsurfaces[0] + '") = {11, 12};\n'
 
 out+="Surface Loop(1) = {1,2,3,4,5,11};\n"
 out+="Volume(1) = {-1};\n"

@@ -33,30 +33,28 @@ stationsFMT = '{stationsFMT}'
 #. length scale at stations in meter which defines the radius over which prediction are 
 #. averaged to compare with data when predictions are not available at stations. This should
 #. be in the order of the element size near stations.
-#. 
-L_stations=1.
+#. TODO
+#.L_stations=1.
 #.
 #. If True adjustment of station location is allowed to match mesh positions.
-#.
-adjustStationLocationsToElementCenter=True
+#. TODO
+#adjustStationLocationsToElementCenter=True
 #
 # this defines the data file: 
 # 
 #. The data file is a CSV where each line is of the form 
 #.
-#.     A, B, M, N, R, GAMMA
+#.     A, B, M, N, R, ETA
 #.
 #. where A,B is the charging dipole, M,N is measuring dipole, R is the resistance (=potential difference across M,N divided by current),
-#. and GAMMA is the modified chargeability which is defined as GAMMA=ETA/(1-ETA) where ETA is conventional chargeability. GAMMA is more suitable
-#. for inversion as its values are unbounded.
+#. and ETA is the.
 #.
 #. If errors are given then the format is
 #.
-#.     A, B, M, N, R, RELERR_R, GAMMA, RELERR_GAMMA
+#.     A, B, M, N, R, RELERR_R, ETA, RELERR_ETA
 #.
-#. where RELERR_R is the relative error for R and RELERR_GAMMA is the relative error for GAMMA. 
-#. For electric field inversion R is to be read as field intensity.
-#. 
+#. where RELERR_R is the relative error for R and RELERR_ETA is the relative error for ETA.
+#.
 datafile = '{datafile}'
 #.
 #. This defines the data columns of the data file.  
@@ -65,15 +63,12 @@ datafile = '{datafile}'
 #.   * 'R' - resistance [V/A]
 #.   * 'E' - electric field intensity per charge current [V/(Am)] 
 #.   * 'ETA' - chargeability  [1]
-#.   * 'GAMMA' - modified chargeability (=ETA/(1-ETA)) [1]
 #.   * 'ERR_R' - error resistance [V/A]
 #.   * 'ERR_E' - error electric field intensity per charge current [V/(Am)] 
 #.   * 'ERR_ETA' - error chargeability  [1]
-#.   * 'ERR_GAMMA' - error modified chargeability (=ETA/(1-ETA)) [1]
 #.   * 'RELERR_R' - rel. error resistance [1]
 #.   * 'RELERR_E' - rel. error electric field intensity per charge current [1] 
 #.   * 'RELERR_ETA' - rel. error chargeability  [1]
-#.   * 'RELERR_GAMMA' - rel. error modified chargeability (=ETA/(1-ETA)) [1]
 #.
 datacolumns = {datacolumns}
 #. 
@@ -100,14 +95,12 @@ usesStationCoordinates = False
 schedulefile = '{schedulefile}'
 #
 #  This section of the file defines the inversion
-#
-
 #.
 #. This defines the region where the conductivity and chargeability is not been updated during inversion, for instance 
 #. region_fixed=["padding"] blocks updates in the padding region. If region_fixed is not a list (for instance None) 
 #. values are fixed at the bottom of the domain. This is required if w0=0 and w1>0.
 #.
-region_fixed=[]
+#region_fixed=[]
 #.
 #. reference DC conductivity (property function p = log(sigma/sigma_ref))
 #.
@@ -115,7 +108,7 @@ sigma_ref=1
 #.
 #. reference normalized chargeability (property function p = log(Mn/Mn0))
 #.
-Mn_ref=0.01/(1-0.01)*sigma_ref
+#Mn_ref=0.01/(1-0.01)*sigma_ref
 #.
 #. The function defines the true conductivity and modified chargeability. 
 #. Obviously this function is used when synthetic data are constructed or for testing and validation.
@@ -123,7 +116,9 @@ Mn_ref=0.01/(1-0.01)*sigma_ref
 #def true_properties(domain):
 #    from esys.escript import Scalar, Function
 #    sigma_true=Scalar(sigma_ref, Function(domain))
+#    sigma_true.setTaggedValue('anomaly', sigma_ref * 100)
 #    Mn_true=Scalar(Mn_ref, Function(domain))
+#    sigma_true.setTaggedValue('anomaly', sigma_ref * 100 * 0.25)
 #    return sigma_true, Mn_true
 #. 
 #. Set to true_properties=None if the true distributions are not available 
@@ -181,18 +176,11 @@ theta=0
 #.     alpha1*p_{{,xx}} +alpha0*p=m 
 #. which applies smmothing with length scale sqrt(alpha1)/alpha0 and a 
 #. rescaling by the factor 1/alpha0. Typically sqrt(alpha1) is set to the distance of stations.
-#. 
-alpha0=1
-alpha1={alpha1}
-#.
-#. this is the same for the modified chargeability GAMMA
-#.
-w1gamma=w1
-w0gamma=w0
-alpha0gamma=alpha0
-alpha1gamma=alpha1
+#.TODO
+#alpha0=1
+#alpha1={alpha1}
 #
-# Output handeling:
+# ...................... Output handeling ....................
 #
 #.
 #. This is name of the result file. An appropriate extension for the used file format will be added.
@@ -206,10 +194,9 @@ core = {core}
 #   tag(s) for face elements (excluding top surface)
 faces = {faces}
 #.
-#. For an IP inversion the calculation can be split into the conductivity and chargeability part while 
-#. the intermediate result is saved to a restart file to allow for a faster configuration of the chargeability
-#. inversion. When inversion is running under MPI one restart file per rank is created. This sets the file name
-#. for teh restart file:
+#. Intermediate results are saved to a restart file
+# When inversion is running under MPI one restart file per rank is created. This sets the file name
+#. for the restart file:
 #.
 restartfile = 'restart'
 

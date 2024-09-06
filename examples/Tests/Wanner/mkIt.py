@@ -15,6 +15,7 @@ import importlib, sys, os
 from fingal  import makeWennerArray
 
 CONFIG_FILE='config'
+
 # ----
 LengthOfLine = 80
 NumberOfElectrodes = 64

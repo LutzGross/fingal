@@ -12,7 +12,7 @@ Generate Data:
 
 Make inversion mesh:
 
-    
+    mkMeshFromStations.py --coredepth 45 --extracore 20 --padding 150 --coremeshfactor 1. --stationmeshfactor 0.3 --paddingmesh 20 --silofile mesh config
 
 
 

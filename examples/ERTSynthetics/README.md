@@ -1,9 +1,31 @@
-# Simple ERT Inversion
+# Synthetic ERT Inversion Example
 
-This is a simple example to demonstarte a  typical workflow from a file of electrodes (or stations) [electrodes.loc](examples/Example1/electrodes.loc) and data file of IP data [survey.csv](./survey.csv)  
+### Generate Data Set
+The first step is to create a synthetic data set. The [gmsh](https://gmsh.info/)  
+geometry file defines core domain with some padding and subdomain stagged as `anomaly` 
+that is used to
+define an electric conductivity anomaly for the synthetic data generation. 
+Edit this file to change the shape and location of the anomaly. 
 
-First step is to create a configuration file `ex1.py`. The `mkConfig.py` script is helping to do this 
-populating the file with some basic information:
+Run 
+
+    gmsh -3 -optimize_netgen -o mesh_synthetic.msh with_anomaly.geo
+
+to generate the mesh for the synthetic data generation. 
+To make the station and schedule file (names are set in [`config.py`](./config.py)) run
+
+    python3 mkIt.py
+
+The script inspects the `with_anomaly.geo` file grab the number of electrodes and the spacing. 
+The schedule is following a Wenner set-up. This can be changed if needed.
+
+Create the data file with 5% noise:
+
+    runSynthetic.py --noise 5 --silo syntheticmesh mesh_synthetic.msh config
+
+
+
+=======================
 
     cd examples/Example1
     mkConfig.py --station electrodes.loc --data survey.csv --obs R,ERR_R,ETA ex1

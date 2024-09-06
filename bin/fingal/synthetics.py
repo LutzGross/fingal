@@ -91,7 +91,7 @@ class IPSynthetic(object):
              sigma_0_at_stations = self.stationlocators(sigma_0)
         self.potential_0 = getSecondaryPotentials(pde,
                                                   sigma = sigma_0,
-                                                  sigma_at_face = sigma_0_faces,
+                                                  sigma_at_faces = sigma_0_faces,
                                                   schedule = self.schedule,
                                                   sigma_at_station = sigma_0_at_stations,
                                                   source_potential = self.source_potential,
@@ -126,7 +126,7 @@ class IPSynthetic(object):
 
             self.potential_oo = getSecondaryPotentials(pde,
                                                        sigma = sigma_oo,
-                                                       sigma_at_face = sigma_oo_faces,
+                                                       sigma_at_faces = sigma_oo_faces,
                                                        schedule = self.schedule,
                                                        sigma_at_station = sigma_oo_at_stations,
                                                        source_potential = self.source_potential,

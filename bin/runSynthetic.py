@@ -6,35 +6,43 @@ sys.path.append(os.getcwd())
 import argparse
 import numpy as np
 from fingal import readElectrodeLocations, readSurveyData, IPSynthetic, makeMaskForOuterSurface
-from esys.finley import ReadMesh
+from esys.finley import ReadMesh, ReadGmsh
 from esys.weipa import saveVTK, saveSilo
 #from esys.escript.pdetools import Locator, MaskFromTag
 
-parser = argparse.ArgumentParser(description='creates a synthetic ERT/IP survey data set', epilog="l.gross@uq.edu.au, version 9/8/2023")
-parser.add_argument('--topdepth', '-t',  dest='topdepth', default=5 type=int, help="depth of top of the anomaly in term %% of survey area")
-parser.add_argument('--radius', '-r',  dest='radius', default=15, type=int, help="radius of the anomaly  in term %% of survey area")
-parser.add_argument('--offset', '-o',  dest='offset', default=0, type=int, help="offset of the anomaly  in term %% of survey area")
-parser.add_argument('--increase', '-i',  dest='increase', default=100, type=float, help="raise factor for sigma and Mn in anomaly")
+parser = argparse.ArgumentParser(description='creates a synthetic ERT/IP survey data set')
 parser.add_argument('--noise', '-n',  dest='noise', default=0., metavar='NOISE', type=int, help="%% of noise to be added. (default is 0) ")
 parser.add_argument('--fullwaver', '-f', dest='fullwaver',  action='store_true', default=False, help='creates a fullwaver-style survey.')
-parser.add_argument(dest='config', metavar='configfile', type=str, help='python setting configuration')
 parser.add_argument('--silo', '-s',  dest='silofile', metavar='SILO', help="silo file for saving mesh file and property distributions for visualization (no extension) (output if set).")
+parser.add_argument(dest='msh', metavar='meshfile', type=str, help='name of mesh file (fly or msh)')
+parser.add_argument(dest='config', metavar='configfile', type=str, help='python setting configuration')
+
 args = parser.parse_args()
 
 print("** This creates a synthetic survey data set from properties set by config.true_properties **")
 config = importlib.import_module(args.config)
-
 print("configuration "+args.config+" imported.")
 print(f"Data columns to be generated: {config.datacolumns}")
 
 
+elocations=readElectrodeLocations(config.stationfile, delimiter=config.stationdelimiter)
+print("%s electrode locations read from %s."%(len(elocations), config.stationfile))
 
-
-domain=ReadMesh(config.meshfile)
-print("mesh read from "+config.meshfile)
-
-elocations = readElectrodeLocations(config.stationfile, delimiter=config.stationdelimiter)
-print("%s electrode locations read from %s." % (len(elocations), config.stationfile))
+if os.path.splitext(args.msh)[1] == ".msh":
+    print("FF")
+    dts = []
+    dps = []
+    for s in elocations:
+        if config.stationsFMT:
+            dts.append(config.stationsFMT%s)
+        else:
+            dts.append(s)
+        dps.append(elocations[s])
+    domain=ReadGmsh(args.msh, 3, diracPoints=dps, diracTags=dts, optimize=True )
+    print("Gmsh msh file read from %s"%args.msh)
+else:
+    domain=ReadMesh(args.msh)
+    print("Mesh read from file %s"%args.msh)
 
 schedule = readSurveyData(config.schedulefile, stations=elocations, usesStationCoordinates=config.usesStationCoordinates,
                         columns=[],
@@ -51,47 +59,49 @@ z_min, z_max=min(stationlocations[:,2]), max(stationlocations[:,2])
 delectrode = 1./(np.mean([ 1./np.linalg.norm(stationlocations[i]-stationlocations[i+1:], axis=1).min() for i in range(stationlocations.shape[0]-1)] ))
 diameter = sqrt( (x_max-x_min)**2 + (y_max-y_min)**2 )
 
-center = np.array( [ (x_min+x_max)/2, (y_min+y_max)/2, (z_min+z_max)/2 - (args.topdepth + args.radius)/100. * diameter ] )
-direction =  np.array( [ (x_min-x_max), (y_min-y_max), (z_min-z_max) ] )
-direction*=-1/np.linalg.norm(direction)
-
 print(f'x-range electrodes = {x_min} - {x_max}.')
 print(f'y-range electrodes = {y_min} - {y_max}.')
 print(f'z-range electrodes = {z_min} - {z_max}.')
-print(f'center anomaly = {center}.')
-print(f'direction = {direction}.')
 print(f'diameter of survey area = {diameter}.')
 print(f'mean electrode distance = {delectrode}.')
-print(f'background sigma = {config.sigma_ref}')
-print(f'anomaly sigma = {config.sigma_ref * args.increase}')
+print(f'background sigma = {config.sigma0_ref}')
+print(f'background Mn = {config.Mn_ref}')
 
-core=insertTaggedValues(Scalar(0., Function(domain)), **{ t: 1 for t in config.core })
+#core=insertTaggedValues(Scalar(0., Function(domain)), **{ t: 1 for t in config.core })
 
-sigma_0=Scalar(config.sigma_ref, core.getFunctionSpace())
-X=sigma_0.getX()
-r = length( ( X - (center - direction * (args.offset + args.radius)/100.  * diameter  )) * [1,0,1])
-anomaly_mask_0 = core * exp(-(r/( args.radius/100.  * diameter))**2/2)
+if callable(config.true_properties):
+    sigma_0, M_n = config.true_properties(domain)
+else:
+    raise ValueError("true_properties method in configuration is missing.")
+#sigma_0=Scalar(config.sigma_ref, core.getFunctionSpace())
+#X=sigma_0.getX()
+#r = length( ( X - (center - direction * (args.offset + args.radius)/100.  * diameter  )) * [1,0,1])
+#anomaly_mask_0 = core * exp(-(r/( args.radius/100.  * diameter))**2/2)
 #anomaly_mask_0 = core * whereNonPositive(r - args.radius )
-sigma_0+= (config.sigma_ref * args.increase - sigma_0 ) * anomaly_mask_0
-M_n = Scalar(config.Mn_ref, core.getFunctionSpace())
-anomaly_mask_Mn =  core * whereNonPositive(r - args.radius/100.  * diameter )
-M_n+= (config.Mn_ref * args.increase - M_n ) * anomaly_mask_Mn
+#sigma_0+= (config.sigma_ref * args.increase - sigma_0 ) * anomaly_mask_0
+#M_n = Scalar(config.Mn_ref, core.getFunctionSpace())
+#anomaly_mask_Mn =  core * whereNonPositive(r - args.radius/100.  * diameter )
+#M_n+= (config.Mn_ref * args.increase - M_n ) * anomaly_mask_Mn
 
 M_n_faces = config.Mn_ref
+sigma0_faces = config.sigma0_ref
+
 if args.silofile:
+    M_n.expand()
+    sigma_0.expand()
     kwargs = { "Mn" : M_n, "sigma0" : sigma_0, "tag" : makeTagMap(Function(domain)) }
     saveSilo(args.silofile , **kwargs)
     print(f'values {kwargs.keys()} written to file {args.silofile}.')
 
 # -----------------------------------------------------------------------------------
-runner=IPSynthetic(domain, schedule,  sigma_src=config.sigma_ref,
+runner=IPSynthetic(domain, schedule,  sigma_src=config.sigma0_ref,
                     mask_faces = makeMaskForOuterSurface(domain, taglist=config.faces),
                     stationsFMT=config.stationsFMT,
                     createSecondaryData=True,
                     createFieldData=args.fullwaver,  printInfo = True)
 
 
-runner.setProperties(sigma_0=interpolate(sigma_0, Function(domain)), sigma_0_faces=config.sigma_ref,
+runner.setProperties(sigma_0=interpolate(sigma_0, Function(domain)), sigma_0_faces=sigma0_faces,
                      M_n=interpolate(M_n, Function(domain)), M_n_faces=M_n_faces)
 
 

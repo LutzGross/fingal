@@ -26,16 +26,16 @@ parser.add_argument('--noise', '-n', dest='noise', metavar='NOISE', type=float, 
 #parser.add_argument('--conductiveSurface', '-c',  dest='conductiveSurface', action='store_true', default=False, help="use conductive surface. Otherwise surface temperature is fixed.")
 
 args = parser.parse_args()
+config = importlib.import_module(args.config)
+print("configuration "+args.config+" imported.")
 
 #=====================
 T_air=15  # air temperature in celcius!
 T_volcano=150 # temperature in volcano\
 K_top, K_base=1.,1.
-Q_bottom=30e-3
+Q_bottom=config.surfacetemperature_gradient * K_top
 h_top=0.1 # convective heat transfer coefficient in  W/mK
 #===========================================
-config = importlib.import_module(args.config)
-print("configuration "+args.config+" imported.")
 
 MSHFILE=args.geofile+".msh"
 
@@ -186,11 +186,11 @@ if False:
 #    T+=T_air
 print("Temperature =",str(T))   
 
-if config.surfacetemperaturefile:
+if config.surfacetemperature_file:
     x=domain.getX()
 
-    saveDataCSV(config.surfacetemperaturefile, A0=x[0], A1=x[1], A3=x[2], T=T, mask=whereZero(x[2]-sup(x[2])), refid=True)
-    print("surface temperature saved to "+config.surfacetemperaturefile)
+    saveDataCSV(config.surfacetemperature_file, A0=x[0], A1=x[1], A3=x[2], T=T, mask=whereZero(x[2]-sup(x[2])), refid=True)
+    print("surface temperature saved to "+config.surfacetemperature_file)
 
 
 # get the schedule
@@ -231,7 +231,7 @@ runner=IPSynthetic(domain, survey,  sigma_src=config.sigma_ref,
                     createSecondaryData=True,
                     createFieldData=False,  printInfo = True)
 runner.mask_faces.expand()
-saveSilo("x", T=T, q=runner.mask_faces, n=runner.mask_faces * domain.getNormal() , sigma0=sigma0, sigma0_faces=sigma0_faces)
+
 runner.setProperties(sigma_0=sigma0, sigma_0_faces=sigma0_faces,
                      M_n=Mn, M_n_faces=Mn_faces,
                      sigma_0_at_stations=sigma0_at_stations, M_n_at_stations = Mn_at_stations)

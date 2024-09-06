@@ -91,7 +91,8 @@ costf=IPInversion(domain, data=survey,
                   sigma_0_ref=sigma_ref, Mn_ref=Mn_ref, sigma_background=config.sigma_background,
                   w1=config.w1, theta=config.theta, usel1=config.usel1, epsl1=config.epsl1,
                   mask_fixed_property=fixedm,
-                  weighting_misfit_ERT=config.weighting_misfit_ERT, pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
+                  weighting_misfit_DC=config.weighting_misfit_ERT, pde_tol=config.pde_tol, stationsFMT=config.stationsFMT,
+                  logclip=config.clip_property_function,
                   EPSILON=1e-8, logger=logger)
 
 

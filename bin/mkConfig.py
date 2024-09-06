@@ -6,9 +6,8 @@ import argparse, os
 from datetime import datetime
 from fingal import SurveyData
 
-parser = argparse.ArgumentParser(description='This creates an initial configuration file that needs to be edited', epilog="fingal - l.gross@uq.edu.au, version 23/12/2020")
-parser.add_argument(dest='project', metavar='PROJECT', type=str, help='configuration file name (Ypadding extension will be added.)')
-parser.add_argument('--compact', '-c',  dest='compact', action='store_true', default=False, help="only basic commends are added to file.")
+parser = argparse.ArgumentParser(description='This creates an initial configuration file that needs further editing.')
+parser.add_argument(dest='project', metavar='PROJECT', type=str, help='configuration file name (py extension will be added.)')
 parser.add_argument('--station', '-s',  dest='stationfile', type=str, default=None, help="name of station file")
 parser.add_argument('--data', '-d',  dest='datafile', type=str, default=None, help="name of data file")
 parser.add_argument('--ipole', '-i',  dest='ipole', action='store_true', default=False, help="injections are pole")
@@ -37,14 +36,13 @@ CHANGE= {
 "dipoleInjections" : not args.ipole,
 "dipoleMeasurements" : not args.mpole,
 "datacolumns" :datacolumns,
-"alpha1" : 1.,
 "schedulefile" : None,
 "core" : ['core'],
 "face" : ['faces']
 }
 
 
-FN=args.project+".Ypadding"
+FN=args.project+".py"
 open(FN, 'w').write(out.format(**CHANGE))
 print(f"Configuration file {FN} created.")
 print(f"Please check the content of the file.")

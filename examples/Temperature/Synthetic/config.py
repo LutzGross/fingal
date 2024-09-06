@@ -23,7 +23,10 @@ dipoleMeasurements = True
 datadelimiter = ','
 usesStationCoordinates = False
 schedulefile = 'schedule.csv'
-surfacetemperaturefile = "surface_temperature.csv"
+surfacetemperature_file = "surface_temperature.csv"
+surfacetemperature_undef = -9999
+surfacetemperature_skiprows = 1
+surfacetemperature_gradient = 0.03  # = 30K/km
 #
 #  This section of the file defines the inversion
 #
@@ -55,7 +58,8 @@ useL1Norm=False
 epsilonL1Norm=1e-4
 
 w1=1
-useLogMisfit = True
+useLogMisfitERT = True
+useLogMisfitIP = True
 #
 # Output handeling:
 #
@@ -63,6 +67,7 @@ outfile='sigma'
 core = ['core']
 #   tag(s) for face elements (excluding top surface)
 faces = ['faces']
+topsurfaces = ['top']
 restartfile = 'restart'
 
 
