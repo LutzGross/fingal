@@ -69,7 +69,6 @@ mask_face=makeMaskForOuterSurface(domain, taglist=config.faces)
 # create cost function:
 costf=ERTInversion(domain, data=survey,
                    sigma_0_ref=config.sigma_ref,
-                   #sigma_0_ref=config.true_properties(domain)[0], sigma_background=config.sigma_ref,
                    w1=config.w1, useL1Norm=config.useL1Norm, epsilonL1Norm=config.epsilonL1Norm,
                    mask_fixed_property=fixedm, mask_outer_faces = mask_face,
                    pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
