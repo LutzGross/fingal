@@ -105,18 +105,18 @@ schedulefile = '{schedulefile}'
 #  This section of the file defines the inversion
 #.
 #. This defines the region where the conductivity and chargeability is not been updated during inversion, for instance 
-#. region_fixed=["padding"] blocks updates in the padding region. If region_fixed is not a list (for instance None) 
-#. values are fixed at the bottom of the domain. This is required if w0=0 and w1>0.
+#. fixed_region_tags=["padding"] blocks updates in the padding region. If region_fixed is not a list (for instance None)
+#. values are fixed at the bottom of the domain.
 #.
-#region_fixed=[]
+fixed_region_tags=[]
 #.
 #. reference DC conductivity (property function p = log(sigma/sigma_ref))
 #.
 sigma_ref=1
 #.
-#. reference normalized chargeability (property function p = log(Mn/Mn0))
+#. reference normalized chargeability (property function p = log(Mn/Mn_ref))
 #.
-#Mn_ref=0.01/(1-0.01)*sigma_ref
+Mn_ref=0.01*sigma_ref
 #.
 #. The function defines the true conductivity and modified chargeability. 
 #. Obviously this function is used when synthetic data are constructed or for testing and validation.
@@ -140,6 +140,11 @@ true_properties=None
 #. 
 weighting_misfit_ERT=0.5
 #.
+#. switch for using logarithm of data in the inversion:
+#.
+use_log_misfit_ERT=False
+use_log_misfit_IP=False
+#.
 #. values in the property function (in essence this is log(sigma/sigma0)) which are smaller than -clip_property_function
 #. and larger then clip_property_function are clipped in order to avoid overflow and underflow in the exponential function.
 #.
@@ -149,15 +154,15 @@ clip_property_function=10
 #. Iteration is terminated when both the relative in the property function and the change 
 #. in the cost function is less than tolerance.
 #.
-m_tolerance=1.e-4
-g_tolerance=1.e-6
+#m_tolerance=1.e-4
+#g_tolerance=1.e-6
 #.
 #. Parameters to control Minimizer:
 #.
-interpolation_order=3
-imax=400
-truncation=20
-restart=60
+#interpolation_order=3
+#imax=400
+#truncation=20
+#restart=60
 pde_tol=1e-8
 #.
 #.  
@@ -168,16 +173,16 @@ w1=1
 #.
 #. use sqrt(|grad(m)|^2+epsl1**2) for regularization
 #.
-useL1Norm=False
-epsilonL1Norm=1e-4
+use_L1Norm=False
+epsilon_L1Norm=1e-4
 #. 
 #. weighting for the |m|^2 term
 #.
-w0=0.0
+#w0=0.0
 #.
 #. weighting for the cross gradient term
 #.
-theta=0
+#theta=0
 #.
 #. property function p is the smoothed version of m. It is constructed by 
 #. solving 

@@ -58,21 +58,22 @@ assert survey.getNumObservations()>0, "no data found."
 # set the reference conductivity:
 
 # define region with fixed conductivity:
-if config.region_fixed and isinstance(config.region_fixed , list):
-    fixedm=MaskFromTag(domain, *tuple(config.region_fixed))
-    if len(config.region_fixed)> 0:
-        print("Tags of regions with fixed property function : %s"%(config.region_fixed) )
+if config.fixed_region_tags and isinstance(config.fixed_region_tags , list):
+    fixedm=MaskFromTag(domain, *tuple(config.fixed_region_tags))
+    if len(config.fixed_region_tags)> 0:
+        print("Tags of regions with fixed property function : %s"%(config.fixed_region_tags) )
 else:
     fixedm=None
-mask_face=makeMaskForOuterSurface(domain, taglist=config.faces)
+mask_face=makeMaskForOuterSurface(domain, taglist=config.faces_tags)
 
 # create cost function:
+print("FFF")
 costf=ERTInversion(domain, data=survey,
-                   sigma_0_ref=config.sigma_ref,
-                   w1=config.w1, useL1Norm=config.useL1Norm, epsilonL1Norm=config.epsilonL1Norm,
-                   mask_fixed_property=fixedm, mask_outer_faces = mask_face,
+                   sigma_0_ref=config.sigma0_ref,
+                   w1=config.w1, useL1Norm=config.use_L1Norm, epsilonL1Norm=config.epsilon_L1Norm,
+                   mask_fixed_property=fixedm, mask_outer_faces = config.faces_tags,
                    pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
-                   useLogMisfit= config.useLogMisfitERT, logger=logger)
+                   useLogMisfit= config.use_log_misfit_ERT, logger=logger)
 
 
 # test gradient:
@@ -116,7 +117,7 @@ if not args.nooptimize:
     #costf.setSigmaSrc(new_sigma_ref)
 if args.testonly:
     exit(0)
-
+1/0
 def myCallback(iterCount, m, dm, Fm, grad_Fm, norm_m, norm_gradFm, args_m, failed):
     if args.RESTARTFN and iterCount >0:
         m.dump(args.RESTARTFN)
