@@ -46,14 +46,14 @@ def true_properties(domain):
 fixed_region_tags=[]
 #weighting_misfit_ERT=0.5
 clip_property_function=10
-#m_tolerance=1.e-4
-#g_tolerance=1.e-4
-#interpolation_order=3
-#imax=400
-#truncation=20
-#restart=60
+m_tolerance=1.e-4
+g_tolerance=1.e-4
+interpolation_order=3
+imax=400
+truncation=20
+restart=60
 pde_tol=1e-10
-w1=0.01
+w1=1.
 #w1=1e-8
 use_L1Norm=False
 epsilon_L1Norm=1e-4
@@ -61,7 +61,7 @@ use_log_misfit_ERT = False or True
 
 # Output handeling:
 #
-#outfile='sigma'
+outfile='sigma'
 
 #restartfile = 'restart'
 

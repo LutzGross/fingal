@@ -25,7 +25,6 @@ parser.add_argument('--restart', '-r',  dest='restart', action='store_true', def
 
 parser.add_argument('--nooptimize', '-n',  dest='nooptimize', action='store_true', default=False, help="Don't calibrated the value for config.sigma_ref before iteration starts.")
 parser.add_argument('--test', '-t',  dest='testonly', action='store_true', default=False, help="stop after rescaling config.sigma_ref.")
-#parser.add_argument('--query', '-q',  dest='query', type=str, default=None, help="file name (if set) for output of (A,B,M,N, observation, prediction) ")
 parser.add_argument('--vtk', '-v',  dest='vtk', action='store_true', default=False, help="VTK format is used for output otherwise silo is used.")
 parser.add_argument('--xyz', '-x',  dest='xyz', action='store_true', default=False, help="CSV file is create where results for the core region are written only.")
 parser.add_argument('--debug', '-d',  dest='debug', action='store_true', default=False, help="shows more information.")
@@ -76,7 +75,7 @@ costf=ERTInversion(domain, data=survey,
 
 
 # test gradient:
-if True:
+if False:
     #=====
     x = domain.getX()[0]
     y = domain.getX()[1]
@@ -112,7 +111,7 @@ if True:
 if not args.nooptimize:
     new_sigma_ref=costf.fitSigmaRef()
     print("new value for config.sigma_ref =",new_sigma_ref)
-    costf.setSigma0Ref(new_sigma_ref)
+    costf.updateSigma0Ref(new_sigma_ref)
     #costf.setSigmaSrc(new_sigma_ref)
 if args.testonly:
     exit(0)

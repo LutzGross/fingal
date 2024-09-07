@@ -106,7 +106,7 @@ class ERTMisfitCostFunction(CostFunction):
         :return: dictonary of injections (A,B)->primary_Field
         """
         self.logger.debug("source conductivity sigma_src =  %s" % (str(self.sigma_src)))
-        self.source_potential = getSourcePotentials(self.domain, self.sigma_src, self.data, mask_outer_faces =self.mask_outer_faces, stationsFMT=self.stationsFMT)
+        self.source_potential = getSourcePotentials(self.domain, self.sigma_src, self.data, mask_outer_faces =self.mask_outer_faces, stationsFMT=self.stationsFMT, logger=self.logger)
         self.source_potentials_at_stations = { iA : self.grabValuesAtStations(self.source_potential[iA])
                                                for iA in self.source_potential }
     def fitSigmaRef(self):
@@ -154,13 +154,12 @@ class ERTMisfitCostFunction(CostFunction):
                                                          sigma_at_station = sigma_0_at_stations,
                                                          source_potential = self.source_potential,
                                                          sigma_src = self.sigma_src,
-                                                         mask_faces = self.mask_outer_faces)
+                                                         mask_faces = self.mask_outer_faces, logger=self.logger)
         secondary_potentials_DC_at_stations = {iA : self.grabValuesAtStations(secondary_potentials_DC[iA])
                                                for iA in secondary_potentials_DC}
-        if self.logger.isEnabledFor(logging.DEBUG) :
-            for iA in self.source_potential:
-                self.logger.debug("DC secondary potential %d :%s" % (iA, str(secondary_potentials_DC[iA])))
-        self.logger.info("%s DC secondary potentials calculated." % len(secondary_potentials_DC))
+        #if self.logger.isEnabledFor(logging.DEBUG) :
+        #    for iA in self.source_potential:
+        #        self.logger.debug("DC secondary potential %d :%s" % (iA, str(secondary_potentials_DC[iA])))
         return secondary_potentials_DC, secondary_potentials_DC_at_stations
 
     def getMisfit(self, sigma_0, sigma_0_face, sigma_0_stations, secondary_potentials_0, secondary_potentials_0_at_stations, *args):
@@ -215,12 +214,12 @@ class ERTMisfitCostFunction(CostFunction):
                 fA = inner(r, n) / length(r) ** 2 * self.mask_outer_faces
                 self.forward_pde.setValue(d=sigma_0_face * fA )
                 VA_star=self.forward_pde.getSolution()
-                self.logger.debug("DC adjoint potential %d :%s" % (iA, str(VA_star)))
+                #self.logger.debug("DC adjoint potential %d :%s" % (iA, str(VA_star)))
                 VA= self.source_potential[iA] + secondary_potentials_DC[iA]
                 DMisfitDsigma_0 -= inner(grad(VA_star), grad(VA))
                 DMisfitDsigma_0_face -= ( fA * VA_star ) * VA
 
-        self.logger.info("%s adjoint potentials calculated." % len(secondary_potentials_DC.keys()))
+        self.logger.debug("%s adjoint potentials calculated." % len(secondary_potentials_DC.keys()))
         return DMisfitDsigma_0, DMisfitDsigma_0_face
 
 
@@ -285,10 +284,10 @@ class ERTInversion(ERTMisfitCostFunction):
         self.Hpde.setValue(A=self.w1 * K)
 
         #  reference conductivity:
-        self.setSigma0Ref(sigma_0_ref)
+        self.updateSigma0Ref(sigma_0_ref)
 
 
-    def setSigma0Ref(self, sigma_0_ref):
+    def updateSigma0Ref(self, sigma_0_ref):
         """
         set a new reference conductivity
         """

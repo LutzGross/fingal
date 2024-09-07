@@ -154,15 +154,15 @@ clip_property_function=10
 #. Iteration is terminated when both the relative in the property function and the change 
 #. in the cost function is less than tolerance.
 #.
-#m_tolerance=1.e-4
-#g_tolerance=1.e-6
+m_tolerance=1.e-4
+g_tolerance=1.e-6
 #.
 #. Parameters to control Minimizer:
 #.
-#interpolation_order=3
-#imax=400
-#truncation=20
-#restart=60
+interpolation_order=3
+imax=400
+truncation=20
+restart=60
 pde_tol=1e-8
 #.
 #.  

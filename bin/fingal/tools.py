@@ -55,7 +55,7 @@ def makePointSource(source_key, domain, value=1., stationsFMT=None):
     return s
 
 
-def getSourcePotentials(domain, sigma, survey, sigma_at_faces=None, mask_outer_faces=None, stationsFMT=None):
+def getSourcePotentials(domain, sigma, survey, sigma_at_faces=None, mask_outer_faces=None, stationsFMT=None, logger=None):
     """
     return the electric potential for all injections A in the survey using conductivity sigma.
     :sigma: conductivity. Needs to a constant if sigma_source is not present.
@@ -83,13 +83,17 @@ def getSourcePotentials(domain, sigma, survey, sigma_at_faces=None, mask_outer_f
         r = x - xA
         pde.setValue(d=sigma_at_faces * inner(r, n) / length(r) ** 2)  # doi:10.1190/1.1440975
         source_potential[iA] = pde.getSolution()
-        print("processing source ", iA, " key = ", A, source_potential[iA])
+        #if logger:
+        #      logger.debug(f"processing source {iA} key = {A}: {source_potential[iA]}")
         assert Lsup(source_potential[iA]) > 0, "Zero potential for injection %s" % A
+    if logger:
+       logger.debug(f"{len(source_potential)} source potentials calculated.")
     return source_potential
 
 
 def getSecondaryPotentials(pde, sigma, sigma_at_faces, schedule, sigma_at_station=None, source_potential={},
-                           sigma_src=1., sigma_src_at_face=None, sigma_src_at_station=None, mask_faces=None):
+                           sigma_src=1., sigma_src_at_face=None, sigma_src_at_station=None, mask_faces=None,
+                           logger=None):
     """
     calculates the extra/secondary potentials V_A for given sigma and source potentials for sigma_src
 
@@ -135,8 +139,10 @@ def getSecondaryPotentials(pde, sigma, sigma_at_faces, schedule, sigma_at_statio
         pde.setValue(d=sigma_at_faces * fA, y=(sigma_src_at_face - sigma_at_faces * alpha_A) * fA * source_potential[iA])
         pde.setValue(X=(sigma_src - sigma * alpha_A) * grad(source_potential[iA]))
         potential[iA] = pde.getSolution() + (alpha_A - 1.) * source_potential[iA]
-        print("processing station number ", iA, ": alpha=", alpha_A, "sol. V ", pde.getSolution(), " DV =", potential[iA])
-
+        #if logger:
+        #    logger.debug(f"processing station number {iA}, alpha= {alpha_A}, sol. V {pde.getSolution()}, DV ={potential[iA]}")
+    if logger:
+       logger.debug(f"{len(potential)} potentials calculated.")
     return potential
 
 def makeZZArray(numElectrodes=32, id0=0):
@@ -279,7 +285,7 @@ class DataMisfitLog(DataMisfit):
     def getDerivative(self, u):
         nn=self.getDifference(u)
         res=self.data-np.log(abs(nn)+self.EPS)
-        return res * self.weightings/nn
+        return -res * self.weightings/nn
 
 
 def setupERTPDE(domain, tolerance=1e-8, poisson=True, debug=0):
