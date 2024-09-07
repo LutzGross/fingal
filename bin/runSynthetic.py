@@ -95,11 +95,10 @@ if args.silofile:
 
 # -----------------------------------------------------------------------------------
 runner=IPSynthetic(domain, schedule,  sigma_src=config.sigma0_ref,
-                    mask_faces = makeMaskForOuterSurface(domain, taglist=config.faces),
+                    mask_faces = makeMaskForOuterSurface(domain, taglist=config.faces_tags),
                     stationsFMT=config.stationsFMT,
                     createSecondaryData=True,
                     createFieldData=args.fullwaver,  printInfo = True)
-
 
 runner.setProperties(sigma_0=interpolate(sigma_0, Function(domain)), sigma_0_faces=sigma0_faces,
                      M_n=interpolate(M_n, Function(domain)), M_n_faces=M_n_faces)

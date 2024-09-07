@@ -14,6 +14,14 @@ project='{project}'
 #.  
 meshfile = '{meshfile}'
 #
+#  tags defining the faces and the top surfaces with outer normal (!), the core region with electrodes and the padding
+#  region.
+#
+faces_tags = ['faces']
+surface_tags = ['surface']
+core_tags = ['core']
+padding_tags = ['padding']
+#
 #  file of the location of stations/electrodes. 
 #
 #.  This is a CSV file. Each line gives a identifier (integer) of the station and the x,y,z coordinates (floats).

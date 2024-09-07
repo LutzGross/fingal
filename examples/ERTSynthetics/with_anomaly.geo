@@ -25,7 +25,7 @@ boundingBoxZ =  depthDomain + paddingWidth;
 
 // ... element sizes ...
 meshSizeEdges = distanceElectrodes;
-meshSizeElectrodes = distanceElectrodes/4;
+meshSizeElectrodes = distanceElectrodes/5;
 meshSizeBoundingBox = boundingBoxY/10;
 
 // .... hexahedral anomaly ........................................................................
@@ -169,7 +169,8 @@ For k In {0:numElectrodes-1}
 EndFor
 // ... set tagging ....
 Physical Volume("anomaly") = {2};
-Physical Volume("domain") = {1, 3};
+Physical Volume("domain") = {1};
+Physical Volume("padding") = {3};
 Physical Surface("faces") = {16, 15, 18, 14};
 Physical Surface("surface") = {17, 1};
 

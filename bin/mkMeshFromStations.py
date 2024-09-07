@@ -10,19 +10,18 @@ import subprocess
 from esys.finley import ReadGmsh
 from esys.weipa import saveSilo
 sys.path.append(os.getcwd())
-#sys.path.append(os.getcwd())
 
 parser = argparse.ArgumentParser(description='Creates a mesh fly file using the station location information. the gmsh mesh generator is used.', epilog="fingal by l.gross@uq.edu.auversion 21/12/2020")
 parser.add_argument(dest='config', metavar='configfile', type=str, help='python setting configuration')
-parser.add_argument('--coredepth', '-d',  dest='coredepth', type=int, default=45, help="core depth relative to core width around core in %% of electrode area size (default 45)")
-parser.add_argument('--extracore', '-e',  dest='extracore', type=int, default=20, help="relative extracore padding within the core around electrodes in %%  of edge legth (default 20)")
+parser.add_argument('--coredepth', '-d',  dest='coredepth', type=int, default=35, help="core depth relative to core width around core in %% of electrode area size (default 45)")
+parser.add_argument('--extracore', '-e',  dest='extracore', type=int, default=20, help="relative extracore padding within the core around electrodes in %%  of edge length (default 20)")
 parser.add_argument('--padding', '-p',  dest='padding', type=int, default=150, help="relative padding around core in %% of core eddge length (default 150)")
 parser.add_argument('--coremeshfactor', '-C',  dest='coremeshfactor', type=float, default=1., help="refinement factor of mesh in core relative to the electrode distance (default 0.1)")
 parser.add_argument('--stationmeshfactor', '-s',  dest='stationmeshfactor', type=float, default=0.2, help="refinement factor at stations relative to core mesh size (default 0.2)")
 parser.add_argument('--paddingmesh', '-P',  dest='paddingmesh', type=float, default=20, help="number of element on the longest edge of the padding region (default 20)")
-parser.add_argument('--geo', '-g',  dest='geofile', type=str, default="tmp", help="name of gmsh geofile to generate")
+parser.add_argument('--geo', '-g',  dest='geofile', type=str, default="tmp", help="name of gmsh geofile to generate [default tmp]")
 parser.add_argument('--noMesh', '-N',  dest='mshno', action='store_true', default=False, help="if set only gmsh geo file is generated but mesh generation is not started. Useful for debugging.")
-parser.add_argument('--silofile', '-o', dest='silofile', metavar='SILOFILE', type=str, default='mesh', help='name of silo output file for mesh (generated)')
+parser.add_argument('--silofile', '-o', dest='silofile', metavar='SILOFILE', type=str, default='mesh', help='name of silo output file for generated mesh')
 
 args = parser.parse_args()
 
@@ -49,9 +48,9 @@ for i in range(len(elocations)):
             d=np.linalg.norm(positions[j]-positions[i])
             DistanceElectrodes=min(DistanceElectrodes, d)
 
-print("level of survey = ", zCore)
-print("x range = ", xmin, xmax)
-print("y range = ", ymin, ymax)
+print("z-level of survey = ", zCore)
+print("survey x range = ", xmin, xmax)
+print("survey y range = ", ymin, ymax)
 print("DistanceElectrodes =",DistanceElectrodes)
 diagonalAreaOfElectrodes= ((xmax - xmin) ** 2 + (ymax - ymin) ** 2) ** 0.5
 assert diagonalAreaOfElectrodes > 0., "area of electrodes is zero."
@@ -186,19 +185,18 @@ for i,s in enumerate(elocations):
   out+="Point(k+%s)={ %s, %s, ZCore, meshSizeElectrodes};\n"%(i+1, elocations[s][0], elocations[s][1])
   out+="Point{k+%s} In Surface{11};\n"%(i+1)  
   out+='Physical Point("s%s")  = { k+%s } ;\n'%(s,i+1)
-out+='Physical Surface("'+ config.faces[0] + '") = {6, 7, 8, 9, 10};\n'
-out+='Physical Surface("'+ config.topsurfaces[0] + '") = {11, 12};\n'
+out+='Physical Surface("'+ config.faces_tags[0] + '") = {6, 7, 8, 9, 10};\n'
+out+='Physical Surface("'+ config.surface_tags[0] + '") = {11, 12};\n'
 
 out+="Surface Loop(1) = {1,2,3,4,5,11};\n"
 out+="Volume(1) = {-1};\n"
 out+="Surface Loop(2) = {6, -8, -9, -7, 10, 2, 1, 12, 5, 4, 3};\n"
 out+="Volume(2) = {2};\n"
-out+='Physical Volume("padding")  = { 2 } ;\n'
-out+='Physical Volume("'+ config.core[0] + '")  = { 1 } ;\n'
+out+='Physical Volume("'+ config.padding_tags[0] + '")  = { 2 } ;\n'
+out+='Physical Volume("'+ config.core_tags[0] + '")  = { 1 } ;\n'
 
 GEOFN2=args.geofile+".geo"
 MSHN3=args.geofile+".msh"
-
 
 open(GEOFN2,'w').write(out)
 print("3D geometry has been written to %s"%GEOFN2)

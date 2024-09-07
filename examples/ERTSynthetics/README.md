@@ -24,26 +24,15 @@ Create the data file with 5% noise:
     runSynthetic.py --noise 5 --silo syntheticmesh mesh_synthetic.msh config
 
 
+This a simple way to generate a mesh from the electrode's positions:
 
-=======================
+    mkMeshFromStations.py config
 
-    cd examples/Example1
-    mkConfig.py --station electrodes.loc --data survey.csv --obs R,ERR_R,ETA ex1
-
-To create map of the station locations can be created using
-
-    plotStations.py -i station.png ex1
-
-The [gmsh](https://gmsh.info/) mesh generator is used to create an esys-escript fly file of a 3D finite element mesh: 
-
-    mkMesh.py --geo mymesh ex1 
-
-The file name is `ex1.fly` as defined in the configuration file `ex1.py`. You can use gmsh to inspect the  geometry file `mymesh.geo` and mesh `mymesh.msh`. 
-The geometry is defined as the area spanned by the electrodes plus a little extra area. This core region which is vertically extended is meshed with a finer mesh where extra refinement near the position of the electrodes is added. Around the core region additonal padding is introduced to allow for a smooth deacy of the electrial potentials towards the boundary. This extra area is meshed with a courser mesh. `mkMesh.py` allows to configure this geometrical set-up, see `mkMesh.py -h` for details.
+The mesh is written to the 'config.meshfile' in the *esys.finley* `fly` format.
 
 To run the inversion based on the configuration file `ex1.py` use: 
 
-    runERTinversion.py --optimize   --xyz --vtk -d ex1
+    runERTinversion.py --optimize   --xyz --vtk -d ex1 ???
 
 The option `--optimize` rescales the reference conductivity `sigma0` set in the configuration file  prior to the inversion in an an attempt to reduce the inital misfit. `-d` switches on more output. With the switch `--vtk` the file `sigma.vtk` in the [VTK](https://vtk.org/) file format is created where `sigma` is taken from the `output` variable set in `ex1.py`  (by default the `silo` format is used which is more compact but less portable). You can use 3D visualization packages such as
 
