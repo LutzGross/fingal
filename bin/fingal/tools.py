@@ -176,6 +176,110 @@ def FindNearestElectrode(x, y, z, electrodes={}):
     else:
         return idemin, distmin
 
+class DataMisfit(object):
+    """
+     defines a misfit function F as sum of components  f(diff, data, weighting)>=0 with
+
+     f = sum_i f(diff[i], data[i]], weighting[i])
+
+    which is minimised during an inversion. The diff is given has differences of a potential u
+    on electrodes M and N.
+    """
+    EPS=1E-30
+    def __init__(self, iMs, data, iNs=None, weightings=None, injections=(), **kwargs):
+        """
+        :param iMs: index of electrodes
+        :param data:data vectopr of observations
+        :param iNs: index of second electrodes. if None monopole data are used
+        :param weightings: weighting factors; typically 1/(relative error)**2 or zero
+        :param injections: injection pair (not used))
+        """
+        self.iMs = iMs
+        self.iNs = iNs
+        self.injections = injections
+        # assert not ( weightings is None or quadWeight is None )
+
+        if isinstance(data, np.ndarray):
+            self.data = data
+        else:
+            self.data = np.array(data)
+
+        if isinstance(weightings, np.ndarray):
+            self.weightings = weightings
+        elif weightings is None:
+            self.weightings = np.ones(self.data.shape)
+        elif isinstance(weightings, float) or isinstance(weightings, int):
+            self.weightings = np.zeros(self.data.shape) + weightings
+        else:
+            self.weightings = np.array(weightings)
+    def __len__(self):
+        """
+        returns number of observations
+        """
+        return len(self.iMs)
+
+    def rescaleWeight(self, factor):
+        self.weightings *= factor
+    def getDifference(self, u):
+        """
+        differences at electrodes from voltage u
+        """
+        if self.iNs:
+            diff = u[self.iMs] - u[self.iNs]
+        else:
+            diff = u[self.iMs]
+        return diff
+    def getValue(self, u):
+        """
+        return the misfit value for potential u
+        """
+        diff = self.getDifference(u)
+        raise NotImplemented
+    def getDerivative(self, u):
+        """
+        return the derivative with respect to vector  diff[i]
+        """
+        diff = self.getDifference(u)
+        raise NotImplemented
+
+class DataMisfitQuad(DataMisfit):
+    """
+    A mechanism to quadratic handel misfits
+
+    1/2 * sum weighting[i]*(data[i]-diff)**2
+    """
+    def getValue(self, u):
+        res = self.data-self.getDifference(u)
+        dd = abs(res) ** 2 * self.weightings
+        return 0.5 * sum(dd)
+
+    def getDerivative(self, u):
+        res = self.data-self.getDifference(u)
+        return -res * self.weightings
+
+class DataMisfitLog(DataMisfit):
+    """
+    A mechanism to quadratic handel misfits
+
+   1/2 sum weighting[i]*(log(abs(observations[i])-log(abs(data[i])))**2
+
+    where observations are collected from a value vector iMs or difference using iMs and iNs
+    """
+    def __init__(self, iMs, data, iNs=None, weightings=None, injections=(), **kwargs):
+        if not isinstance(data, np.ndarray):
+            data = np.array(data)
+        data_log = log(abs(data)+self.EPS)
+        super().__init__(iMs, data_log, iNs, weightings, injections, **kwargs)
+    def getValue(self, u):
+        res = self.data-log(abs(self.getDifference(u))+self.EPS)
+        dd = abs(res) ** 2 * self.weightings
+        return 0.5 * sum(dd)
+
+    def getDerivative(self, u):
+        nn=self.getDifference(u)
+        res=self.data-log(abs(nn)+self.EPS)
+        return res * self.weightings/nn
+
 
 def setupERTPDE(domain, tolerance=1e-8, poisson=True, debug=0):
     """
