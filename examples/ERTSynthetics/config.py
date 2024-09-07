@@ -34,7 +34,7 @@ sigma0_ref=1e-5
 Mn_ref=0.01*sigma0_ref
 def true_properties(domain):
     from esys.escript import Scalar, Function
-    sigma0_true=Scalar(sigma0_ref, Function(domain))
+    sigma0_true=Scalar(sigma0_ref * 100 , Function(domain))
     sigma0_true.setTaggedValue('anomaly', sigma0_ref * 100)
     Mn_true=Scalar(Mn_ref, Function(domain))
     Mn_true.setTaggedValue('anomaly', sigma0_ref * 100 * 0.25)
@@ -57,7 +57,7 @@ w1=0.01
 #w1=1e-8
 use_L1Norm=False
 epsilon_L1Norm=1e-4
-use_log_misfit_ERT = False
+use_log_misfit_ERT = False or True
 
 # Output handeling:
 #

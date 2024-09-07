@@ -7,7 +7,7 @@ by l.gross@uq.edu.au, Dec 2020.
 from esys.escript import Scalar, getMPIRankWorld, integrate, hasFeature, Function, kronecker, Data, DiracDeltaFunctions, \
     inner, length, Lsup, FunctionOnBoundary, inf, sup, whereZero, wherePositive, grad
 from esys.escript.linearPDEs import LinearSinglePDE, SolverOptions
-
+import numpy as np
 
 def makeMaskForOuterSurface(domain, facemask=None, taglist=None):
     """
@@ -68,13 +68,14 @@ def getSourcePotentials(domain, sigma, survey, sigma_at_faces=None, mask_outer_f
         sigma_at_faces = sigma
     mm = makeMaskForOuterSurface(domain, facemask=mask_outer_faces)
     n = domain.getNormal() * mm
-    x = n.getX()
 
+    x = n.getX()
     source_potential = {}
     pde = setupERTPDE(domain)
     pde.setValue(A=sigma * kronecker(3), y_dirac=Data(), X=Data(), Y=Data(), y=Data())
     for A in survey.getListOfInjectionStations():
         iA=survey.getStationNumber(A)
+
         pde.setValue(y_dirac=makePointSource(A, pde.getDomain(), stationsFMT=stationsFMT))
         #pde.setValue(y=1)
         # ---
@@ -268,16 +269,16 @@ class DataMisfitLog(DataMisfit):
     def __init__(self, iMs, data, iNs=None, weightings=None, injections=(), **kwargs):
         if not isinstance(data, np.ndarray):
             data = np.array(data)
-        data_log = log(abs(data)+self.EPS)
+        data_log = np.log(abs(data)+self.EPS)
         super().__init__(iMs, data_log, iNs, weightings, injections, **kwargs)
     def getValue(self, u):
-        res = self.data-log(abs(self.getDifference(u))+self.EPS)
+        res = self.data-np.log(abs(self.getDifference(u))+self.EPS)
         dd = abs(res) ** 2 * self.weightings
         return 0.5 * sum(dd)
 
     def getDerivative(self, u):
         nn=self.getDifference(u)
-        res=self.data-log(abs(nn)+self.EPS)
+        res=self.data-np.log(abs(nn)+self.EPS)
         return res * self.weightings/nn
 
 

@@ -67,17 +67,16 @@ else:
 mask_face=makeMaskForOuterSurface(domain, taglist=config.faces_tags)
 
 # create cost function:
-print("FFF")
 costf=ERTInversion(domain, data=survey,
                    sigma_0_ref=config.sigma0_ref,
                    w1=config.w1, useL1Norm=config.use_L1Norm, epsilonL1Norm=config.epsilon_L1Norm,
-                   mask_fixed_property=fixedm, mask_outer_faces = config.faces_tags,
+                   mask_fixed_property=fixedm, mask_outer_faces = mask_face,
                    pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
                    useLogMisfit= config.use_log_misfit_ERT, logger=logger)
 
 
 # test gradient:
-if False:
+if True:
     #=====
     x = domain.getX()[0]
     y = domain.getX()[1]
@@ -117,7 +116,6 @@ if not args.nooptimize:
     #costf.setSigmaSrc(new_sigma_ref)
 if args.testonly:
     exit(0)
-1/0
 def myCallback(iterCount, m, dm, Fm, grad_Fm, norm_m, norm_gradFm, args_m, failed):
     if args.RESTARTFN and iterCount >0:
         m.dump(args.RESTARTFN)

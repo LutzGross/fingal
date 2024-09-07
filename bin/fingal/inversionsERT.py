@@ -45,11 +45,10 @@ class ERTMisfitCostFunction(CostFunction):
             station_locations.append(data.getStationLocationByKey(k))
         #self.__grab_values_at_stations = Locator(Solution(domain), station_locations) # Dirac?
         #TODO: is this really working?
-        self.__grab_values_at_stations = Locator(DiracDeltaFunctions(domain), station_locations)  # Dirac?
 
+        self.__grab_values_at_stations = Locator(DiracDeltaFunctions(domain), station_locations)  # Dirac?
         self.sigma_src = sigma_src # needs to be a constant.
         self.setSourcePotentials()  # S_s is in the notes
-
         # build the misfit data (indexed by source index):
         self.misfit_DC = {}  # potential increment to injection field to get DC potential
         nd0 = 0 # counting number of data
@@ -64,7 +63,7 @@ class ERTMisfitCostFunction(CostFunction):
             #TODO NO ERROR IN WEIGHTING USED
             if self.useLogMisfit:
                 error_DC = max ([self.data.getResistenceRelError((A, B, M, N)) for M, N in obs])
-                self.misfit_0[(iA, iB)] =  DataMisfitLog(iMs=iMs, data=data_0, iNs=iNs, injections=(A,B), weightings=1. / error_DC**2)
+                self.misfit_DC[(iA, iB)] =  DataMisfitLog(iMs=iMs, data=data_DC, iNs=iNs, injections=(A,B), weightings=1. / error_DC**2)
             else:
                 error_DC = max ([self.data.getResistenceError((A, B, M, N)) for M, N in obs])
                 self.misfit_DC[(iA, iB)] = DataMisfitQuad(iMs=iMs, data=data_DC, iNs=iNs, injections=(A, B), weightings =1./error_DC**2/data_DC.size)
@@ -122,22 +121,22 @@ class ERTMisfitCostFunction(CostFunction):
         if self.useLogMisfit:
             for iA, iB in self.misfit_DC:
                 u = self.source_potentials_at_stations[iA] - self.source_potentials_at_stations[iB]
-                d = self.misfit_DC[(iA, iB)].getDifference(u)
-                a+= sum(  self.misfit_DC[(iA, iB)].weightings * (self.misfit_DC[(iA, iB)].data - log(abs(d)) ) )
-                b+= self.misfit_DC[(iA, iB)].data.size
+                du = self.misfit_DC[(iA, iB)].getDifference(u)
+                a+= sum(  self.misfit_DC[(iA, iB)].weightings * (self.misfit_DC[(iA, iB)].data - log(abs(du)) ))
+                b+= sum(  self.misfit_DC[(iA, iB)].weightings )
             if b>0:
                 beta=exp(a/b)
         else:
             for iA, iB in self.misfit_DC:
                 u = self.source_potentials_at_stations[iA] - self.source_potentials_at_stations[iB]
-                d = self.misfit_DC[(iA, iB)].getDifference(u)
-                a+= sum(  self.misfit_DC[(iA, iB)].weightings * self.misfit_DC[(iA, iB)].data * d )
-                b+= sum(  self.misfit_DC[(iA, iB)].weightings * d**2 )
+                du = self.misfit_DC[(iA, iB)].getDifference(u)
+                a+= sum(  self.misfit_DC[(iA, iB)].weightings * self.misfit_DC[(iA, iB)].data * du )
+                b+= sum(  self.misfit_DC[(iA, iB)].weightings * du**2 )
             if b > 0:
                 beta = a/b
 
         assert beta > 0, "conductivity correction factor must be positive."
-        return beta * self.sigma_src
+        return self.sigma_src/beta
 
     def getERTModelAndResponse(self, sigma_0, sigma_0_face, sigma_0_at_stations):
         """
