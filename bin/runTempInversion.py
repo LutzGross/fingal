@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 import importlib, sys, os
 from esys.escript import *
 

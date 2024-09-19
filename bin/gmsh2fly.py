@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+
 from esys.escript import *
 import importlib, os, sys
 sys.path.append(os.getcwd())

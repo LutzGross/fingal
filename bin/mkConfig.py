@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+
 """
 fingal - program to set an initial configuration file.
 """

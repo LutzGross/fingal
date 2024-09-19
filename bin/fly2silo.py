@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+
 from esys.escript import *
 import importlib, sys, os
 from esys.finley import ReadMesh, ReadGmsh

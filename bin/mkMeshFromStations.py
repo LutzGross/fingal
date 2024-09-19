@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+
 """
 fingal - Creates a mesh fly file using the station location information. 
 
