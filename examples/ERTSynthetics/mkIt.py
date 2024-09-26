@@ -28,7 +28,7 @@ with open(GEO_FILE, 'r' ) as f:
 
 assert not distanceElectrodes is None
 assert not NumberOfElectrodes is None
-LengthOfLine = distanceElectrodes * NumberOfElectrodes
+LengthOfLine = distanceElectrodes * (NumberOfElectrodes-1)
 
 print(f"searching file {GEO_FILE}.")
 print(f"number of electrodes = {NumberOfElectrodes}")

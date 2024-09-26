@@ -16,12 +16,17 @@ To make the station and schedule file (names are set in [`config.py`](./config.p
 
     python3 mkIt.py
 
-The script inspects the `with_anomaly.geo` file grab the number of electrodes and the spacing. 
+The script inspects the `with_anomaly.geo` file grab the number of electrodes and the spacing.
 The schedule is following a Wenner set-up. This can be changed if needed.
 
-Create the data file with 5% noise:
+Plot the stations to file `stations.png`:
 
-    runSynthetic.py --noise 5 --silo syntheticmesh mesh_synthetic.msh config
+    plotStations.py --image stations --debug config
+
+
+Create the data file with 1% noise:
+
+    runSynthetic.py --noise 1 --silo syntheticmesh mesh_synthetic.msh config
 
 
 This a simple way to generate a mesh from the electrode's positions:
@@ -32,7 +37,7 @@ The mesh is written to the 'config.meshfile' in the *esys.finley* `fly` format.
 
 To run the inversion based on the configuration file `ex1.py` use: 
 
-    runERTinversion.py --optimize   --xyz --vtk -d ex1 ???
+    runERTinversion.py --vtk -d config
 
 The option `--optimize` rescales the reference conductivity `sigma0` set in the configuration file  prior to the inversion in an an attempt to reduce the inital misfit. `-d` switches on more output. With the switch `--vtk` the file `sigma.vtk` in the [VTK](https://vtk.org/) file format is created where `sigma` is taken from the `output` variable set in `ex1.py`  (by default the `silo` format is used which is more compact but less portable). You can use 3D visualization packages such as
 

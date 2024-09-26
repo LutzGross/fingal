@@ -62,10 +62,12 @@ class ERTMisfitCostFunction(CostFunction):
             data_DC = np.array([self.data.getResistenceData((A, B, M, N)) for M, N in obs])
             #TODO NO ERROR IN WEIGHTING USED
             if self.useLogMisfit:
-                error_DC = max ([self.data.getResistenceRelError((A, B, M, N)) for M, N in obs])
-                self.misfit_DC[(iA, iB)] =  DataMisfitLog(iMs=iMs, data=data_DC, iNs=iNs, injections=(A,B), weightings=1. / error_DC**2)
+                #error_DC = max ([self.data.getResistenceRelError((A, B, M, N)) for M, N in obs])
+                error_DC = np.array([self.data.getResistenceRelError((A, B, M, N)) for M, N in obs])
+                self.misfit_DC[(iA, iB)] =  DataMisfitLog(iMs=iMs, data=data_DC, iNs=iNs, injections=(A,B), weightings=1. / error_DC**2/data_DC.size)
             else:
-                error_DC = max ([self.data.getResistenceError((A, B, M, N)) for M, N in obs])
+                #error_DC = max ([self.data.getResistenceError((A, B, M, N)) for M, N in obs])
+                error_DC = np.array([self.data.getResistenceError((A, B, M, N)) for M, N in obs])
                 self.misfit_DC[(iA, iB)] = DataMisfitQuad(iMs=iMs, data=data_DC, iNs=iNs, injections=(A, B), weightings =1./error_DC**2/data_DC.size)
 
             nd0+= len(self.misfit_DC[(iA, iB)])
@@ -223,9 +225,9 @@ class ERTMisfitCostFunction(CostFunction):
         return DMisfitDsigma_0, DMisfitDsigma_0_face
 
 
-class ERTInversion(ERTMisfitCostFunction):
+class ERTInversionH1(ERTMisfitCostFunction):
     """
-    Base class to run a IP inversion for conductivity (sigma_0, DC)
+    ERT inversion with H1 regularization
     """
 
     def __init__(self, domain=None, data=None,
@@ -259,8 +261,11 @@ class ERTInversion(ERTMisfitCostFunction):
         self.EPS=EPSILON
         # its is assumed that sigma_ref on the gaces is not updated!!!
         if mask_fixed_property is None:
-            z = self.forward_pde.getDomain().getX()[2]
-            self.mask_fixed_property  =  whereZero(z - inf(z))
+            x = self.forward_pde.getDomain().getX()
+            qx = whereZero(x[0] - inf(x[0])) + whereZero(x[0] - sup(x[0]))
+            qy = whereZero(x[1] - inf(x[1])) + whereZero(x[1] - sup(x[1]))
+            qz = whereZero(x[2] - inf(x[2]))
+            self.mask_fixed_property  =  qx + qy + qz
         else:
             self.mask_fixed_property = wherePositive( mask_fixed_property)
         self.sigma_0_ref = sigma_0_ref
@@ -304,7 +309,8 @@ class ERTInversion(ERTMisfitCostFunction):
 
     def getDsigma0Dm(self, sigma_0, m):
         return sigma_0
-
+    def extractPropertyFunction(self, m):
+        return m
     def getArguments(self, m):
         """
         precalculated parameters:
@@ -387,6 +393,480 @@ class ERTInversion(ERTMisfitCostFunction):
         """
         return integrate(r[0] * m + inner(r[1], grad(m)) ) + integrate(r[2] * m )
 
+    def getNorm(self, m):
+        """
+        returns the norm of property function `m`. Overwrites `getNorm` of `MeteredCostFunction`
+        """
+        return Lsup(m)
+
+class ERTInversionGauss(ERTMisfitCostFunction):
+    """
+    ERT inversion with Gaussian regulization with decoupled preconditioning
+    """
+    def __init__(self, domain=None, data=None,
+                 sigma_0_ref=1e-4, sigma_src=None, w1=1., length_scale =1.,
+                mask_outer_faces = None,
+                 pde_tol=1.e-8, reg_tol=None, stationsFMT="e%s", logclip=5,
+                 useLogMisfit=False, logger=None, EPSILON=1e-15, **kargs):
+        """
+        :param domain: pde domain
+        :param data: survey data, is `fingal.SurveyData`
+        :param sigma_0_ref: sigma = sigma_0_ref * exp(m)
+        :param sigma_src: conductivity used to calculate the injection/source potentials (need to be constant)
+        :param w1: weighting H2 regularization int (m+a^2*del(m)) ^2
+        :param length_scale: length scale factor a
+        :param mask_outer_faces: mask of the faces where potential field 'radiation' is set.
+        :param pde_tol: tolerance for the PDE solver
+        :param reg_tol: tolerance for the PDE solver in the regularization
+        :param stationsFMT: format to map station keys k to mesh tags stationsFMT%k or None
+        :param logclip: cliping for p to avoid overflow in conductivity calculation
+        :param EPSILON: absolute tolerance for zero values.
+        """
+        if sigma_src == None:
+            sigma_src = sigma_0_ref
+        super().__init__(domain=domain, data=data, sigma_src=sigma_src, pde_tol=pde_tol,
+                         mask_outer_faces = makeMaskForOuterSurface(domain,mask_outer_faces ),
+                         stationsFMT=stationsFMT, logger=logger, useLogMisfit=useLogMisfit, **kargs)
+        self.logclip = logclip
+        self.EPS=EPSILON
+        self.sigma_0_ref = sigma_0_ref
+        self.length_scale = length_scale
+        self.logger.info("Reference conductivity sigma_0_ref = %s" % (str(self.sigma_0_ref)))
+        self.logger.info("length scale = %s" % (str(self.length_scale)))
+
+        # regularization
+        self.w1 = w1
+        self.Hpde = setupERTPDE(self.domain)
+        if not reg_tol:
+            reg_tol=min(sqrt(pde_tol), 1e-3)
+        self.logger.debug(f'Tolerance for solving regularization PDE is set to {reg_tol}')
+        self.Hpde.getSolverOptions().setTolerance(reg_tol)
+        self.HpdeUpdateCount=1
+        self.Hpde.setValue(A=self.w1 * self.length_scale**2 * kronecker(3), D=self.w1 )
+
+        #  reference conductivity:
+        self.updateSigma0Ref(sigma_0_ref)
+
+
+    def updateSigma0Ref(self, sigma_0_ref):
+        """
+        set a new reference conductivity
+        """
+        self.sigma_0_ref=sigma_0_ref
+
+    def getSigma0(self, m, applyInterploation=False):
+        if hasattr(m, "getShape") and not m.getShape() == ():
+            m=m[0]
+        if applyInterploation:
+            im = interpolate(m, Function(self.domain))
+        else:
+            im = m
+        im = clip(im, minval=-self.logclip, maxval=self.logclip)
+        sigma_0 = self.sigma_0_ref * exp(im)
+        return sigma_0
+
+    def getDsigma0Dm(self, sigma_0, m):
+        return sigma_0
+
+    def extractPropertyFunction(self, M):
+        return M[0]
+    def getArguments(self, M):
+        """
+        precalculated parameters:
+        """
+        m=M[0]
+        # recover temperature (interpolated to elements)
+        im = interpolate(m, Function(self.domain))
+        im_face =interpolate(m, FunctionOnBoundary(self.domain))
+        im_stations = self.grabValuesAtStations(m)
+        self.logger.debug("m = %s" % ( str(im)))
+
+        isigma_0 = self.getSigma0(im)
+        isigma_0_face = self.getSigma0(im_face)
+        isigma_0_stations =  self.getSigma0(im_stations)
+        args2 = self.getERTModelAndResponse(isigma_0, isigma_0_face, isigma_0_stations)
+        return im, im_face, isigma_0, isigma_0_face, isigma_0_stations, args2
+
+    def getValue(self, M, im, im_face, isigma_0, isigma_0_face, isigma_0_stations, args2):
+        """
+        return the value of the cost function
+        """
+        misfit_0 = self.getMisfit(isigma_0, isigma_0_face, isigma_0_stations, *args2)
+        a=self.length_scale
+
+        gradm =grad(M[0], where=im.getFunctionSpace())
+        divM = div(M[1:], where=im.getFunctionSpace())
+        curlM = curl(M[1:], where = im.getFunctionSpace())
+
+        reg = self.w1 * integrate(length(im-a*divM)**2)
+        gM =  self.w1 * integrate(length(M[1:]-a*gradm)**2)
+        cM =  self.w1 * integrate(length(a * curlM)**2)
+
+        R = (reg + gM + cM )/2
+        V = R + misfit_0
+        if getMPIRankWorld() == 0:
+            self.logger.debug(
+                f'misfit ERT; reg; div; curl; total \t=  {misfit_0:e} ;{reg:e}; {gM:e}; {cM:e};= {V:e}')
+            self.logger.debug(
+                f'ratios ERT; reg  [%] \t=  {misfit_0/V*100:g}; {R/V*100:g}')
+        return V
+
+    def getGradient(self, M, im, im_face, isigma_0, isigma_0_face, isigma_0_stations, args2):
+        """
+        returns the gradient of the cost function. Overwrites `getGradient` of `MeteredCostFunction`
+        """
+        a=self.length_scale
+
+        gradm =grad(M[0], where=im.getFunctionSpace())
+        divM = div(M[1:], where=im.getFunctionSpace())
+        curlM = curl(M[1:], where = im.getFunctionSpace())
+
+        X = Data(0, (4,3), Function(M.getDomain()))
+        Y = Data(0, (4,),  Function(M.getDomain()))
+        y = Data(0, (4,),  FunctionOnBoundary(M.getDomain()))
+
+        Y[1:]+= M[1:]- a * gradm
+        X[0,:] = - a * (M[1:]- a * gradm)
+
+        d=M[0]-a*divM
+        Y[0]+=d
+        for i in range(0, self.domain.getDim()):
+                X[1+i,i]= - a * d
+
+        X[3,1] = a**2 * curlM[0]
+        X[2,2] = - X[3,1]
+        X[1,2] = a**2 * curlM[1]
+        X[3,0] = - X[1,2]
+        X[2,0] =  a**2 * curlM[2]
+        X[1,1] = - X[2,0]
+
+        X*=self.w1
+        Y*=self.w1
+        #
+        DMisfitDsigma_0,  DMisfitDsigma_0_face = self.getDMisfit(isigma_0, isigma_0_face, isigma_0_stations, *args2)
+        Dsigma_0Dm = self.getDsigma0Dm(isigma_0, im)
+        Dsigma_0Dm_face = self.getDsigma0Dm(isigma_0_face, im_face)
+        Y[0] += DMisfitDsigma_0 * Dsigma_0Dm
+        y[0] += DMisfitDsigma_0_face * Dsigma_0Dm_face
+
+        return ArithmeticTuple(Y, X, y)
+
+    def getInverseHessianApproximation(self, r, M, im, im_face, isigma_0, isigma_0_face, isigma_0_stations, args2, initializeHessian=False):
+        """
+        returns an approximation of inverse of the Hessian. Overwrites `getInverseHessianApproximation` of `MeteredCostFunction`
+        """
+        dM=Data(0., M.getShape(), M.getFunctionSpace() )
+        for i in range(M.getDomain().getDim()+1):
+            self.Hpde.setValue(X=r[1][i,:], Y=r[0][i], y=r[2][i])
+            dM[i] = self.Hpde.getSolution()
+            self.logger.debug(f"search direction component {i} = {str(dM[i])}.")
+        return dM
+    def getDualProduct(self, M, r):
+        """
+        dual product of gradient `r` with increment `m`. Overwrites `getDualProduct` of `MeteredCostFunction`
+        """
+        return integrate(inner(r[0],M) + inner(r[1], grad(M))) + integrate(inner(r[2], M) )
+
+    def getNorm(self, M):
+        """
+        returns the norm of property function `m`. Overwrites `getNorm` of `MeteredCostFunction`
+        """
+        return Lsup(M)
+
+class ERTInversionH2(ERTMisfitCostFunction):
+    """
+    ERT inversion with H2 regularization
+    """
+
+    def __init__(self, domain=None, data=None,
+                 sigma_0_ref=1e-4, sigma_src=None, w1=1.,
+                 mask_outer_faces = None,
+                 pde_tol=1.e-8, reg_tol=None, stationsFMT="e%s", logclip=5,
+                 useLogMisfit=False, logger=None, EPSILON=1e-15, **kargs):
+        """
+        :param domain: pde domain
+        :param data: survey data, is `fingal.SurveyData`
+        :param sigma_0_ref: sigma = sigma_0_ref * exp(m)
+        :param sigma_src: conductivity used to calculate the injection/source potentials (need to be constant)
+        :param w1: weighting H1 regularization  int grad(m)^2
+        :param useL1Norm: use L1+eps regularization
+        :param epsilonL1Norm: cut-off for L1+eps regularization
+        :param mask_outer_faces: mask of the faces where potential field 'radiation' is set.
+        :param pde_tol: tolerance for the PDE solver
+        :param reg_tol: tolerance for the PDE solver in the regularization
+        :param stationsFMT: format to map station keys k to mesh tags stationsFMT%k or None
+        :param logclip: cliping for p to avoid overflow in conductivity calculation
+        :param EPSILON: absolute tolerance for zero values.
+        """
+        if sigma_src == None:
+            sigma_src = sigma_0_ref
+        super().__init__(domain=domain, data=data, sigma_src=sigma_src, pde_tol=pde_tol,
+                         mask_outer_faces = makeMaskForOuterSurface(domain,mask_outer_faces ),
+                         stationsFMT=stationsFMT, logger=logger, useLogMisfit=useLogMisfit, **kargs)
+        self.logclip = logclip
+        self.EPS=EPSILON
+        self.sigma_0_ref = sigma_0_ref
+        self.logger.info("Reference conductivity sigma_0_ref = %s" % (str(self.sigma_0_ref)))
+        # masks for surfaces:
+        x=self.forward_pde.getDomain().getX()
+        qx = whereZero(x[0] - inf(x[0])) + whereZero(x[0] - sup(x[0]))
+        qy = whereZero(x[1] - inf(x[1])) + whereZero(x[1] - sup(x[1]))
+        qz = whereZero(x[2] - inf(x[2]))
+
+
+        # regularization
+        self.mpde = setupERTPDE(self.domain)
+        self.mpde.getSolverOptions().setTolerance(pde_tol)
+        self.mpde.setValue(A=kronecker(3), q= 0*qx + 0*qy + qz )
+
+        # regularization
+        self.w1 = w1
+        self.Hpde = setupERTPDE(self.domain)
+        if not reg_tol:
+            reg_tol=min(sqrt(pde_tol), 1e-3)
+        self.logger.debug(f'Tolerance for solving regularization PDE is set to {reg_tol}')
+        self.Hpde.getSolverOptions().setTolerance(reg_tol)
+        self.HpdeUpdateCount=2
+        self.Hpde.setValue(A=self.w1 * kronecker(3))
+        self.Hpde_qs = [ qy + 0* qz, qx + 0* qz,  qx + qy ]
+        #  reference conductivity:
+        self.updateSigma0Ref(sigma_0_ref)
+
+
+    def updateSigma0Ref(self, sigma_0_ref):
+        """
+        set a new reference conductivity
+        """
+        self.sigma_0_ref=sigma_0_ref
+
+    def getSigma0(self, m, applyInterploation=False):
+        if applyInterploation:
+            im = interpolate(m, Function(self.domain))
+        else:
+            im = m
+        im = clip(im, minval=-self.logclip, maxval=self.logclip)
+        sigma_0 = self.sigma_0_ref * exp(im)
+        return sigma_0
+
+    def getDsigma0Dm(self, sigma_0, m):
+        return sigma_0
+
+    def extractPropertyFunction(self, M):
+        self.mpde.setValue(X=interpolate(M, Function(M.getDomain())), Y=Data(), y=Data())
+        m=self.mpde.getSolution()
+        return m
+    def getArguments(self, M):
+        """
+        precalculated parameters:
+        """
+        m=self.extractPropertyFunction(M)
+
+        im = interpolate(m, Function(self.domain))
+        im_face =interpolate(m, FunctionOnBoundary(self.domain))
+        im_stations = self.grabValuesAtStations(m)
+        self.logger.debug("m = %s" % ( str(im)))
+
+        isigma_0 = self.getSigma0(im)
+        isigma_0_face = self.getSigma0(im_face)
+        isigma_0_stations =  self.getSigma0(im_stations)
+        args2 = self.getERTModelAndResponse(isigma_0, isigma_0_face, isigma_0_stations)
+        return m, im, im_face, isigma_0, isigma_0_face, isigma_0_stations, args2
+
+    def getValue(self, M, m, im, im_face, isigma_0, isigma_0_face, isigma_0_stations, args2):
+        """
+        return the value of the cost function
+        """
+        misfit_0 = self.getMisfit(isigma_0, isigma_0_face, isigma_0_stations, *args2)
+
+        gM=grad(M, where=im.getFunctionSpace())
+        R = self.w1 / 2 * integrate(length(gM)**2)
+
+        V = R + misfit_0
+        if getMPIRankWorld() == 0:
+            self.logger.debug(
+                f'misfit ERT; reg ; total \t=  {misfit_0:e}, ;{R:e}; = {V:e}')
+            self.logger.debug(
+                f'ratios ERT; reg  [%] \t=  {misfit_0/V*100:g}; {R/V*100:g}')
+        return V
+
+    def getGradient(self, M, m, im, im_face, isigma_0, isigma_0_face, isigma_0_stations, args2):
+        """
+        returns the gradient of the cost function. Overwrites `getGradient` of `MeteredCostFunction`
+        """
+        gM=grad(M, where=im.getFunctionSpace())
+        X = gM * self.w1
+        DMisfitDsigma_0,  DMisfitDsigma_0_face = self.getDMisfit(isigma_0, isigma_0_face, isigma_0_stations, *args2)
+
+        Dsigma_0Dm = self.getDsigma0Dm(isigma_0, im)
+        Dsigma_0Dm_face = self.getDsigma0Dm(isigma_0_face, im_face)
+        self.mpde.setValue(X=Data(), Y = DMisfitDsigma_0 * Dsigma_0Dm, y = DMisfitDsigma_0_face * Dsigma_0Dm_face)
+        Y=grad(self.mpde.getSolution(), where=X.getFunctionSpace())
+        return ArithmeticTuple(Y, X)
+
+    def getInverseHessianApproximation(self, r, M, m, im, im_face, isigma_0, isigma_0_face, isigma_0_stations, args2, initializeHessian=False):
+        """
+        returns an approximation of inverse of the Hessian. Overwrites `getInverseHessianApproximation` of `MeteredCostFunction`
+        """
+        dM = Vector(0., M.getFunctionSpace())
+        for k in range(3):
+            if k==10:
+                dM[k]=0
+            else:
+                self.Hpde.setValue(q= self.Hpde_qs[k], X=r[1][k,:], Y=r[0][k])
+                dM[k] = self.Hpde.getSolution()
+            self.logger.debug(f"search direction component {k} = {str(dM[k])}.")
+        return dM
+
+    def getDualProduct(self, M, r):
+        """
+        dual product of gradient `r` with increment `m`. Overwrites `getDualProduct` of `MeteredCostFunction`
+        """
+        return integrate(inner(r[0] , M) + inner(r[1], grad(M)) )
+
+    def getNorm(self, m):
+        """
+        returns the norm of property function `m`. Overwrites `getNorm` of `MeteredCostFunction`
+        """
+        return Lsup(m)
+
+class ERTInversionL2Gauss(ERTMisfitCostFunction):
+    """
+    ERT inversion with H2 regularization
+    """
+
+    def __init__(self, domain=None, data=None,
+                 sigma_0_ref=1e-4, sigma_src=None, w1=1.,  length_scale =1.,
+                 mask_outer_faces = None,
+                 pde_tol=1.e-8, reg_tol=None, stationsFMT="e%s", logclip=5,
+                 useLogMisfit=False, logger=None, EPSILON=1e-15, **kargs):
+        """
+        :param domain: pde domain
+        :param data: survey data, is `fingal.SurveyData`
+        :param sigma_0_ref: sigma = sigma_0_ref * exp(m)
+        :param sigma_src: conductivity used to calculate the injection/source potentials (need to be constant)
+        :param w1: weighting H1 regularization  int grad(m)^2
+        :param useL1Norm: use L1+eps regularization
+        :param epsilonL1Norm: cut-off for L1+eps regularization
+        :param mask_outer_faces: mask of the faces where potential field 'radiation' is set.
+        :param pde_tol: tolerance for the PDE solver
+        :param reg_tol: tolerance for the PDE solver in the regularization
+        :param stationsFMT: format to map station keys k to mesh tags stationsFMT%k or None
+        :param logclip: cliping for p to avoid overflow in conductivity calculation
+        :param EPSILON: absolute tolerance for zero values.
+        """
+        if sigma_src == None:
+            sigma_src = sigma_0_ref
+        super().__init__(domain=domain, data=data, sigma_src=sigma_src, pde_tol=pde_tol,
+                         mask_outer_faces = makeMaskForOuterSurface(domain,mask_outer_faces ),
+                         stationsFMT=stationsFMT, logger=logger, useLogMisfit=useLogMisfit, **kargs)
+        self.logclip = logclip
+        self.EPS=EPSILON
+        self.sigma_0_ref = sigma_0_ref
+        self. length_scale = length_scale
+        self.logger.info("Reference conductivity sigma_0_ref = %s" % (str(self.sigma_0_ref)))
+        self.logger.info("length scale = %s" % (str(self.length_scale)))
+
+        # regularization
+        self.mpde = setupERTPDE(self.domain)
+        self.mpde.getSolverOptions().setTolerance(pde_tol)
+        self.mpde.setValue(A=self.length_scale**2 * kronecker(3), D=1)
+
+        # regularization
+        self.w1 = w1
+        self.Hpde = setupERTPDE(self.domain)
+        if not reg_tol:
+            reg_tol=min(sqrt(pde_tol), 1e-3)
+        reg_tol = pde_tol
+        self.logger.debug(f'Tolerance for solving regularization PDE is set to {reg_tol}')
+        self.Hpde.getSolverOptions().setTolerance(reg_tol)
+        self.HpdeUpdateCount=2
+        self.Hpde.setValue(D=self.w1 * 1.)
+        #  reference conductivity:
+        self.updateSigma0Ref(sigma_0_ref)
+
+
+    def updateSigma0Ref(self, sigma_0_ref):
+        """
+        set a new reference conductivity
+        """
+        self.sigma_0_ref=sigma_0_ref
+
+    def getSigma0(self, m, applyInterploation=False):
+        if applyInterploation:
+            im = interpolate(m, Function(self.domain))
+        else:
+            im = m
+        im = clip(im, minval=-self.logclip, maxval=self.logclip)
+        sigma_0 = self.sigma_0_ref * exp(im)
+        return sigma_0
+
+    def getDsigma0Dm(self, sigma_0, m):
+        return sigma_0
+
+    def extractPropertyFunction(self, m):
+        self.mpde.setValue(Y=interpolate(m, Function(m.getDomain())), X=Data(), y=Data())
+        m=self.mpde.getSolution()
+        return m
+    def getArguments(self,m):
+        """
+        precalculated parameters:
+        """
+        m=self.extractPropertyFunction(m)
+
+        im = interpolate(m, Function(self.domain))
+        im_face =interpolate(m, FunctionOnBoundary(self.domain))
+        im_stations = self.grabValuesAtStations(m)
+        self.logger.debug("m = %s" % ( str(im)))
+
+        isigma_0 = self.getSigma0(im)
+        isigma_0_face = self.getSigma0(im_face)
+        isigma_0_stations =  self.getSigma0(im_stations)
+        args2 = self.getERTModelAndResponse(isigma_0, isigma_0_face, isigma_0_stations)
+        return im, im_face, isigma_0, isigma_0_face, isigma_0_stations, args2
+
+    def getValue(self, m, im, im_face, isigma_0, isigma_0_face, isigma_0_stations, args2):
+        """
+        return the value of the cost function
+        """
+        misfit_0 = self.getMisfit(isigma_0, isigma_0_face, isigma_0_stations, *args2)
+
+        R = self.w1 / 2 * integrate(im**2)
+
+        V = R + misfit_0
+        if getMPIRankWorld() == 0:
+            self.logger.debug(
+                f'misfit ERT; reg ; total \t=  {misfit_0:e}, ;{R:e}; = {V:e}')
+            self.logger.debug(
+                f'ratios ERT; reg  [%] \t=  {misfit_0/V*100:g}; {R/V*100:g}')
+        return V
+
+    def getGradient(self, m, im, im_face, isigma_0, isigma_0_face, isigma_0_stations, args2):
+        """
+        returns the gradient of the cost function. Overwrites `getGradient` of `MeteredCostFunction`
+        """
+        Y = im * self.w1
+        DMisfitDsigma_0,  DMisfitDsigma_0_face = self.getDMisfit(isigma_0, isigma_0_face, isigma_0_stations, *args2)
+
+        Dsigma_0Dm = self.getDsigma0Dm(isigma_0, im)
+        Dsigma_0Dm_face = self.getDsigma0Dm(isigma_0_face, im_face)
+        self.mpde.setValue(X=Data(), Y = DMisfitDsigma_0 * Dsigma_0Dm, y = DMisfitDsigma_0_face * Dsigma_0Dm_face)
+        Y+=self.mpde.getSolution()
+        return Y
+
+    def getInverseHessianApproximation(self, r, m, im, im_face, isigma_0, isigma_0_face, isigma_0_stations, args2, initializeHessian=False):
+        """
+        returns an approximation of inverse of the Hessian. Overwrites `getInverseHessianApproximation` of `MeteredCostFunction`
+        """
+        self.Hpde.setValue(Y=r)
+        dm = self.Hpde.getSolution()
+        self.logger.debug(f"search direction = {str(dm)}.")
+        return dm
+
+    def getDualProduct(self, m, r):
+        """
+        dual product of gradient `r` with increment `m`. Overwrites `getDualProduct` of `MeteredCostFunction`
+        """
+        return integrate(r * m)
     def getNorm(self, m):
         """
         returns the norm of property function `m`. Overwrites `getNorm` of `MeteredCostFunction`

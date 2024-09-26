@@ -2,7 +2,7 @@
 from esys.escript import *
 import importlib, os, sys
 sys.path.append(os.getcwd())
-from fingal import ERTInversion, readElectrodeLocations, readSurveyData, makeMaskForOuterSurface
+from fingal import ERTInversionH1, ERTInversionGauss, ERTInversionL2Gauss, ERTInversionH2, readElectrodeLocations, readSurveyData, makeMaskForOuterSurface
 from esys.finley import ReadMesh
 import numpy as np
 from esys.weipa import saveVTK, saveSilo
@@ -66,47 +66,183 @@ else:
 mask_face=makeMaskForOuterSurface(domain, taglist=config.faces_tags)
 
 # create cost function:
-costf=ERTInversion(domain, data=survey,
-                   sigma_0_ref=config.sigma0_ref,
-                   w1=config.w1, useL1Norm=config.use_L1Norm, epsilonL1Norm=config.epsilon_L1Norm,
-                   mask_fixed_property=fixedm, mask_outer_faces = mask_face,
-                   pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
-                   useLogMisfit= config.use_log_misfit_ERT, logger=logger)
+print("Regulariztion = ",config.regularization_order)
+if config.regularization_order == "H1":
+    costf=ERTInversionH1(domain, data=survey,
+                       sigma_0_ref=config.sigma0_ref,
+                       w1=config.regularization_w1, useL1Norm=config.use_L1Norm, epsilonL1Norm=config.epsilon_L1Norm,
+                       mask_fixed_property=fixedm, mask_outer_faces = mask_face,
+                       pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
+                       useLogMisfit= config.use_log_misfit_ERT, logger=logger)
+    m_init = Scalar(0.0, Solution(domain))
 
 
-# test gradient:
-if False:
-    #=====
-    x = domain.getX()[0]
-    y = domain.getX()[1]
-    z = domain.getX()[2]
-    #pp=(x - inf(x))*(x - sup(x)) * (y - inf(y))* (y - sup(y))*(z - inf(z))
-    pp = (z - inf(z))
-    pp/=sup(abs(pp))
-    #====
+    # test gradient:
+    if False:
+        #=====
+        x = domain.getX()[0]
+        y = domain.getX()[1]
+        z = domain.getX()[2]
+        #pp=(x - inf(x))*(x - sup(x)) * (y - inf(y))* (y - sup(y))*(z - inf(z))
+        pp = (z - inf(z))
+        pp/=sup(abs(pp))
+        #====
 
-    x=length(domain.getX())
-    m=x/Lsup(x)*pp
-    ddm=(domain.getX()[0]+domain.getX()[1]+0.5*domain.getX()[2])/Lsup(x)/3*10*pp
-    #ddm=pp*0.01
-    print(str(m))
-    print(str(ddm))
-    dm=ddm
-    m*=0
-    args=costf.getArgumentsAndCount(m)
-    G=costf.getGradientAndCount(m, *args)
-    Dex = costf.getDualProductAndCount(dm, G)
-    J0=costf.getValueAndCount(m,  *args)
-    print("J0=%e"%J0)
-    #print("gradient = %s"%str(G))
+        x=length(domain.getX())
+        m=x/Lsup(x)*pp
+        ddm=(domain.getX()[0]+domain.getX()[1]+0.5*domain.getX()[2])/Lsup(x)/3*10*pp
+        #ddm=pp*0.01
+        print(str(m))
+        print(str(ddm))
+        dm=ddm
+        m*=0
+        args=costf.getArgumentsAndCount(m)
+        G=costf.getGradientAndCount(m, *args)
+        Dex = costf.getDualProductAndCount(dm, G)
+        J0=costf.getValueAndCount(m,  *args)
+        print("J0=%e"%J0)
+        #print("gradient = %s"%str(G))
 
-    print("XX log(a):\tJ0\t\tJ(a)\t\tnum. D\t\tD\t\terror O(a)\t\tO(1)")
-    for k in range(4, 13):
-        a=0.5**k
-        J=costf.getValueAndCount(m+a*dm)
-        D=(J-J0)/a
-        print("XX \t%d:\t%e\t%e\t%e\t%e\t%e\t%e"%(k,J0, J, D, Dex, D-Dex, (D-Dex)/a) )
-    1/0
+        print("XX log(a):\tJ0\t\tJ(a)\t\tnum. D\t\tD\t\terror O(a)\t\tO(1)")
+        for k in range(4, 13):
+            a=0.5**k
+            J=costf.getValueAndCount(m+a*dm)
+            D=(J-J0)/a
+            print("XX \t%d:\t%e\t%e\t%e\t%e\t%e\t%e"%(k,J0, J, D, Dex, D-Dex, (D-Dex)/a) )
+        1/0
+elif config.regularization_order == "H2":
+    costf=ERTInversionH2(domain, data=survey,
+                       sigma_0_ref=config.sigma0_ref,
+                       w1=config.regularization_w1, mask_outer_faces = mask_face,
+                       pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
+                       useLogMisfit= config.use_log_misfit_ERT, logger=logger)
+    m_init = Vector(0.0, Solution(domain))
+
+
+    # test gradient:
+    if False:
+        #=====
+        x = domain.getX()[0]
+        y = domain.getX()[1]
+        z = domain.getX()[2]
+        #pp=(x - inf(x))*(x - sup(x)) * (y - inf(y))* (y - sup(y))*(z - inf(z))
+        pp = (z - inf(z))
+        pp/=sup(abs(pp))
+        #====
+
+        x=length(domain.getX())
+        m=x/Lsup(x)*pp
+        ddm=(domain.getX()[0]+domain.getX()[1]+0.5*domain.getX()[2])/Lsup(x)/3*10*pp
+        #ddm=pp*0.01
+        print(str(m))
+        print(str(ddm))
+        dm=ddm
+        m*=0
+        args=costf.getArgumentsAndCount(m)
+        G=costf.getGradientAndCount(m, *args)
+        Dex = costf.getDualProductAndCount(dm, G)
+        J0=costf.getValueAndCount(m,  *args)
+        print("J0=%e"%J0)
+        #print("gradient = %s"%str(G))
+
+        print("XX log(a):\tJ0\t\tJ(a)\t\tnum. D\t\tD\t\terror O(a)\t\tO(1)")
+        for k in range(4, 13):
+            a=0.5**k
+            J=costf.getValueAndCount(m+a*dm)
+            D=(J-J0)/a
+            print("XX \t%d:\t%e\t%e\t%e\t%e\t%e\t%e"%(k,J0, J, D, Dex, D-Dex, (D-Dex)/a) )
+        1/0
+
+elif config.regularization_order == "L2Gauss":
+    costf = ERTInversionL2Gauss(domain, data=survey,
+                         sigma_0_ref=config.sigma0_ref,
+                         w1=config.regularization_w1, length_scale = config.regularization_length_scale,
+                          mask_outer_faces=mask_face,
+                         pde_tol=config.pde_tol, stationsFMT=config.stationsFMT,
+                         logclip=config.clip_property_function,
+                         useLogMisfit=config.use_log_misfit_ERT, logger=logger)
+    m_init = Scalar(0.0, Solution(domain))
+    # test gradient:
+    if False:
+        #=====
+        x = domain.getX()[0]
+        y = domain.getX()[1]
+        z = domain.getX()[2]
+        #pp=(x - inf(x))*(x - sup(x)) * (y - inf(y))* (y - sup(y))*(z - inf(z))
+        pp = (z - inf(z))
+        pp/=sup(abs(pp))
+        #====
+
+        x=length(domain.getX())
+        m=x/Lsup(x)*pp
+        ddm=(domain.getX()[0]+domain.getX()[1]+0.5*domain.getX()[2])/Lsup(x)/3*pp
+        #ddm=pp*0.01
+        print(str(m))
+        print(str(ddm))
+        dm=ddm
+        #m*=0
+        args=costf.getArgumentsAndCount(m)
+        G=costf.getGradientAndCount(m, *args)
+        Dex = costf.getDualProductAndCount(dm, G)
+        J0=costf.getValueAndCount(m,  *args)
+        print("J0=%e"%J0)
+        #print("gradient = %s"%str(G))
+
+        print("XX log(a):\tJ0\t\tJ(a)\t\tnum. D\t\tD\t\terror O(a)\t\tO(1)")
+        for k in range(4, 13):
+            a=0.5**k
+            J=costf.getValueAndCount(m+a*dm)
+            D=(J-J0)/a
+            print("XX \t%d:\t%e\t%e\t%e\t%e\t%e\t%e"%(k,J0, J, D, Dex, D-Dex, (D-Dex)/a) )
+        1/0
+
+elif config.regularization_order == "Gauss":
+    costf = ERTInversionGauss(domain, data=survey,
+                         sigma_0_ref=config.sigma0_ref,
+                         w1=config.regularization_w1, length_scale = config.regularization_length_scale,
+                          mask_outer_faces=mask_face,
+                         pde_tol=config.pde_tol, stationsFMT=config.stationsFMT,
+                         logclip=config.clip_property_function,
+                         useLogMisfit=config.use_log_misfit_ERT, logger=logger)
+    m_init = Data(0.0, (4,), Solution(domain))
+
+    # test gradient:
+    if False:
+        # =====
+        x = domain.getX()[0]
+        y = domain.getX()[1]
+        z = domain.getX()[2]
+        # pp=(x - inf(x))*(x - sup(x)) * (y - inf(y))* (y - sup(y))*(z - inf(z))
+        pp = (z - inf(z))
+        pp /= sup(abs(pp))
+        # ====
+
+        x = length(domain.getX())
+        m = x / Lsup(x) * pp
+        M= m * [1,1.5,2,2.5]
+        ddm = (domain.getX()[0] + domain.getX()[1] + 0.5 * domain.getX()[2]) / Lsup(x) / 3  * pp
+        # ddm=pp*0.01
+        print(str(m))
+        print(str(ddm))
+        dM = ddm * [-0.1,0.1,0.4,-0.4]
+        args = costf.getArgumentsAndCount(M)
+        G = costf.getGradientAndCount(M, *args)
+        Dex = costf.getDualProductAndCount(dM, G)
+        J0 = costf.getValueAndCount(M, *args)
+        print("J0=%e" % J0)
+        # print("gradient = %s"%str(G))
+
+        print("XX log(a):\tJ0\t\tJ(a)\t\tnum. D\t\tD\t\terror O(a)\t\tO(1)")
+        for k in range(4, 15):
+            a = 0.5 ** k
+            J = costf.getValueAndCount(M + a * dM)
+            D = (J - J0) / a
+            print("XX \t%d:\t%e\t%e\t%e\t%e\t%e\t%e" % (k, J0, J, D, Dex, D - Dex, (D - Dex) / a))
+        1 / 0
+
+
+else:
+    raise ValueError("unknown regularization type "+config.regularization_order)
 # set up solver:
 if not args.nooptimize:
     new_sigma_ref=costf.fitSigmaRef()
@@ -131,21 +267,20 @@ solver.setOptions(m_tol=config.m_tolerance, truncation=config.truncation, restar
 solver.setCallback(myCallback)
 # initial solution
 if args.restart:
-   kk=[v for i,v in enumerate(os.listdir()) if v.startswith(args.RESTARTFN) ]
-   if kk:
-     m_init=load(args.RESTARTFN, domain)
-     txt=str(m_init)
-     if getMPIRankWorld() == 0:
+    kk=[v for i,v in enumerate(os.listdir()) if v.startswith(args.RESTARTFN) ]
+    if kk:
+        m_init=load(args.RESTARTFN, domain)
+        txt=str(m_init)
+        if getMPIRankWorld() == 0:
              print("restart file %s read. initial M = %s"%(args.RESTARTFN, txt))
-else:
-    m_init = Scalar(0.0, Solution(domain))
+        if config.regularization_order == 1:
+            assert m_init.getShape() == ()
+        else:
+            assert m_init.getShape() == (4, )
 # run solver:
 solver.run(m_init)
-m=solver.getResult()
-
-
-
-sigma=costf.getSigma0(m)
+m=costf.extractPropertyFunction(solver.getResult())
+sigma=costf.getSigma0(m, applyInterploation=False)
 if args.vtk:
     saveVTK(config.outfile, sigma=sigma, tag=makeTagMap(Function(domain)))
     if getMPIRankWorld() == 0:
@@ -159,12 +294,12 @@ if args.xyz:
     sigmas=interpolate(sigma, ReducedFunction(domain))
     X=sigmas.getFunctionSpace().getX()
     if isinstance(config.core, list):
-        saveDataCSV(config.outfile+".csv", d0=X[0], d1=X[1], d2=X[2], sigma =sigmas, mask=m)
+        saveDataCSV(config.outfile+".csv", pos0=X[0], pos1=X[1], pos2=X[2], sigma =sigmas, mask=m)
         if getMPIRankWorld() == 0:
             print("result written to %s.csv. Core region is %s."%(config.outfile, config.core))
         del X, sigmas, m
     else:
-        saveDataCSV(config.outfile+".csv", d0=X[0], d1=X[1], d2=X[2], sigma =sigmas)
+        saveDataCSV(config.outfile+".csv", pos0=X[0], pos1=X[1], pos2=X[2], sigma =sigmas)
         if getMPIRankWorld() == 0:
             print("result written to %s.csv"%config.outfile)
         del X, sigmas
