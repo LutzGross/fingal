@@ -2,7 +2,7 @@
 from esys.escript import *
 import importlib, os, sys
 sys.path.append(os.getcwd())
-from fingal import ERTInversionH1, ERTInversionGauss, ERTInversionL2Gauss, ERTInversionH2, readElectrodeLocations, readSurveyData, makeMaskForOuterSurface
+from fingal import ERTInversionH1, ERTInversionGauss, ERTInversionPseudoGauss, ERTInversionH2, readElectrodeLocations, readSurveyData, makeMaskForOuterSurface
 from esys.finley import ReadMesh
 import numpy as np
 from esys.weipa import saveVTK, saveSilo
@@ -153,8 +153,8 @@ elif config.regularization_order == "H2":
             print("XX \t%d:\t%e\t%e\t%e\t%e\t%e\t%e"%(k,J0, J, D, Dex, D-Dex, (D-Dex)/a) )
         1/0
 
-elif config.regularization_order == "L2Gauss":
-    costf = ERTInversionL2Gauss(domain, data=survey,
+elif config.regularization_order == "Gauss":
+    costf = ERTInversionGauss(domain, data=survey,
                          sigma_0_ref=config.sigma0_ref,
                          w1=config.regularization_w1, length_scale = config.regularization_length_scale,
                           mask_outer_faces=mask_face,
@@ -196,8 +196,8 @@ elif config.regularization_order == "L2Gauss":
             print("XX \t%d:\t%e\t%e\t%e\t%e\t%e\t%e"%(k,J0, J, D, Dex, D-Dex, (D-Dex)/a) )
         1/0
 
-elif config.regularization_order == "Gauss":
-    costf = ERTInversionGauss(domain, data=survey,
+elif config.regularization_order == "PseudoGauss":
+    costf = ERTInversionPseudoGauss(domain, data=survey,
                          sigma_0_ref=config.sigma0_ref,
                          w1=config.regularization_w1, length_scale = config.regularization_length_scale,
                           mask_outer_faces=mask_face,
@@ -279,14 +279,21 @@ if args.restart:
             assert m_init.getShape() == (4, )
 # run solver:
 solver.run(m_init)
-m=costf.extractPropertyFunction(solver.getResult())
+M=solver.getResult()
+m=costf.extractPropertyFunction(M)
+if M.getShape() == (4,):
+    V=M[1:]
+elif M.getShape() == (3,):
+    V=M
+else:
+    V=grad(M)
 sigma=costf.getSigma0(m, applyInterploation=False)
 if args.vtk:
-    saveVTK(config.outfile, sigma=sigma, tag=makeTagMap(Function(domain)))
+    saveVTK(config.outfile, sigma=sigma, tag=makeTagMap(Function(domain)), V=V)
     if getMPIRankWorld() == 0:
         print("result written to %s.vtu"%config.outfile)
 else:
-    saveSilo(config.outfile, sigma=sigma, tag=makeTagMap(Function(domain)))
+    saveSilo(config.outfile, sigma=sigma, tag=makeTagMap(Function(domain)), V=V)
     if getMPIRankWorld() == 0:
             print("result written to %s.silo"%config.outfile)
 

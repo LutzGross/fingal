@@ -265,7 +265,7 @@ class ERTInversionH1(ERTMisfitCostFunction):
             qx = whereZero(x[0] - inf(x[0])) + whereZero(x[0] - sup(x[0]))
             qy = whereZero(x[1] - inf(x[1])) + whereZero(x[1] - sup(x[1]))
             qz = whereZero(x[2] - inf(x[2]))
-            self.mask_fixed_property  =  qx + qy + qz
+            self.mask_fixed_property  =  0 * qx + 0* qy + qz
         else:
             self.mask_fixed_property = wherePositive( mask_fixed_property)
         self.sigma_0_ref = sigma_0_ref
@@ -399,7 +399,7 @@ class ERTInversionH1(ERTMisfitCostFunction):
         """
         return Lsup(m)
 
-class ERTInversionGauss(ERTMisfitCostFunction):
+class ERTInversionPseudoGauss(ERTMisfitCostFunction):
     """
     ERT inversion with Gaussian regulization with decoupled preconditioning
     """
@@ -628,7 +628,7 @@ class ERTInversionH2(ERTMisfitCostFunction):
         self.Hpde.getSolverOptions().setTolerance(reg_tol)
         self.HpdeUpdateCount=2
         self.Hpde.setValue(A=self.w1 * kronecker(3))
-        self.Hpde_qs = [ qy + 0* qz, qx + 0* qz,  qx + qy ]
+        self.Hpde_qs = [ qy + qz, qx + qz,  qx + qy ]
         #  reference conductivity:
         self.updateSigma0Ref(sigma_0_ref)
 
@@ -729,7 +729,7 @@ class ERTInversionH2(ERTMisfitCostFunction):
         """
         return Lsup(m)
 
-class ERTInversionL2Gauss(ERTMisfitCostFunction):
+class ERTInversionGauss(ERTMisfitCostFunction):
     """
     ERT inversion with H2 regularization
     """
