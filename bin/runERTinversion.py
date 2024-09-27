@@ -20,7 +20,7 @@ from datetime import datetime
 
 parser = argparse.ArgumentParser(description='driver to invert an ERT survey', epilog="version 16/11/2023")
 parser.add_argument(dest='config', metavar='configfile', type=str, help='python setting configuration')
-parser.add_argument('--restartfile', '-R', dest='RESTARTFN', metavar='RESTARTFN', type=None, default="restart", help='reststart file name')
+parser.add_argument('--restartfile', '-R', dest='RESTARTFN', metavar='RESTARTFN', type=str, default="restart", help='reststart file name')
 parser.add_argument('--restart', '-r',  dest='restart', action='store_true', default=False, help="start from restart file. RESTARTFN need to be set and exist.")
 
 parser.add_argument('--nooptimize', '-n',  dest='nooptimize', action='store_true', default=False, help="Don't calibrated the value for config.sigma_ref before iteration starts.")
