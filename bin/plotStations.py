@@ -8,6 +8,7 @@ sys.path.append(os.getcwd())
 
 parser = argparse.ArgumentParser(description='creates plot of station/electrode locations', epilog="l.gross@uq.edu.au, version 18/4/2018")
 parser.add_argument(dest='config', metavar='configfile', type=str, help='python setting configuration')
+parser.add_argument('--useschedule', '-u',  dest='inspectschedule', action='store_true', default=False, help="use the schedule rather than data file.")
 parser.add_argument('--image', '-i',  dest='plotfile', type=str, default='locs.png', help="image of electrode locations.")
 parser.add_argument('--nolabels', '-n',  dest='nolabels', action='store_true', default=False, help="show no station labels.")
 parser.add_argument('--markersize', '-m',  dest='markersize', type=int, default=10, help="marker size.")
@@ -28,14 +29,11 @@ elocations=readElectrodeLocations(config.stationfile, delimiter=config.stationde
 print("%s electrode locations read from %s."%(len(elocations), config.stationfile))
 
 fn=None
-if config.schedulefile and os.path.isfile(config.schedulefile):
+if args.inspectschedule and config.schedulefile and os.path.isfile(config.schedulefile):
     fn=config.schedulefile
-      
-if os.path.isfile(config.datafile):
+else:
     fn=config.datafile
  
-if fn is None:
-    raise IOError("unable to find survey file.")   
 
 survey=readSurveyData(fn, stations=elocations, usesStationCoordinates=config.usesStationCoordinates, columns=[], dipoleInjections=config.dipoleInjections , dipoleMeasurements=config.dipoleMeasurements ,  delimiter=config.datadelimiter)
 print("%s observations read from %s."%(survey.getNumObservations(), fn))

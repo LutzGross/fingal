@@ -2,10 +2,12 @@
 
 ### Generate Data Set
 The first step is to create a synthetic data set. The [gmsh](https://gmsh.info/)  
-geometry file defines core domain with some padding and subdomain stagged as `anomaly` 
-that is used to
-define an electric conductivity anomaly for the synthetic data generation. 
-Edit this file to change the shape and location of the anomaly. 
+geometry file defines core domain with some padding and subdomains stagged as `anomaly_right`
+and `anomaly_left` that define electric conductivity anomalies
+for the synthetic data generation. 
+Edit ths `geo`-file ['with_anomaly.geo'](./with_anomaly.geo) to change the shape and 
+location of the anomaly and the survey that is set as equidistant, parallel lines of equidistant
+electrodes.
 
 Run 
 
@@ -16,12 +18,12 @@ To make the station and schedule file (names are set in [`config.py`](./config.p
 
     python3 mkIt.py
 
-The script inspects the `with_anomaly.geo` file grab the number of electrodes and the spacing.
-The schedule is following a Wenner set-up. This can be changed if needed.
+The script inspects the `with_anomaly.geo` file grab the number of electrodes, nuber of lines
+and their spacings. The schedule is following a Wenner set-up for each line. 
 
-Plot the stations to file `stations.png`:
+Plot the stations to file `plot_stations.png`:
 
-    plotStations.py --image stations --debug config
+    plotStations.py --image plot_stations --debug config
 
 
 Create the data file with 1% noise:
@@ -39,16 +41,21 @@ To run the inversion based on the configuration file `ex1.py` use:
 
     runERTinversion.py --vtk -d config
 
-The option `--optimize` rescales the reference conductivity `sigma0` set in the configuration file  prior to the inversion in an an attempt to reduce the inital misfit. `-d` switches on more output. With the switch `--vtk` the file `sigma.vtk` in the [VTK](https://vtk.org/) file format is created where `sigma` is taken from the `output` variable set in `ex1.py`  (by default the `silo` format is used which is more compact but less portable). You can use 3D visualization packages such as
+The reference conductivity `sigma_ref` set in the configuration file 
+is rescaled prior to the inversion in an attempt to reduce the initial misfit
+(use '--nooptimize' to switch off rescaling).
+`-d` switches on more output. With the switch `--vtk` the file `sigma.vtk` in 
+the [VTK](https://vtk.org/) file format is created where `sigma` is taken from the `output` 
+variable set in configuration file
+(by default the `silo` format is used which is more compact 
+but less portable). 
+
+With VTK files you can use 3D visualization packages such as
 
 - [VisIt](https://wci.llnl.gov/simulation/computer-codes/visit)
 - [paraview](https://www.paraview.org/)
 - [mayavi](https://docs.enthought.com/mayavi/mayavi/)
  
-The result should look this: 
-<p align="center">
-  <img src="result.png" width="600" title="VisIt Visualization">
-</p>
 
 The switch `--xyx` activates the creation of a CSV file giving ccordinates and conductivity in core region set in the configuartion file via the `core` variable. The name of the created file is `sigma.csv` where again `sigma` is taken from the `output` variable set in `ex1.py`. You can read and plot this file for instance using a 3D scatter plot in `matplotlib`:
 

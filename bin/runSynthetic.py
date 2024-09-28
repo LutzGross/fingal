@@ -29,7 +29,6 @@ elocations=readElectrodeLocations(config.stationfile, delimiter=config.stationde
 print("%s electrode locations read from %s."%(len(elocations), config.stationfile))
 
 if os.path.splitext(args.msh)[1] == ".msh":
-    print("FF")
     dts = []
     dps = []
     for s in elocations:

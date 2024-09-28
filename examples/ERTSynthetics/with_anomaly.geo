@@ -1,23 +1,26 @@
 // GMSH geometry file
 // 
 Mesh.MshFileVersion = 2.2;
-// ... electrodes .....
+// ... electrodes in parallel lines .....
+numLines = 3;
+distanceLines = 4;
 numElectrodes = 32;
 distanceElectrodes = 3;
+//
 lengthLine = (numElectrodes-1) * distanceElectrodes;
-
+widthLines = (numLines -1) * distanceLines;
 // ....... Anomaly left ......
 anomalyLeftDepth = 1 * distanceElectrodes;
 anomalyLeftOffsetX = - 3 * distanceElectrodes;
 anomalyLeftLengthX = 2 * distanceElectrodes;
-anomalyLeftLengthY = 14 * distanceElectrodes;
+anomalyLeftLengthY = 14 * distanceElectrodes + widthLines;
 anomalyLeftLengthZ = 2 * distanceElectrodes;
 
 // ... Anomaly Right...
 anomalyRightDepth = 1 * distanceElectrodes;
 anomalyRightOffsetX =  3 * distanceElectrodes;
 anomalyRightLengthX = 2 * distanceElectrodes;
-anomalyRightLengthY = 14 * distanceElectrodes;
+anomalyRightLengthY = 14 * distanceElectrodes + widthLines;
 anomalyRightLengthZ = 2 * distanceElectrodes;
 
 // ... core region ....
@@ -206,10 +209,12 @@ Surface Loop(4) = {4, 2, 6, 3, 5, 13, 15, 14, 18, 17, 16};
 Volume(3) = {4};
 
 // Electrodes:
-For k In {0:numElectrodes-1}
-    kk = newp;
-    Point(kk) = { -lengthLine/2 + k * distanceElectrodes ,  0, 0, meshSizeElectrodes};
-    Point{kk} In Surface {1};
+For l In {0:numLines-1}
+    For k In {0:numElectrodes-1}
+        kk = newp;
+        Point(kk) = { -lengthLine/2 + k * distanceElectrodes ,   -widthLines/2 + l * distanceLines, 0, meshSizeElectrodes};
+        Point{kk} In Surface {1};
+    EndFor
 EndFor
 // ... set tagging ....
 Physical Volume("anomaly_left") = {2};

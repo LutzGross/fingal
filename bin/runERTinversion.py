@@ -1,8 +1,10 @@
 #!/usr/bin/python3
 from esys.escript import *
 import importlib, os, sys
+
 sys.path.append(os.getcwd())
-from fingal import ERTInversionH1, ERTInversionGauss, ERTInversionPseudoGauss, ERTInversionH2, readElectrodeLocations, readSurveyData, makeMaskForOuterSurface
+from fingal import ERTInversionH1, ERTInversionGauss, ERTInversionPseudoGauss, ERTInversionH2, ERTInversionPseudoGaussDiagonalHessian
+from fingal import readElectrodeLocations, readSurveyData, makeMaskForOuterSurface
 from esys.finley import ReadMesh
 import numpy as np
 from esys.weipa import saveVTK, saveSilo
@@ -195,9 +197,18 @@ elif config.regularization_order == "Gauss":
             D=(J-J0)/a
             print("XX \t%d:\t%e\t%e\t%e\t%e\t%e\t%e"%(k,J0, J, D, Dex, D-Dex, (D-Dex)/a) )
         1/0
-
 elif config.regularization_order == "PseudoGauss":
     costf = ERTInversionPseudoGauss(domain, data=survey,
+                         sigma_0_ref=config.sigma0_ref,
+                         w1=config.regularization_w1, length_scale = config.regularization_length_scale,
+                          mask_outer_faces=mask_face,
+                         pde_tol=config.pde_tol, stationsFMT=config.stationsFMT,
+                         logclip=config.clip_property_function,
+                         useLogMisfit=config.use_log_misfit_ERT, logger=logger)
+    m_init = Data(0.0, (4,), Solution(domain))
+
+elif config.regularization_order == "D-PseudoGauss":
+    costf = ERTInversionPseudoGaussDiagonalHessian(domain, data=survey,
                          sigma_0_ref=config.sigma0_ref,
                          w1=config.regularization_w1, length_scale = config.regularization_length_scale,
                           mask_outer_faces=mask_face,
