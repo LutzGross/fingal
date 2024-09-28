@@ -50,6 +50,18 @@ variable set in configuration file
 (by default the `silo` format is used which is more compact 
 but less portable). 
 
+
+   - 'H1'
+   - 'H2'
+   - 'Gauss'
+   - 'PseudoGauss'
+   - 'D-PseudoGauss'
+
+regularization_w1=1e-2
+use_log_misfit_ERT = False
+regularization_order = 'H1' # in ['H1', 'H2', 'Gauss', 'PseudoGauss', 'D-PseudoGauss']
+regularization_length_scale = 3
+
 With VTK files you can use 3D visualization packages such as
 
 - [VisIt](https://wci.llnl.gov/simulation/computer-codes/visit)
