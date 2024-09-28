@@ -2,7 +2,7 @@
 # this is a fingal configuration file
 #
 created = 'today'
-project='ERTSynthetics'
+project='Heron Line'
 # 
 #   name of the mesh file
 # 
@@ -21,28 +21,19 @@ stationsFMT = 's%s'
 # this defines the data file: 
 # 
 datafile = 'data.csv'
-datacolumns = ['R', 'ETA']
+datacolumns = ['R']
 dipoleInjections = True
 dipoleMeasurements = True
 datadelimiter = ','
 usesStationCoordinates = False
-schedulefile = 'schedule.csv'
+schedulefile = None
 data_rtol = 1e-4
 #
 #  This section of the file defines the inversion
 #
 sigma0_ref=0.002
 Mn_ref=0.01*sigma0_ref
-def true_properties(domain):
-    from esys.escript import Scalar, Function
-    sigma0_true=Scalar(sigma0_ref , Function(domain))
-    sigma0_true.setTaggedValue('anomaly_left', sigma0_ref * 100)
-    sigma0_true.setTaggedValue('anomaly_right', sigma0_ref / 100)
-    Mn_true=Scalar(Mn_ref, Function(domain))
-    Mn_true.setTaggedValue('anomaly_left', Mn_ref * 100 * 0.25)
-    Mn_true.setTaggedValue('anomaly_right', Mn_ref * 0.25)
-    return sigma0_true, Mn_true
-
+true_properties=None
 #
 #
 #  Inversion:

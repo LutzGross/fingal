@@ -42,6 +42,15 @@ def makeWennerArray(numElectrodes=32, id0=0):
             schedule.append((k + id0, k + 3 * a + id0, k + 1 * a + id0, k + 2 * a + id0))
     return schedule
 
+def makeSchlumbergerArray(numElectrodes=32, id0=0):
+    """
+    creates a schedule (A,B,M, N) for a Schlumberger array of length numElectrodes
+    """
+    schedule = []
+    for k in range(0, (numElectrodes - 2) // 2):
+        for s in range(0, numElectrodes - 2 * k - 3):
+            schedule.append((s + id0, s + 2 * k + 3 + id0, s + k + 1  + id0, s + k + 2 + id0))
+    return schedule
 
 def makePointSource(source_key, domain, value=1., stationsFMT=None):
     """

@@ -101,6 +101,11 @@ usesStationCoordinates = False
 #. to define charging dipole (A,B) (or pole A) and measuring dipole (M,N)  (or pole M).
 #.
 schedulefile = '{schedulefile}'
+#.
+#. Data less than data_atol = data_rtol * `maximum data value` are assumed to be zero. in particular the
+#. absolute error is set to data_atol for abs(data) < data_atol.
+#.
+data_rtol = 1e-4
 #
 #  This section of the file defines the inversion
 #.

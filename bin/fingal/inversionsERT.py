@@ -18,7 +18,7 @@ class ERTMisfitCostFunction(CostFunction):
     """
 
     def __init__(self, domain=None, data=None, sigma_src=1., pde_tol=1.e-8,
-                 mask_outer_faces = None, stationsFMT="e%s", useLogMisfit=False, logger=None, **kargs):
+                 mask_outer_faces = None, stationsFMT="e%s", useLogMisfit=False, data_rtol=1e-4,logger=None, **kargs):
         """
         :param domain: pde domain
         :param data: data, is `fingal.SurveyData`
@@ -33,7 +33,7 @@ class ERTMisfitCostFunction(CostFunction):
 
         super().__init__(**kargs)
         self.domain = domain
-        self.datatol = 1e-30
+        self.data_rtol = data_rtol
         self.stationsFMT = stationsFMT
         self.mask_outer_faces = makeMaskForOuterSurface(domain, facemask=mask_outer_faces)
         # setup PDE for forward models (potentials are fixed on all faces except the surface)
@@ -53,6 +53,7 @@ class ERTMisfitCostFunction(CostFunction):
         self.setSourcePotentials()  # S_s is in the notes
         # build the misfit data (indexed by source index):
         self.misfit_DC = {}  # potential increment to injection field to get DC potential
+        data_atol = self.data_rtol * data.getMaximumResistence()
         nd0 = 0 # counting number of data
         for A, B in self.data.injectionIterator():
             obs = self.data.getObservations(A, B)
@@ -70,6 +71,7 @@ class ERTMisfitCostFunction(CostFunction):
             else:
                 #error_DC = max ([self.data.getResistenceError((A, B, M, N)) for M, N in obs])
                 error_DC = np.array([self.data.getResistenceError((A, B, M, N)) for M, N in obs])
+                error_DC[ abs(data_DC) < data_atol ] = data_atol
                 self.misfit_DC[(iA, iB)] = DataMisfitQuad(iMs=iMs, data=data_DC, iNs=iNs, injections=(A, B), weightings =1./error_DC**2/data_DC.size)
 
             nd0+= len(self.misfit_DC[(iA, iB)])
@@ -235,7 +237,7 @@ class ERTInversionH1(ERTMisfitCostFunction):
     def __init__(self, domain=None, data=None,
                  sigma_0_ref=1e-4, sigma_src=None, w1=1., useL1Norm=False, epsilonL1Norm=1e-4,
                  mask_fixed_property = None, mask_outer_faces = None,
-                 pde_tol=1.e-8, reg_tol=None, stationsFMT="e%s", logclip=5,
+                 pde_tol=1.e-8, reg_tol=None, stationsFMT="e%s", logclip=5, data_rtol=1e-4,
                  useLogMisfit=False, logger=None, EPSILON=1e-15, **kargs):
         """
         :param domain: pde domain
@@ -258,7 +260,7 @@ class ERTInversionH1(ERTMisfitCostFunction):
             sigma_src = sigma_0_ref
         super().__init__(domain=domain, data=data, sigma_src=sigma_src, pde_tol=pde_tol,
                          mask_outer_faces = makeMaskForOuterSurface(domain,mask_outer_faces ),
-                         stationsFMT=stationsFMT, logger=logger, useLogMisfit=useLogMisfit, **kargs)
+                         stationsFMT=stationsFMT, logger=logger, useLogMisfit=useLogMisfit, data_rtol=data_rtol, **kargs)
         self.logclip = logclip
         self.EPS=EPSILON
         # its is assumed that sigma_ref on the gaces is not updated!!!
@@ -410,7 +412,7 @@ class ERTInversionH2(ERTMisfitCostFunction):
     def __init__(self, domain=None, data=None,
                  sigma_0_ref=1e-4, sigma_src=None, w1=1.,
                  mask_outer_faces = None,
-                 pde_tol=1.e-8, reg_tol=None, stationsFMT="e%s", logclip=5,
+                 pde_tol=1.e-8, reg_tol=None, stationsFMT="e%s", logclip=5, data_rtol=1e-4,
                  useLogMisfit=False, logger=None, EPSILON=1e-15, **kargs):
         """
         :param domain: pde domain
@@ -430,7 +432,7 @@ class ERTInversionH2(ERTMisfitCostFunction):
         if sigma_src == None:
             sigma_src = sigma_0_ref
         super().__init__(domain=domain, data=data, sigma_src=sigma_src, pde_tol=pde_tol,
-                         mask_outer_faces = makeMaskForOuterSurface(domain,mask_outer_faces ),
+                         mask_outer_faces = makeMaskForOuterSurface(domain,mask_outer_faces ), data_rtol=data_rtol,
                          stationsFMT=stationsFMT, logger=logger, useLogMisfit=useLogMisfit, **kargs)
         self.logclip = logclip
         self.EPS=EPSILON
@@ -566,7 +568,7 @@ class ERTInversionGauss(ERTMisfitCostFunction):
     def __init__(self, domain=None, data=None,
                  sigma_0_ref=1e-4, sigma_src=None, w1=1.,  length_scale =1.,
                  mask_outer_faces = None,
-                 pde_tol=1.e-8, reg_tol=None, stationsFMT="e%s", logclip=5,
+                 pde_tol=1.e-8, reg_tol=None, stationsFMT="e%s", logclip=5, data_rtol=1e-4,
                  useLogMisfit=False, logger=None, EPSILON=1e-15, **kargs):
         """
         :param domain: pde domain
@@ -586,7 +588,7 @@ class ERTInversionGauss(ERTMisfitCostFunction):
         if sigma_src == None:
             sigma_src = sigma_0_ref
         super().__init__(domain=domain, data=data, sigma_src=sigma_src, pde_tol=pde_tol,
-                         mask_outer_faces = makeMaskForOuterSurface(domain,mask_outer_faces ),
+                         mask_outer_faces = makeMaskForOuterSurface(domain,mask_outer_faces ), data_rtol=data_rtol,
                          stationsFMT=stationsFMT, logger=logger, useLogMisfit=useLogMisfit, **kargs)
         self.logclip = logclip
         self.EPS=EPSILON
@@ -709,7 +711,7 @@ class ERTInversionPseudoGaussBase(ERTMisfitCostFunction):
     def __init__(self, domain=None, data=None,
                  sigma_0_ref=1e-4, sigma_src=None, w1=1., length_scale =1.,
                 mask_outer_faces = None,
-                 pde_tol=1.e-8, reg_tol=None, stationsFMT="e%s", logclip=5,
+                 pde_tol=1.e-8, reg_tol=None, stationsFMT="e%s", logclip=5, data_rtol=1e-4,
                  useLogMisfit=False, logger=None, EPSILON=1e-15, **kargs):
         """
         :param domain: pde domain
@@ -728,7 +730,7 @@ class ERTInversionPseudoGaussBase(ERTMisfitCostFunction):
         if sigma_src == None:
             sigma_src = sigma_0_ref
         super().__init__(domain=domain, data=data, sigma_src=sigma_src, pde_tol=pde_tol,
-                         mask_outer_faces = makeMaskForOuterSurface(domain,mask_outer_faces ),
+                         mask_outer_faces = makeMaskForOuterSurface(domain,mask_outer_faces ), data_rtol=data_rtol,
                          stationsFMT=stationsFMT, logger=logger, useLogMisfit=useLogMisfit, **kargs)
         self.logclip = logclip
         self.EPS=EPSILON
