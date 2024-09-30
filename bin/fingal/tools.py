@@ -156,7 +156,7 @@ def getSecondaryPotentials(pde, sigma, sigma_at_faces, schedule, sigma_at_statio
 
 def makeZZArray(numElectrodes=32, id0=0):
     """
-    creates a schedule (A,B,M, N) for a ZZ array of length numElectrodes (full monty)
+    creates a schedule (A,B,M, N) for a Data0 array of length numElectrodes (full monty)
     """
     schedule = []
     for a in range(numElectrodes):

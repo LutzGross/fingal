@@ -3,8 +3,8 @@ import numpy as np
 import importlib, sys, os
 import argparse
 
-parser = argparse.ArgumentParser(description='converts a ZZ ERT file and creates fingal inp[ut files.', epilog="l.gross@uq.edu.au, version 12/01/2019")
-parser.add_argument(dest='zzfile', metavar='zzfile', type=str, help='ZZ data file')
+parser = argparse.ArgumentParser(description='converts a Data0 ERT file and creates fingal inp[ut files.', epilog="l.gross@uq.edu.au, version 12/01/2019")
+parser.add_argument(dest='zzfile', metavar='zzfile', type=str, help='Data0 data file')
 parser.add_argument('--NaN', '-N',  dest='NaN', default="9", type=str, help="string indicating faulty data")
 parser.add_argument('--datafile' '-D',  dest='filename', type=str, help="file name of data file extracked. if not set survey name + extension 'csv' is used.")
 parser.add_argument('--wenner', '-w',  dest='wenner', action='store_true', default=False, help="generates a Wenner survey otherwise a full dipole-dipole survey is created.")

@@ -20,7 +20,7 @@ the `esys-escript` installation to `PATH`, `LD_LIBRARY_PATH` and `PYTHONPATH`.
 
 # Examples
 
-- As simple example for a 2D ERT inversion: [Example1](examples/Example1/README.md)
+- As simple example for ERT inversion using syntehtic data: [ERTSynthetics](examples/ERTSynthetics/README.md)
 - Synthetic FullWaver data inversion: [SyntheticFW](examples/SyntheticFW/README.md)
 - Volcano with FullWaver data: [VolcanoFW](examples/VolcanoFW/README.md)
 
@@ -38,5 +38,27 @@ This is a list of some of the command line function provided. Use the command li
 - `plotStations.py`: plot the survey stations in plane view. 
 - `runERTinversion.py`: runs ERT (an IP) inversion using potential fields.
 - `runIPFieldinversion.py`: runs ERT (an IP) inversion using electric field data (aka FullWaver).
+
+## Visualization
+With VTK files you can use 3D visualization packages such as
+
+- [VisIt](https://wci.llnl.gov/simulation/computer-codes/visit)
+- [paraview](https://www.paraview.org/)
+- [mayavi](https://docs.enthought.com/mayavi/mayavi/)
+ 
+
+The switch `--xyx` activates the creation of a CSV file giving ccordinates and conductivity in core region set in the configuartion file via the `core` variable. The name of the created file is `sigma.csv` where again `sigma` is taken from the `output` variable set in `ex1.py`. You can read and plot this file for instance using a 3D scatter plot in `matplotlib`:
+
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from mpl_toolkits import mplot3d
+    data= np.loadtxt('sigma.csv',skiprows=1, delimiter=',')
+    volume=data[data[:,3]>0.04]
+    xyz=volume[:,:3]
+    sigma=volume[:,3]
+    ax = plt.axes(projection='3d')
+    ax.scatter(xyz[:,0], xyz[:,1], xyz[:,2], c = sigma, s=0.01)
+    plt.show()
+
 
 by @LutzGross

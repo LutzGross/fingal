@@ -17,7 +17,7 @@ parser.add_argument(dest='config', metavar='configfile', type=str, help='python 
 parser.add_argument('--coredepth', '-d',  dest='coredepth', type=int, default=25, help="core depth relative to core width around core in %% of electrode area size (default 25)")
 parser.add_argument('--extracore', '-e',  dest='extracore', type=int, default=25, help="relative extra core padding within the core around electrodes in %% of edge length (default 25)")
 parser.add_argument('--padding', '-p',  dest='padding', type=int, default=200, help="relative padding around core in %% of core edge length (default 200)")
-parser.add_argument('--coremeshfactor', '-C',  dest='coremeshfactor', type=float, default=0.5, help="refinement factor of mesh in core relative to the electrode distance (default 0.5)")
+parser.add_argument('--coremeshfactor', '-C',  dest='coremeshfactor', type=float, default=1.0, help="refinement factor of mesh in core relative to the electrode distance (default 1.0)")
 parser.add_argument('--stationmeshfactor', '-s',  dest='stationmeshfactor', type=float, default=0.2, help="refinement factor at stations relative to core mesh size (default 0.2)")
 parser.add_argument('--paddingmesh', '-P',  dest='paddingmesh', type=float, default=15, help="number of element on the longest edge of the padding region (default 15)")
 parser.add_argument('--geo', '-g',  dest='geofile', type=str, default="tmp", help="name of gmsh geofile to generate [default tmp]")
@@ -177,8 +177,8 @@ out+="Line Loop(10) = {12, 22, -11, -5};\n"
 out+="Plane Surface(10) = {10};\n"
 out+="Line Loop(11) = {1, -5, -4, -3};\n"
 out+="Line Loop(12) = {9, 6, 7, 8};\n"
-out+="Plane Surface(11) = {12};\n"
-out+="Plane Surface(12) = {11, 12};\n"
+out+="Plane Surface(11) = {-12};\n"
+out+="Plane Surface(12) = {-11, -12};\n"
 
 out+="// electrodes  (in the core)\n"
 out+="k=newp;\n"

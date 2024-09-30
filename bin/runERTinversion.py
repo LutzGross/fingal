@@ -68,12 +68,16 @@ else:
 mask_face=makeMaskForOuterSurface(domain, taglist=config.faces_tags)
 
 # create cost function:
-print("Regulariztion = ",config.regularization_order)
+print("Regularization = ",config.regularization_order)
+print("regularization_w1 = ",config.regularization_w1)
+if 'GAUSS' in config.regularization_order.upper()
+    print("regularization_length_scale = ",config.regularization_length_scale)
+
 if config.regularization_order == "H1":
     costf=ERTInversionH1(domain, data=survey,
                        sigma_0_ref=config.sigma0_ref,
                        w1=config.regularization_w1, useL1Norm=config.use_L1Norm, epsilonL1Norm=config.epsilon_L1Norm,
-                       mask_fixed_property=fixedm, mask_outer_faces = mask_face, data_rtol = config.rtol,
+                       mask_fixed_property=fixedm, mask_outer_faces = mask_face, data_rtol = config.data_rtol,
                        pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
                        useLogMisfit= config.use_log_misfit_ERT, logger=logger)
     m_init = Scalar(0.0, Solution(domain))
@@ -115,7 +119,7 @@ if config.regularization_order == "H1":
 elif config.regularization_order == "H2":
     costf=ERTInversionH2(domain, data=survey,
                        sigma_0_ref=config.sigma0_ref,
-                       w1=config.regularization_w1, mask_outer_faces = mask_face, data_rtol = config.rtol,
+                       w1=config.regularization_w1, mask_outer_faces = mask_face, data_rtol = config.data_rtol,
                        pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
                        useLogMisfit= config.use_log_misfit_ERT, logger=logger)
     m_init = Vector(0.0, Solution(domain))
@@ -159,7 +163,7 @@ elif config.regularization_order == "Gauss":
     costf = ERTInversionGauss(domain, data=survey,
                          sigma_0_ref=config.sigma0_ref,
                          w1=config.regularization_w1, length_scale = config.regularization_length_scale,
-                          mask_outer_faces=mask_face, data_rtol = config.rtol,
+                          mask_outer_faces=mask_face, data_rtol = config.data_rtol,
                          pde_tol=config.pde_tol, stationsFMT=config.stationsFMT,
                          logclip=config.clip_property_function,
                          useLogMisfit=config.use_log_misfit_ERT, logger=logger)
@@ -201,7 +205,7 @@ elif config.regularization_order == "PseudoGauss":
     costf = ERTInversionPseudoGauss(domain, data=survey,
                          sigma_0_ref=config.sigma0_ref,
                          w1=config.regularization_w1, length_scale = config.regularization_length_scale,
-                          mask_outer_faces=mask_face, data_rtol = config.rtol,
+                          mask_outer_faces=mask_face, data_rtol = config.data_rtol,
                          pde_tol=config.pde_tol, stationsFMT=config.stationsFMT,
                          logclip=config.clip_property_function,
                          useLogMisfit=config.use_log_misfit_ERT, logger=logger)
@@ -211,7 +215,7 @@ elif config.regularization_order == "D-PseudoGauss":
     costf = ERTInversionPseudoGaussDiagonalHessian(domain, data=survey,
                          sigma_0_ref=config.sigma0_ref,
                          w1=config.regularization_w1, length_scale = config.regularization_length_scale,
-                          mask_outer_faces=mask_face, data_rtol = config.rtol,
+                          mask_outer_faces=mask_face, data_rtol = config.data_rtol,
                          pde_tol=config.pde_tol, stationsFMT=config.stationsFMT,
                          logclip=config.clip_property_function,
                          useLogMisfit=config.use_log_misfit_ERT, logger=logger)

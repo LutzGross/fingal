@@ -21,6 +21,9 @@ To make the station and schedule file (names are set in [`config.py`](./config.p
 The script inspects the `with_anomaly.geo` file grab the number of electrodes, nuber of lines
 and their spacings. The schedule is following a Wenner set-up for each line. 
 
+
+### Run Inversion
+
 Plot the stations to file `plot_stations.png`:
 
     plotStations.py --image plot_stations --debug config
@@ -33,11 +36,11 @@ Create the data file with 1% noise:
 
 This a simple way to generate a mesh from the electrode's positions:
 
-    mkMeshFromStations.py config
+    mkMeshFromStations.py --coremeshfactor 0.5 config
 
 The mesh is written to the 'config.meshfile' in the *esys.finley* `fly` format.
 
-To run the inversion based on the configuration file `ex1.py` use: 
+To run the inversion based on the configuration file `config.py` use: 
 
     runERTinversion.py --vtk -d config
 
@@ -50,37 +53,23 @@ variable set in configuration file
 (by default the `silo` format is used which is more compact 
 but less portable). 
 
+Misfit can be squares of data residual (weighted by error) (aka as chi^2) or square of 
+data logarithm (`set use_log_misfit_ERT` = True). 
 
-   - 'H1'
-   - 'H2'
-   - 'Gauss'
-   - 'PseudoGauss'
-   - 'D-PseudoGauss'
+Various regularization approaches can be used: 
 
-regularization_w1=1e-2
-use_log_misfit_ERT = False
-regularization_order = 'H1' # in ['H1', 'H2', 'Gauss', 'PseudoGauss', 'D-PseudoGauss']
-regularization_length_scale = 3
+   - Gradient of property funtion: 'H1'
+   - Laplacian of property funtion: 'H2'
+   - Gaussian Kernel with additional spatial correlation length scale: 'Gauss'
+   - Gaussian Kernel by FOSLS : 'PseudoGauss'
+   - Gaussian Kernel by FOSLS and decoupled approximative Hessian:'D-PseudoGauss'
 
-With VTK files you can use 3D visualization packages such as
-
-- [VisIt](https://wci.llnl.gov/simulation/computer-codes/visit)
-- [paraview](https://www.paraview.org/)
-- [mayavi](https://docs.enthought.com/mayavi/mayavi/)
- 
-
-The switch `--xyx` activates the creation of a CSV file giving ccordinates and conductivity in core region set in the configuartion file via the `core` variable. The name of the created file is `sigma.csv` where again `sigma` is taken from the `output` variable set in `ex1.py`. You can read and plot this file for instance using a 3D scatter plot in `matplotlib`:
-
-    import numpy as np
-    import matplotlib.pyplot as plt
-    from mpl_toolkits import mplot3d
-    data= np.loadtxt('sigma.csv',skiprows=1, delimiter=',')
-    volume=data[data[:,3]>0.04]
-    xyz=volume[:,:3]
-    sigma=volume[:,3]
-    ax = plt.axes(projection='3d')
-    ax.scatter(xyz[:,0], xyz[:,1], xyz[:,2], c = sigma, s=0.01)
-    plt.show()
-
+For Gaussian regularization requires an addition regularization parameter
+'regularization_length_scale' to be set. A good choice is typically the distance of 
+electrodes. Option `Gauss` is a straight forward implementation but typically requires
+many iterations and tends to be unstable. 'PseudoGauss' uses a FOSLS approach to resolve 
+the second derivative. The approach is typically very robust and used lessnumber 
+of iterations but is computationally more expensive. To reduce memory requirements
+'D-PseudoGauss' can be used but it comes at the cost of more iteration steps.
 
 by @LutzGross
