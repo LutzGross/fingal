@@ -21,7 +21,7 @@ with the following meanings (if an error is not given 5% is used):
   - 'ERR_ETA' - error chargeability 
   - 'RELERR_R' - rel. error resistance
   - 'RELERR_E' - rel. error electric field intensity per charge current
-  - 'RELERR_ETA' - rel. error chargeability  [1]
+  - 'RELERR_ETA' - rel. error chargeability
 
 In addition, a configuration file is requested. It is a *Python* script where an 
 initial version can be generated from the data and station file using 
