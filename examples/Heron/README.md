@@ -36,7 +36,10 @@ First step is to generate a mesh from the station file specified in the configur
 
 This generates the mesh file `mesh.fly`  in *esys.finley* mesh file (file name is 
 set by `meshfile` variable in the configuration file). The mesh written isd also
-written to `mesh.silo` for visualization.
+written to `mesh.silo` for visualization. 
+
+**Note**: The mesh is generated using [gmsh](https://gmsh.info/). The geometry file and *gmsh* 
+mesh file can be inspected, `tmp.geo` and `tmp.msh` repectively.
 
 Plot of the stations? Use:
 
