@@ -54,7 +54,9 @@ class ERTMisfitCostFunction(CostFunction):
         # build the misfit data (indexed by source index):
         self.misfit_DC = {}  # potential increment to injection field to get DC potential
         data_atol = self.data_rtol * data.getMaximumResistence()
+        self.logger.info(f"data drop tolerance is {data_atol:e}.")
         nd0 = 0 # counting number of data
+        n_dropped = 0 # number of dropped observations
         for A, B in self.data.injectionIterator():
             obs = self.data.getObservations(A, B)
             iA = self.data.getStationNumber(A)
@@ -63,23 +65,27 @@ class ERTMisfitCostFunction(CostFunction):
             iNs = [self.data.getStationNumber(N) for M, N in obs]
 
             data_DC = np.array([self.data.getResistenceData((A, B, M, N)) for M, N in obs])
-            #TODO NO ERROR IN WEIGHTING USED
-            if self.useLogMisfit:
-                #error_DC = max ([self.data.getResistenceRelError((A, B, M, N)) for M, N in obs])
-                error_DC = np.array([self.data.getResistenceRelError((A, B, M, N)) for M, N in obs])
-                self.misfit_DC[(iA, iB)] =  DataMisfitLog(iMs=iMs, data=data_DC, iNs=iNs, injections=(A,B), weightings=1. / error_DC**2/data_DC.size)
-            else:
-                #error_DC = max ([self.data.getResistenceError((A, B, M, N)) for M, N in obs])
-                error_DC = np.array([self.data.getResistenceError((A, B, M, N)) for M, N in obs])
-                error_DC[ abs(data_DC) < data_atol ] = data_atol
-                self.misfit_DC[(iA, iB)] = DataMisfitQuad(iMs=iMs, data=data_DC, iNs=iNs, injections=(A, B), weightings =1./error_DC**2/data_DC.size)
+            use_idx = abs(data_DC) >= data_atol
+            print(use_idx)
+            n_use =  np.count_nonzero(use_idx)
+            n_dropped += len(data_DC)-n_use
+            if n_use>0:
+                if self.useLogMisfit:
+                    #error_DC = max ([self.data.getResistenceRelError((A, B, M, N)) for M, N in obs])
+                    error_DC = np.array([self.data.getResistenceRelError((A, B, M, N)) for M, N in obs])
+                    self.misfit_DC[(iA, iB)] =  DataMisfitLog(iMs=iMs, data=data_DC[use_idx], iNs=iNs, injections=(A,B), weightings=1. / error_DC[use_idx]**2/n_use)
+                else:
+                    #error_DC = max ([self.data.getResistenceError((A, B, M, N)) for M, N in obs])
+                    error_DC = np.array([self.data.getResistenceError((A, B, M, N)) for M, N in obs])
+                    self.misfit_DC[(iA, iB)] = DataMisfitQuad(iMs=iMs, data=data_DC[use_idx], iNs=iNs, injections=(A, B), weightings =1./error_DC[use_idx]**2/n_use)
 
-            nd0+= len(self.misfit_DC[(iA, iB)])
-        self.logger.info("%d DC data records detected." % (nd0))
-
+                nd0+= len(self.misfit_DC[(iA, iB)])
+        self.logger.info(f"{nd0} DC data records used. {n_dropped} were dropped.")
         if nd0 > 0:
             for iA, iB in self.misfit_DC:
                 self.misfit_DC[(iA, iB)].rescaleWeight(1. / nd0)
+        else:
+            raise ValueError("No data for the inversion.")
     def grabValuesAtStations(self, m):
         """
         returns the values of m at the stations. The order is given by data.getStationNumeration()

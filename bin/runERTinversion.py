@@ -70,7 +70,7 @@ mask_face=makeMaskForOuterSurface(domain, taglist=config.faces_tags)
 # create cost function:
 print("Regularization = ",config.regularization_order)
 print("regularization_w1 = ",config.regularization_w1)
-if 'GAUSS' in config.regularization_order.upper()
+if 'GAUSS' in config.regularization_order.upper():
     print("regularization_length_scale = ",config.regularization_length_scale)
 
 if config.regularization_order == "H1":
