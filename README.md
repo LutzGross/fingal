@@ -39,7 +39,7 @@ This is a list of some of the command line function provided. Use the command li
 - `runERTinversion.py`: runs ERT (an IP) inversion using potential fields.
 - `runIPFieldinversion.py`: runs ERT (an IP) inversion using electric field data (aka FullWaver).
 
-## Visualization
+## Some Visualization
 With VTK files you can use 3D visualization packages such as
 
 - [VisIt](https://wci.llnl.gov/simulation/computer-codes/visit)
