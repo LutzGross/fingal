@@ -42,14 +42,14 @@ else:
 config = importlib.import_module(args.config)
 
 
-print("** This is an ERT inversion @ %s **"%datetime.now().strftime("%d.%m.%Y %H:%M"))
-print("configuration "+args.config+" imported.")
+logger.info("** This is an ERT inversion @ %s **"%datetime.now().strftime("%d.%m.%Y %H:%M"))
+logger.info("configuration "+args.config+" imported.")
 
 elocations=readElectrodeLocations(config.stationfile, delimiter=config.stationdelimiter)
-print("%s electrode locations read from %s."%(len(elocations), config.stationfile))
+logger.info("%s electrode locations read from %s."%(len(elocations), config.stationfile))
 
 domain=ReadMesh(config.meshfile)
-print("Mesh read from "+config.meshfile)
+logger.info("Mesh read from "+config.meshfile)
 
 
 survey=readSurveyData(config.datafile, stations=elocations, usesStationCoordinates=config.usesStationCoordinates, columns=config.datacolumns,
@@ -62,16 +62,16 @@ assert survey.getNumObservations()>0, "no data found."
 if config.fixed_region_tags and isinstance(config.fixed_region_tags , list):
     fixedm=MaskFromTag(domain, *tuple(config.fixed_region_tags))
     if len(config.fixed_region_tags)> 0:
-        print("Tags of regions with fixed property function : %s"%(config.fixed_region_tags) )
+        logger.info("Tags of regions with fixed property function : %s"%(config.fixed_region_tags) )
 else:
     fixedm=None
 mask_face=makeMaskForOuterSurface(domain, taglist=config.faces_tags)
 
 # create cost function:
-print("Regularization = ",config.regularization_order)
-print("regularization_w1 = ",config.regularization_w1)
+logger.info("Regularization = ",config.regularization_order)
+logger.info("regularization_w1 = ",config.regularization_w1)
 if 'GAUSS' in config.regularization_order.upper():
-    print("regularization_length_scale = ",config.regularization_length_scale)
+    logger.info("regularization_length_scale = ",config.regularization_length_scale)
 
 if config.regularization_order == "H1":
     costf=ERTInversionH1(domain, data=survey,
@@ -261,7 +261,7 @@ else:
 # set up solver:
 if not args.nooptimize:
     new_sigma_ref=costf.fitSigmaRef()
-    print("new value for config.sigma_ref =",new_sigma_ref)
+    logger.info("new value for config.sigma_ref =",new_sigma_ref)
     costf.updateSigma0Ref(new_sigma_ref)
     #costf.setSigmaSrc(new_sigma_ref)
 if args.testonly:
@@ -269,8 +269,7 @@ if args.testonly:
 def myCallback(iterCount, m, dm, Fm, grad_Fm, norm_m, norm_gradFm, args_m, failed):
     if args.RESTARTFN and iterCount >0:
         m.dump(args.RESTARTFN)
-        if getMPIRankWorld() == 0:
-            print("restart file %s for step %s created."%(iterCount, args.RESTARTFN))
+        logger.info("restart file %s for step %s created."%(iterCount, args.RESTARTFN))
     #print(f"snapshot for step {k} saved.")
     #saveSilo("snapshot_"+args.OUTFILE, m=x)
 
@@ -286,8 +285,7 @@ if args.restart:
     if kk:
         m_init=load(args.RESTARTFN, domain)
         txt=str(m_init)
-        if getMPIRankWorld() == 0:
-             print("restart file %s read. initial M = %s"%(args.RESTARTFN, txt))
+        logger.info("restart file %s read. initial M = %s"%(args.RESTARTFN, txt))
         if config.regularization_order == 1:
             assert m_init.getShape() == ()
         else:
@@ -305,25 +303,20 @@ else:
 sigma=costf.getSigma0(m, applyInterploation=False)
 if args.vtk:
     saveVTK(config.outfile, sigma=sigma, tag=makeTagMap(Function(domain)), V=V)
-    if getMPIRankWorld() == 0:
-        print("result written to %s.vtu"%config.outfile)
+    logger.info("result written to %s.vtu"%config.outfile)
 else:
     saveSilo(config.outfile, sigma=sigma, tag=makeTagMap(Function(domain)), V=V)
-    if getMPIRankWorld() == 0:
-            print("result written to %s.silo"%config.outfile)
+    logger.info("result written to %s.silo"%config.outfile)
 
 if args.xyz:
     sigmas=interpolate(sigma, ReducedFunction(domain))
     X=sigmas.getFunctionSpace().getX()
     if isinstance(config.core, list):
         saveDataCSV(config.outfile+".csv", pos0=X[0], pos1=X[1], pos2=X[2], sigma =sigmas, mask=m)
-        if getMPIRankWorld() == 0:
-            print("result written to %s.csv. Core region is %s."%(config.outfile, config.core))
+        logger.info("result written to %s.csv. Core region is %s."%(config.outfile, config.core))
         del X, sigmas, m
     else:
         saveDataCSV(config.outfile+".csv", pos0=X[0], pos1=X[1], pos2=X[2], sigma =sigmas)
-        if getMPIRankWorld() == 0:
-            print("result written to %s.csv"%config.outfile)
+        logger.info("result written to %s.csv"%config.outfile)
         del X, sigmas
-if getMPIRankWorld() == 0:
-    print("All done - Have a nice day!")
+logger.info("All done - Have a nice day!")
