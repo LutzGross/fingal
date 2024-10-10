@@ -60,7 +60,7 @@ class IPMisfitCostFunction(CostFunction):
         self.sigma_src = sigma_src  # needs to be a constant.
         self.setSourcePotentials()  # S_s is in the notes
         # build the misfit data (indexed by source index):
-        self.misfit_IP = {}  # secondary potential
+        self.misfit_IP = {}  # secondary potentials
         self.misfit_DC = {}  # potential increment to injection field to get DC potential
         nd0 = 0  # counting number of data
         nd2 = 0

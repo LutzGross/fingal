@@ -1,4 +1,4 @@
-print("fingal imported")
+#print("fingal imported")
 from .tools import *
 from .datahandling import *
 #from .inversionsTemperature import *

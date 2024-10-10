@@ -68,10 +68,10 @@ else:
 mask_face=makeMaskForOuterSurface(domain, taglist=config.faces_tags)
 
 # create cost function:
-logger.info("Regularization = ",config.regularization_order)
-logger.info("regularization_w1 = ",config.regularization_w1)
+logger.info(f"Regularization type = {config.regularization_order}.")
+logger.info(f"Regularization_w1 = {config.regularization_w1}.")
 if 'GAUSS' in config.regularization_order.upper():
-    logger.info("regularization_length_scale = ",config.regularization_length_scale)
+    logger.info(f"Regularization_length_scale = {config.regularization_length_scale}.")
 
 if config.regularization_order == "H1":
     costf=ERTInversionH1(domain, data=survey,
@@ -261,7 +261,7 @@ else:
 # set up solver:
 if not args.nooptimize:
     new_sigma_ref=costf.fitSigmaRef()
-    logger.info("new value for config.sigma_ref =",new_sigma_ref)
+    logger.info(f"New value for config.sigma_ref = {new_sigma_ref}.")
     costf.updateSigma0Ref(new_sigma_ref)
     #costf.setSigmaSrc(new_sigma_ref)
 if args.testonly:
@@ -269,7 +269,7 @@ if args.testonly:
 def myCallback(iterCount, m, dm, Fm, grad_Fm, norm_m, norm_gradFm, args_m, failed):
     if args.RESTARTFN and iterCount >0:
         m.dump(args.RESTARTFN)
-        logger.info("restart file %s for step %s created."%(iterCount, args.RESTARTFN))
+        logger.info(f"restart file {iterCount} for step {args.RESTARTFN} created.")
     #print(f"snapshot for step {k} saved.")
     #saveSilo("snapshot_"+args.OUTFILE, m=x)
 
@@ -284,8 +284,7 @@ if args.restart:
     kk=[v for i,v in enumerate(os.listdir()) if v.startswith(args.RESTARTFN) ]
     if kk:
         m_init=load(args.RESTARTFN, domain)
-        txt=str(m_init)
-        logger.info("restart file %s read. initial M = %s"%(args.RESTARTFN, txt))
+        logger.info(f"Restart file {args.RESTARTFN} read. Initial M = {str(m_init)}.")
         if config.regularization_order == 1:
             assert m_init.getShape() == ()
         else:
@@ -303,20 +302,20 @@ else:
 sigma=costf.getSigma0(m, applyInterploation=False)
 if args.vtk:
     saveVTK(config.outfile, sigma=sigma, tag=makeTagMap(Function(domain)), V=V)
-    logger.info("result written to %s.vtu"%config.outfile)
+    logger.info(f"Result written to {config.outfile}.vtu.")
 else:
     saveSilo(config.outfile, sigma=sigma, tag=makeTagMap(Function(domain)), V=V)
-    logger.info("result written to %s.silo"%config.outfile)
+    logger.info(f"Result written to {config.outfile}.silo.")
 
 if args.xyz:
     sigmas=interpolate(sigma, ReducedFunction(domain))
     X=sigmas.getFunctionSpace().getX()
     if isinstance(config.core, list):
         saveDataCSV(config.outfile+".csv", pos0=X[0], pos1=X[1], pos2=X[2], sigma =sigmas, mask=m)
-        logger.info("result written to %s.csv. Core region is %s."%(config.outfile, config.core))
+        logger.info(f"Result written to {config.outfile}.csv. Core region is {config.core}.")
         del X, sigmas, m
     else:
         saveDataCSV(config.outfile+".csv", pos0=X[0], pos1=X[1], pos2=X[2], sigma =sigmas)
-        logger.info("result written to %s.csv"%config.outfile)
+        logger.info(f"Tesult written to {config.outfile}.csv.")
         del X, sigmas
 logger.info("All done - Have a nice day!")
