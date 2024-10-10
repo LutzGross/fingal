@@ -66,7 +66,7 @@ class ERTMisfitCostFunction(CostFunction):
 
             data_DC = np.array([self.data.getResistenceData((A, B, M, N)) for M, N in obs])
             use_idx = abs(data_DC) >= data_atol
-            print(use_idx)
+
             n_use =  np.count_nonzero(use_idx)
             n_dropped += len(data_DC)-n_use
             if n_use>0:
