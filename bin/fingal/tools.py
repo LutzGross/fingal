@@ -6,8 +6,10 @@ by l.gross@uq.edu.au, Dec 2020.
 
 from esys.escript import Scalar, getMPIRankWorld, integrate, hasFeature, Function, kronecker, Data, DiracDeltaFunctions, \
     inner, length, Lsup, FunctionOnBoundary, inf, sup, whereZero, wherePositive, grad
-from esys.escript.linearPDEs import LinearSinglePDE, SolverOptions
+from esys.escript.linearPDEs import LinearSinglePDE, SolverOptions, LinearPDE
 import numpy as np
+
+
 
 def makeMaskForOuterSurface(domain, facemask=None, taglist=None):
     """
@@ -52,45 +54,45 @@ def makeSchlumbergerArray(numElectrodes=32, id0=0):
             schedule.append((s + id0, s + 2 * k + 3 + id0, s + k + 1  + id0, s + k + 2 + id0))
     return schedule
 
-def makePointSource(source_key, domain, value=1., stationsFMT=None):
+def makePointSource(source_key, domain, value=1.,_stationsFMT=None):
     """
 
     """
     s = Scalar(0., DiracDeltaFunctions(domain))
-    if stationsFMT is None:
+    if_stationsFMT is None:
         s.setTaggedValue(source_key, value)
     else:
-        s.setTaggedValue(stationsFMT % source_key, value)
+        s.setTaggedValue(_stationsFMT % source_key, value)
     return s
 
 
-def getSourcePotentials(domain, sigma, survey, sigma_at_faces=None, mask_outer_faces=None, stationsFMT=None, logger=None):
+def getSourcePotentials(domain, sigma, survey, sigma_faces=None, maskOuterFaces=None,_stationsFMT=None, logger=None):
     """
     return the electric potential for all injections A in the survey using conductivity sigma.
     :sigma: conductivity. Needs to a constant if sigma_source is not present.
-    :sigma_at_faces: conductivity at faces. If None sigma is used.
-    :mask_outer_faces:
+    :sigma_faces: conductivity at faces. If None sigma is used.
+    :maskOuterFaces:
     :return: dictionary of injections A->injection_potentials assuming internal and surface conductivity is sigma and
              sigma_surface
     """
-    if not sigma_at_faces:
-        sigma_at_faces = sigma
-    mm = makeMaskForOuterSurface(domain, facemask=mask_outer_faces)
+    if not sigma_faces:
+        sigma_faces = sigma
+    mm = makeMaskForOuterSurface(domain, facemask=maskOuterFaces)
     n = domain.getNormal() * mm
 
     x = n.getX()
     source_potential = {}
     pde = setupERTPDE(domain)
     pde.setValue(A=sigma * kronecker(3), y_dirac=Data(), X=Data(), Y=Data(), y=Data())
-    for A in survey.getListOfInjectionStations():
+    for A in survey.getListOfInjection_stations():
         iA=survey.getStationNumber(A)
 
-        pde.setValue(y_dirac=makePointSource(A, pde.getDomain(), stationsFMT=stationsFMT))
+        pde.setValue(y_dirac=makePointSource(A, pde.getDomain(),_stationsFMT=_stationsFMT))
         #pde.setValue(y=1)
         # ---
         xA = survey.getStationLocationByKey(A)
         r = x - xA
-        pde.setValue(d=sigma_at_faces * inner(r, n) / length(r) ** 2)  # doi:10.1190/1.1440975
+        pde.setValue(d=sigma_faces * inner(r, n) / length(r) ** 2)  # doi:10.1190/1.1440975
         source_potential[iA] = pde.getSolution()
         #if logger:
         #      logger.debug(f"processing source {iA} key = {A}: {source_potential[iA]}")
@@ -100,24 +102,24 @@ def getSourcePotentials(domain, sigma, survey, sigma_at_faces=None, mask_outer_f
     return source_potential
 
 
-def getSecondaryPotentials(pde, sigma, sigma_at_faces, schedule, sigma_at_station=None, source_potential={},
-                           sigma_src=1., sigma_src_at_face=None, sigma_src_at_station=None, mask_faces=None,
-                           logger=None):
+def getAdditivePotentials(pde, sigma, sigma_faces, schedule, sigma_stations=None, source_potential={},
+                          sigma_src=1., sigma_src_faces=None, sigma_src_stations=None, mask_faces=None,
+                          logger=None):
     """
-    calculates the extra/secondary potentials V_A for given sigma and source potentials for sigma_src
+    calculates the extra/additive potentials V_A for given sigma and source potentials for sigma_src
 
     :param pde: PDE used to get the secondary potential. Coefficients are altered.
     :param sigma: electrical conductivity
-    :param sigma_at_faces: electrical conductivity at faces
+    :param sigma_faces: electrical conductivity at faces
     :param schedule: schedule of the survey 'ABMN' (or AMN, etc)
     :type schedule: `SurveyData`
-    :param sigma_at_station:electric conductivity at stations
-    :type sigma_at_station:  `dict` of `float`
+    :param sigma_stations:electric conductivity at_stations
+    :type sigma_stations:  `dict` of `float`
     :param source_potential: potentionals for a sources with assumed conductivity sigma_src
     :type source_potential: `dict` of `Scalar`
     :param sigma_src: conductivity used to calculate source potentials
-    :param sigma_src_at_face: conductivity for source potentials  at surfaces. If not set  'sigma_src' is used.
-    :param sigma_src_at_stations: conductivity for source potentials  at stations. If not set  'sigma_src' is used.
+    :param sigma_src_faces: conductivity for source potentials  at surfaces. If not set  'sigma_src' is used.
+    :param sigma_src_stations: conductivity for source potentials  at_stations. If not set  'sigma_src' is used.
     :param mask_faces: mask of surface elements to apply `radiation` conditions.
         If not set to bottom, front, back, left, right elements.
     :type mask_faces: `None` or `Scalar` with `FunctionOnBoundary` attribute
@@ -125,33 +127,70 @@ def getSecondaryPotentials(pde, sigma, sigma_at_faces, schedule, sigma_at_statio
     """
     if mask_faces is None:
         mask_faces = makeMaskForOuterSurface(pde.getDomain())
-    if sigma_src_at_face is None:
-        sigma_src_at_face = sigma_src
-    if sigma_src_at_station is None:
-        sigma_src_at_station = {iA: sigma_src for iA in source_potential}
+    if sigma_src_faces is None:
+        sigma_src_faces = sigma_src
+    if sigma_src_stations is None:
+        sigma_src_stations = {iA: sigma_src for iA in source_potential}
     n = pde.getDomain().getNormal() * mask_faces
     x_bc = FunctionOnBoundary(pde.getDomain()).getX()
 
 
     potential = {}
-    pde.setValue(A=sigma * kronecker(3), y_dirac=Data(), X=Data(), Y=Data(), y=Data())
+    pde.setValue(A=sigma * kronecker(3), y_dirac=Data(), d=Data(), X=Data(), Y=Data(), y=Data())
     for iA in source_potential:
-        if sigma_at_station is None:
+        if sigma_stations is None:
             alpha_A = 1.
-        elif isinstance(sigma_src_at_station, dict):
-            alpha_A = sigma_src_at_station[iA] / sigma_at_station[iA]
+        elif isinstance(sigma_src_stations, dict):
+            alpha_A = sigma_src_stations[iA] / sigma_stations[iA]
         else:
-            alpha_A = sigma_src_at_station / sigma_at_station[iA]
+            alpha_A = sigma_src_stations / sigma_stations[iA]
         xA = schedule.getStationLocationByNumber(iA)
         r = x_bc - xA
         fA = inner(r, n) / length(r) ** 2
-        pde.setValue(d=sigma_at_faces * fA, y=(sigma_src_at_face - sigma_at_faces * alpha_A) * fA * source_potential[iA])
+        pde.setValue(d=sigma_faces * fA, y=(sigma_src_faces - sigma_faces * alpha_A) * fA * source_potential[iA])
         pde.setValue(X=(sigma_src - sigma * alpha_A) * grad(source_potential[iA]))
         potential[iA] = pde.getSolution() + (alpha_A - 1.) * source_potential[iA]
-        #if logger:
-        #    logger.debug(f"processing station number {iA}, alpha= {alpha_A}, sol. V {pde.getSolution()}, DV ={potential[iA]}")
-    if logger:
-       logger.debug(f"{len(potential)} potentials calculated.")
+    logger.info(f"{len(potential)} additive DC potentials calculated.")
+    return potential
+
+def getSecondaryPotentials(pde, sigma_oo, sigma_oo_faces, schedule,
+                            M_n, M_n_faces, source_potential={}, additive_potential_DC ={},
+                            mask_faces=None, logger=None):
+    """
+    calculates the extra/additive potentials V_A for given sigma and source potentials for sigma_src
+
+    :param pde: PDE used to get the secondary potential. Coefficients are altered.
+    :param sigma_oo: electrical conductivity (for high frequencies)
+    :param sigma_oo_faces: electrical conductivity at faces (for high frequencies)
+    :param schedule: schedule of the survey 'ABMN' (or AMN, etc)
+    :type schedule: `SurveyData`
+    :param M_n: normalized chargeability
+    :type M_n:  `dict` of `Scalar`
+    :param M_n_faces normalized chargeability at faces
+    :param source_potential: potentials for a sources with assumed conductivity
+    :type source_potential: `dict` of `Scalar`
+    :param additive_potential_DC: additive potentials for a sources for sigma_0 = sigma_oo - M_n
+    :type additive_potential_DC: `dict` of `Scalar`
+    :param mask_faces: mask of surface elements to apply `radiation` conditions for potentials.
+        If not set to bottom, front, back, left, right elements.
+    :type mask_faces: `None` or `Scalar` with `FunctionOnBoundary` attribute
+    :return:  secondary/over-voltage potential
+    """
+    if mask_faces is None:
+        mask_faces = makeMaskForOuterSurface(pde.getDomain())
+    n = pde.getDomain().getNormal() * mask_faces
+    x_bc = FunctionOnBoundary(pde.getDomain()).getX()
+    potential = {}
+    pde.setValue(A=sigma_oo * kronecker(3), y_dirac=Data(), d=Data(), X=Data(), Y=Data(), y=Data())
+    for iA in source_potential:
+        VA = source_potential[iA] + additive_potential_DC[iA]
+        xA = schedule.getStationLocationByNumber(iA)
+        r = x_bc - xA
+        fA = inner(r, n) / length(r) ** 2
+        pde.setValue(d=sigma_oo_faces * fA, y=-M_n_faces * fA * VA)
+        pde.setValue(X=-M_n * grad(VA))
+        potential[iA] = pde.getSolution()
+    logger.info(f"{len(potential)} secondary IP potentials calculated.")
     return potential
 
 def makeZZArray(numElectrodes=32, id0=0):
@@ -296,6 +335,20 @@ class DataMisfitLog(DataMisfit):
         res=self.data-np.log(abs(nn)+self.EPS)
         return -res * self.weightings/nn
 
+def setupPDESystem(domain, numEquations=1, symmetric=True, tolerance=1e-8):
+    pde = LinearPDE(domain, numEquations=numEquations, numSolutions=numEquations, isComplex=False)
+    if symmetric:
+        pde.setSymmetryOn()
+    optionsG = pde.getSolverOptions()
+    optionsG.setSolverMethod(SolverOptions.PCG)
+    optionsG.setTolerance(tolerance)
+    # optionsG.setSolverMethod(SolverOptions.DIRECT)
+    if hasFeature('trilinos'):
+        optionsG.setPackage(SolverOptions.TRILINOS)
+        optionsG.setPreconditioner(SolverOptions.AMG)
+        optionsG.setTrilinosParameter("verbosity", "none")
+        optionsG.setTrilinosParameter("number of equations", numEquations)
+        optionsG.setTrilinosParameter("problem: symmetric", symmetric)
 
 def setupERTPDE(domain, tolerance=1e-8, poisson=True, debug=0):
     """
@@ -318,8 +371,6 @@ def setupERTPDE(domain, tolerance=1e-8, poisson=True, debug=0):
     optionsG.setSolverMethod(SolverOptions.PCG)
     optionsG.setTolerance(tolerance)
     if hasFeature('trilinos'):
-        if debug and getMPIRankWorld() == 0:
-            print("TRILINOS solver used.")
         optionsG.setPackage(SolverOptions.TRILINOS)
         optionsG.setPreconditioner(SolverOptions.AMG)
         if poisson:

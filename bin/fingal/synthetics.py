@@ -50,7 +50,7 @@ class IPSynthetic(object):
         self.elementlocators = Locator(ReducedFunction(domain), station_locations)
         self.stationlocators = Locator(Function(domain), station_locations)
 
-        self.source_potential = getSourcePotentials(domain, sigma_src, self.schedule, mask_outer_faces=self.mask_faces,
+        self.source_potential = getSourcePotentials(domain, sigma_src, self.schedule, maskOuterFaces=self.mask_faces,
                                                     stationsFMT=self.stationsFMT)
 
         self.source_field = {}

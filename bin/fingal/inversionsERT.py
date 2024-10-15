@@ -6,25 +6,31 @@ by l.gross@uq.edu.au, 2021, 2028
 
 from esys.escript import *
 from esys.escript.minimizer import CostFunction, MinimizerException
-from .tools import setupERTPDE, getSourcePotentials, makeMaskForOuterSurface, getSecondaryPotentials, DataMisfitQuad, DataMisfitLog
+from .tools import setupERTPDE, getSourcePotentials, makeMaskForOuterSurface, getAdditivePotentials, DataMisfitQuad, DataMisfitLog, setupPDESystem
 import logging
 import numpy as np
 from esys.escript.pdetools import Locator,  ArithmeticTuple
-from esys.escript.linearPDEs import LinearPDE, SolverOptions
 
 class ERTMisfitCostFunction(CostFunction):
     """
-    this the data misfit costfunction for IP
+    this the data misfit cost function for ERT
     """
 
     def __init__(self, domain=None, data=None, sigma_src=1., pde_tol=1.e-8,
-                 mask_outer_faces = None, stationsFMT="e%s", useLogMisfit=False, data_rtol=1e-4,logger=None, **kargs):
+                 maskOuterFaces = None, stationsFMT="e%s", useLogMisfitDC=False,
+                 dataRTolDC=1e-4, logger=None, **kargs):
         """
         :param domain: pde domain
-        :param data: data, is `fingal.SurveyData`
-        :param weighting_misfit_ERT: weighting factor for chargaeaiBlity part cost function
+        :param data: data, is `fingal.SurveyData`. Resistance and error are used.
+        :param sigma_src: electric conductivity used to calculate the source potential.
+        :param pde_tol: tolerance for the forward and adjoint PDE
+        :param maskOuterFaces: mask of the outer surface where radiation condition is set.
+                                If None the surface x=inf(x), x=sup(x), y=inf(y), y=sup(y) and z=inf(z) are used.
+        :param useLogMisfitDC: if True, logarithm of data is used in the misfit
+        :param dataRTolDC: drop tolerance for small data, that is for data with values smaller than
+                            dataRTolDC * max(resistance data).
         :stationsFMT: format string to map station keys A to mesh tags stationsFMT%A or None
-        :logclip: cliping for p to avoid overflow in conductivity calculation
+        :param logger: `logging.Logger` if None, Logger `fingal` is used/created.
         """
         if logger is None:
             self.logger = logging.getLogger('fingal')
@@ -33,64 +39,61 @@ class ERTMisfitCostFunction(CostFunction):
 
         super().__init__(**kargs)
         self.domain = domain
-        self.data_rtol = data_rtol
+
         self.stationsFMT = stationsFMT
-        self.mask_outer_faces = makeMaskForOuterSurface(domain, facemask=mask_outer_faces)
+        self.maskOuterFaces = makeMaskForOuterSurface(domain, facemask=maskOuterFaces)
         # setup PDE for forward models (potentials are fixed on all faces except the surface)
         self.forward_pde = setupERTPDE(domain)
         self.forward_pde.getSolverOptions().setTolerance(pde_tol)
         self.data = data
-        self.useLogMisfit=useLogMisfit
+        self.useLogMisfitDC=useLogMisfitDC
+        self.dataRTolDC = dataRTolDC
         # extract values  by the Locator
         station_locations = []
         for k in data.getStationNumeration():
             station_locations.append(data.getStationLocationByKey(k))
-        #self.__grab_values_at_stations = Locator(Solution(domain), station_locations) # Dirac?
+        #self.__grab_values_stations = Locator(Solution(domain), station_locations) # Dirac?
         #TODO: is this really working?
 
-        self.__grab_values_at_stations = Locator(DiracDeltaFunctions(domain), station_locations)  # Dirac?
+        self.__grab_values_stations = Locator(DiracDeltaFunctions(domain), station_locations)  # Dirac?
         self.sigma_src = sigma_src # needs to be a constant.
         self.setSourcePotentials()  # S_s is in the notes
         # build the misfit data (indexed by source index):
         self.misfit_DC = {}  # potential increment to injection field to get DC potential
-        data_atol = self.data_rtol * data.getMaximumResistence()
-        self.logger.info(f"data drop tolerance is {data_atol:e}.")
-        nd0 = 0 # counting number of data
-        n_dropped = 0 # number of dropped observations
+        data_atol_DC= self.dataRTolDC * data.getMaximumResistence()
+        self.logger.info(f"Absolute data cut-off tolerance is {data_atol_DC:e}.")
+        nd_DC = 0 # counting number of data
+        n_small_DC = 0 # number of dropped observations
         for A, B in self.data.injectionIterator():
-            obs = self.data.getObservations(A, B)
             iA = self.data.getStationNumber(A)
             iB = self.data.getStationNumber(B)
-            iMs = [self.data.getStationNumber(M) for M, N in obs]
-            iNs = [self.data.getStationNumber(N) for M, N in obs]
-
+            obs = self.data.getObservations(A, B)
+            # ........... DC part ................................................................
             data_DC = np.array([self.data.getResistenceData((A, B, M, N)) for M, N in obs])
-            use_idx = abs(data_DC) >= data_atol
-
-            n_use =  np.count_nonzero(use_idx)
-            n_dropped += len(data_DC)-n_use
-            if n_use>0:
-                if self.useLogMisfit:
-                    #error_DC = max ([self.data.getResistenceRelError((A, B, M, N)) for M, N in obs])
-                    error_DC = np.array([self.data.getResistenceRelError((A, B, M, N)) for M, N in obs])
-                    self.misfit_DC[(iA, iB)] =  DataMisfitLog(iMs=iMs, data=data_DC[use_idx], iNs=iNs, injections=(A,B), weightings=1. / error_DC[use_idx]**2/n_use)
+            obs_DC = obs
+            n_small_DC += np.count_nonzero(abs(data_DC) < data_atol_DC)
+            n_use_DC=len(data_DC)
+            if n_use_DC > 0:
+                iMs = [self.data.getStationNumber(M) for M, N in obs_DC]
+                iNs = [self.data.getStationNumber(N) for M, N in obs_DC]
+                if self.useLogMisfitDC:
+                    error_DC = np.array([self.data.getResistenceRelError((A, B, M, N)) for M, N in obs_DC]) + self.dataRTolDC
+                    self.misfit_DC[(iA, iB)] =  DataMisfitLog(iMs=iMs, data=data_DC, iNs=iNs, injections=(A,B), weightings=1. / error_DC**2/n_use_DC)
                 else:
-                    #error_DC = max ([self.data.getResistenceError((A, B, M, N)) for M, N in obs])
-                    error_DC = np.array([self.data.getResistenceError((A, B, M, N)) for M, N in obs])
-                    self.misfit_DC[(iA, iB)] = DataMisfitQuad(iMs=iMs, data=data_DC[use_idx], iNs=iNs, injections=(A, B), weightings =1./error_DC[use_idx]**2/n_use)
-
-                nd0+= len(self.misfit_DC[(iA, iB)])
-        self.logger.info(f"{nd0} DC data records used. {n_dropped} were dropped.")
-        if nd0 > 0:
+                    error_DC = np.array([self.data.getResistenceError((A, B, M, N)) for M, N in obs_DC]) + data_atol_DC
+                    self.misfit_DC[(iA, iB)] = DataMisfitQuad(iMs=iMs, data=data_DC, iNs=iNs, injections=(A, B), weightings =1./error_DC**2/n_use_DC)
+                nd_DC+= n_use_DC
+        self.logger.info(f"{nd_DC} DC data are records used. {n_small_DC} small values found.")
+        if nd_DC > 0:
             for iA, iB in self.misfit_DC:
-                self.misfit_DC[(iA, iB)].rescaleWeight(1. / nd0)
+                self.misfit_DC[(iA, iB)].rescaleWeight(1. / nd_DC)
         else:
             raise ValueError("No data for the inversion.")
     def grabValuesAtStations(self, m):
         """
         returns the values of m at the stations. The order is given by data.getStationNumeration()
         """
-        return np.array(self.__grab_values_at_stations(m))
+        return np.array(self.__grab_values_stations(m))
     def getObservationsFromSourcePotential(self, A  , B ):
         """
         calculate observations MN for injection AB for the source potentials.
@@ -99,18 +102,10 @@ class ERTMisfitCostFunction(CostFunction):
         obs = self.data.getObservations(A, B)
         iA = self.data.getStationNumber(A)
         iB = self.data.getStationNumber(B)
-        injectionsAB= self.source_potentials_at_stations[iA] - self.source_potentials_at_stations[iB]
+        injectionsAB= self.source_potentials_stations[iA] - self.source_potentials_stations[iB]
         source_obs=np.array([injectionsAB[self.data.getStationNumber(M)] - injectionsAB[self.data.getStationNumber(N)] for M, N in obs])
         return source_obs
-    def setNewSigmaSrc(self, new_sigma_src):
-        """
-        updated sigma_background
-        """
-        factor= self.sigma_src / new_sigma_src
-        for iA in self.source_potential:
-            self.source_potential[iA]*=factor
-            self.source_potentials_at_stations[iA]*=factor
-        self.sigma_src=new_sigma_src
+
     def setSourcePotentials(self):
         """
         return the primary electric potential for all injections (A,B) Vs_ooing conductivity sigma
@@ -118,8 +113,8 @@ class ERTMisfitCostFunction(CostFunction):
         :return: dictonary of injections (A,B)->primary_Field
         """
         self.logger.debug("source conductivity sigma_src =  %s" % (str(self.sigma_src)))
-        self.source_potential = getSourcePotentials(self.domain, self.sigma_src, self.data, mask_outer_faces =self.mask_outer_faces, stationsFMT=self.stationsFMT, logger=self.logger)
-        self.source_potentials_at_stations = { iA : self.grabValuesAtStations(self.source_potential[iA])
+        self.source_potential = getSourcePotentials(self.domain, self.sigma_src, self.data, maskOuterFaces =self.maskOuterFaces, stationsFMT=self.stationsFMT, logger=self.logger)
+        self.source_potentials_stations = { iA : self.grabValuesAtStations(self.source_potential[iA])
                                                for iA in self.source_potential }
     def fitSigmaRef(self):
         """
@@ -130,9 +125,9 @@ class ERTMisfitCostFunction(CostFunction):
         beta = 1.
         a = 0.
         b = 0.
-        if self.useLogMisfit:
+        if self.useLogMisfitDC:
             for iA, iB in self.misfit_DC:
-                u = self.source_potentials_at_stations[iA] - self.source_potentials_at_stations[iB]
+                u = self.source_potentials_stations[iA] - self.source_potentials_stations[iB]
                 du = self.misfit_DC[(iA, iB)].getDifference(u)
                 a+= sum(  self.misfit_DC[(iA, iB)].weightings * (self.misfit_DC[(iA, iB)].data - log(abs(du)) ))
                 b+= sum(  self.misfit_DC[(iA, iB)].weightings )
@@ -140,7 +135,7 @@ class ERTMisfitCostFunction(CostFunction):
                 beta=exp(a/b)
         else:
             for iA, iB in self.misfit_DC:
-                u = self.source_potentials_at_stations[iA] - self.source_potentials_at_stations[iB]
+                u = self.source_potentials_stations[iA] - self.source_potentials_stations[iB]
                 du = self.misfit_DC[(iA, iB)].getDifference(u)
                 a+= sum(  self.misfit_DC[(iA, iB)].weightings * self.misfit_DC[(iA, iB)].data * du )
                 b+= sum(  self.misfit_DC[(iA, iB)].weightings * du**2 )
@@ -150,54 +145,54 @@ class ERTMisfitCostFunction(CostFunction):
         assert beta > 0, "conductivity correction factor must be positive."
         return self.sigma_src/beta
 
-    def getERTModelAndResponse(self, sigma_0, sigma_0_face, sigma_0_at_stations):
+    def getERTModelAndResponse(self, sigma_0, sigma_0_face, sigma_0_stations):
         """
         returns the IP model + its responses for given secondary conductivity sigma_0 and sigma_0_face
         they should be given on integration nodes.
         """
         self.logger.info("sigma_0 = %s" % (str(sigma_0)))
         self.logger.debug("sigma_0_face = %s" % (str(sigma_0_face)))
-        self.logger.debug("sigma_0_stations = %s - %s " % (min(sigma_0_at_stations), max(sigma_0_at_stations)))
+        self.logger.debug("sigma_0_stations = %s - %s " % (min(sigma_0_stations), max(sigma_0_stations)))
 
-        secondary_potentials_DC = getSecondaryPotentials(self.forward_pde,
-                                                         sigma = sigma_0,
-                                                         sigma_at_faces= sigma_0_face,
-                                                         schedule = self.data,
-                                                         sigma_at_station = sigma_0_at_stations,
-                                                         source_potential = self.source_potential,
-                                                         sigma_src = self.sigma_src,
-                                                         mask_faces = self.mask_outer_faces, logger=self.logger)
-        secondary_potentials_DC_at_stations = {iA : self.grabValuesAtStations(secondary_potentials_DC[iA])
-                                               for iA in secondary_potentials_DC}
+        additive_potentials_DC = getAdditivePotentials(self.forward_pde,
+                                                       sigma = sigma_0,
+                                                       sigma_faces= sigma_0_face,
+                                                       schedule = self.data,
+                                                       sigma_at_station = sigma_0_stations,
+                                                       source_potential = self.source_potential,
+                                                       sigma_src = self.sigma_src,
+                                                       mask_faces = self.maskOuterFaces, logger=self.logger)
+        additive_potentials_DC_stations = {iA : self.grabValuesAtStations(additive_potentials_DC[iA])
+                                              for iA in additive_potentials_DC}
         #if self.logger.isEnabledFor(logging.DEBUG) :
         #    for iA in self.source_potential:
-        #        self.logger.debug("DC secondary potential %d :%s" % (iA, str(secondary_potentials_DC[iA])))
-        return secondary_potentials_DC, secondary_potentials_DC_at_stations
+        #        self.logger.debug("DC secondary potential %d :%s" % (iA, str(additive_potentials_DC[iA])))
+        return additive_potentials_DC, additive_potentials_DC_stations
 
-    def getMisfit(self, sigma_0, sigma_0_face, sigma_0_stations, secondary_potentials_0, secondary_potentials_0_at_stations, *args):
+    def getMisfit(self, sigma_0, sigma_0_face, sigma_0_stations, additive_potentials_DC, additive_potentials_DC_stations, *args):
         """
-        return the misfit in potential and chargeaiBlity weighted by weighting_misfit_DC factor
+        return the misfit in potential and chargeaiBlity weighted by weightingMisfitDC factor
         """
-        potentials_DC_at_stations = {}
-        for iA in secondary_potentials_0_at_stations:
-            potentials_DC_at_stations[iA] = self.source_potentials_at_stations[iA] + secondary_potentials_0_at_stations[iA]
+        potentials_DC_stations = {}
+        for iA in additive_potentials_DC_stations:
+            potentials_DC_stations[iA] = self.source_potentials_stations[iA] + additive_potentials_DC_stations[iA]
         misfit_0 = 0.
         for iA, iB in self.misfit_DC:
             misfit_0 += self.misfit_DC[(iA, iB)].getValue(
-                potentials_DC_at_stations[iA] - potentials_DC_at_stations[iB])
+                potentials_DC_stations[iA] - potentials_DC_stations[iB])
         return misfit_0
-    def getDMisfit(self, sigma_0, sigma_0_face, sigma_0_stations, secondary_potentials_DC, secondary_potentials_0_at_stations, *args):
+    def getDMisfit(self, sigma_0, sigma_0_face, sigma_0_stations, additive_potentials_DC, additive_potentials_DC_stations, *args):
         """
         returns the derivative of the misfit function with respect to sigma_0 with respect to Mn
         """
         SOURCES=np.zeros( (self.data.getNumStations(), self.data.getNumStations()), float)
-        potentials_0_at_stations = {}
-        for iA in secondary_potentials_0_at_stations:
-            potentials_0_at_stations[iA] = self.source_potentials_at_stations[iA] + secondary_potentials_0_at_stations[iA]
+        potentials_DC_stations = {}
+        for iA in additive_potentials_DC_stations:
+            potentials_DC_stations[iA] = self.source_potentials_stations[iA] + additive_potentials_DC_stations[iA]
 
         for iA, iB in self.misfit_DC:
             dmis_0 = self.misfit_DC[(iA, iB)].getDerivative(
-                potentials_0_at_stations[iA] - potentials_0_at_stations[iB])
+                potentials_DC_stations[iA] - potentials_DC_stations[iB])
             for i in range(len(self.misfit_DC[(iA, iB)])):
                 iM = self.misfit_DC[(iA, iB)].iMs[i]
                 iN = self.misfit_DC[(iA, iB)].iNs[i]
@@ -210,10 +205,10 @@ class ERTMisfitCostFunction(CostFunction):
         DMisfitDsigma_0 = Scalar(0., self.forward_pde.getFunctionSpaceForCoefficient('Y'))
         DMisfitDsigma_0_face = Scalar(0., self.forward_pde.getFunctionSpaceForCoefficient('y'))
         self.forward_pde.setValue(A=sigma_0 * kronecker(self.forward_pde.getDim()), y_dirac=Data(), X=Data(), Y=Data(), y=Data())
-        n = self.domain.getNormal()
+        n = self.domain.getNormal() * self.maskOuterFaces
         x = FunctionOnBoundary(self.domain).getX()
 
-        for iA in secondary_potentials_DC.keys():
+        for iA in additive_potentials_DC.keys():
                 s = Scalar(0., DiracDeltaFunctions(self.forward_pde.getDomain()))
                 for M in self.data.getStationNumeration():
                     iM = self.data.getStationNumber(M)
@@ -223,15 +218,15 @@ class ERTMisfitCostFunction(CostFunction):
                         s.setTaggedValue(self.stationsFMT % M,  SOURCES[iA, iM])
                 self.forward_pde.setValue(y_dirac=s)
                 r = x - self.data.getStationLocationByNumber(iA)
-                fA = inner(r, n) / length(r) ** 2 * self.mask_outer_faces
+                fA = inner(r, n) / length(r) ** 2
                 self.forward_pde.setValue(d=sigma_0_face * fA )
                 VA_star=self.forward_pde.getSolution()
                 #self.logger.debug("DC adjoint potential %d :%s" % (iA, str(VA_star)))
-                VA= self.source_potential[iA] + secondary_potentials_DC[iA]
+                VA= self.source_potential[iA] + additive_potentials_DC[iA]
                 DMisfitDsigma_0 -= inner(grad(VA_star), grad(VA))
                 DMisfitDsigma_0_face -= ( fA * VA_star ) * VA
 
-        self.logger.debug("%s adjoint potentials calculated." % len(secondary_potentials_DC.keys()))
+        self.logger.debug("%s adjoint potentials calculated." % len(additive_potentials_DC.keys()))
         return DMisfitDsigma_0, DMisfitDsigma_0_face
 
 
@@ -242,9 +237,9 @@ class ERTInversionH1(ERTMisfitCostFunction):
 
     def __init__(self, domain=None, data=None,
                  sigma_0_ref=1e-4, sigma_src=None, w1=1., useL1Norm=False, epsilonL1Norm=1e-4,
-                 mask_fixed_property = None, mask_outer_faces = None,
-                 pde_tol=1.e-8, reg_tol=None, stationsFMT="e%s", logclip=5, data_rtol=1e-4,
-                 useLogMisfit=False, logger=None, EPSILON=1e-15, **kargs):
+                 maskFixedProperty = None, maskOuterFaces = None,
+                 pde_tol=1.e-8, reg_tol=None, stationsFMT="e%s", logclip=5, dataRTolDC=1e-4,
+                 useLogMisfitDC=False, logger=None, EPSILON=1e-15, **kargs):
         """
         :param domain: pde domain
         :param data: survey data, is `fingal.SurveyData`
@@ -253,9 +248,9 @@ class ERTInversionH1(ERTMisfitCostFunction):
         :param w1: weighting H1 regularization  int grad(m)^2
         :param useL1Norm: use L1+eps regularization
         :param epsilonL1Norm: cut-off for L1+eps regularization
-        :param mask_fixed_property: mask of region where sigma_0 is fixed to sigma_0_ref.
+        :param maskFixedProperty: mask of region where sigma_0 is fixed to sigma_0_ref.
             If not set the bottom of the domain is used.
-        :param mask_outer_faces: mask of the faces where potential field 'radiation' is set.
+        :param maskOuterFaces: mask of the faces where potential field 'radiation' is set.
         :param pde_tol: tolerance for the PDE solver
         :param reg_tol: tolerance for the PDE solver in the regularization
         :param stationsFMT: format to map station keys k to mesh tags stationsFMT%k or None
@@ -265,25 +260,21 @@ class ERTInversionH1(ERTMisfitCostFunction):
         if sigma_src == None:
             sigma_src = sigma_0_ref
         super().__init__(domain=domain, data=data, sigma_src=sigma_src, pde_tol=pde_tol,
-                         mask_outer_faces = makeMaskForOuterSurface(domain,mask_outer_faces ),
-                         stationsFMT=stationsFMT, logger=logger, useLogMisfit=useLogMisfit, data_rtol=data_rtol, **kargs)
+                         maskOuterFaces= makeMaskForOuterSurface(domain, maskOuterFaces),
+                         stationsFMT=stationsFMT, logger=logger, useLogMisfitDC=useLogMisfitDC, dataRTolDC=dataRTolDC, **kargs)
         self.logclip = logclip
-        self.EPS=EPSILON
-        # its is assumed that sigma_ref on the gaces is not updated!!!
-        if mask_fixed_property is None:
+        # its is assumed that sigma_ref on the faces is not updated!!!
+        if maskFixedProperty is None:
             x = self.forward_pde.getDomain().getX()
             qx = whereZero(x[0] - inf(x[0])) + whereZero(x[0] - sup(x[0]))
             qy = whereZero(x[1] - inf(x[1])) + whereZero(x[1] - sup(x[1]))
             qz = whereZero(x[2] - inf(x[2]))
             self.mask_fixed_property  =  0 * qx + 0* qy + qz
         else:
-            self.mask_fixed_property = wherePositive( mask_fixed_property)
-        self.sigma_0_ref = sigma_0_ref
+            self.mask_fixed_property = wherePositive(maskFixedProperty)
         self.useL1Norm = useL1Norm
         self.epsilonL1Norm = epsilonL1Norm
-        self.logger.info("Reference conductivity sigma_0_ref = %s" % (str(self.sigma_0_ref)))
-
-
+        assert not self.useL1Norm, "L1-regularization is not fully implemented yet."
         # regularization
         self.w1 = w1
         self.factor2D=1
@@ -307,6 +298,7 @@ class ERTInversionH1(ERTMisfitCostFunction):
         set a new reference conductivity
         """
         self.sigma_0_ref=sigma_0_ref
+        self.logger.info("Reference conductivity sigma_0_ref is set to %s" % (str(self.sigma_0_ref)))
 
     def getSigma0(self, m, applyInterploation=False):
         if applyInterploation:
@@ -417,9 +409,9 @@ class ERTInversionH2(ERTMisfitCostFunction):
 
     def __init__(self, domain=None, data=None,
                  sigma_0_ref=1e-4, sigma_src=None, w1=1.,
-                 mask_outer_faces = None,
-                 pde_tol=1.e-8, reg_tol=None, stationsFMT="e%s", logclip=5, data_rtol=1e-4,
-                 useLogMisfit=False, logger=None, EPSILON=1e-15, **kargs):
+                 maskOuterFaces = None,
+                 pde_tol=1.e-8, reg_tol=None, stationsFMT="e%s", logclip=5, dataRTolDC=1e-4,
+                 useLogMisfitDC=False, logger=None, EPSILON=1e-15, **kargs):
         """
         :param domain: pde domain
         :param data: survey data, is `fingal.SurveyData`
@@ -428,7 +420,7 @@ class ERTInversionH2(ERTMisfitCostFunction):
         :param w1: weighting H1 regularization  int grad(m)^2
         :param useL1Norm: use L1+eps regularization
         :param epsilonL1Norm: cut-off for L1+eps regularization
-        :param mask_outer_faces: mask of the faces where potential field 'radiation' is set.
+        :param maskOuterFaces: mask of the faces where potential field 'radiation' is set.
         :param pde_tol: tolerance for the PDE solver
         :param reg_tol: tolerance for the PDE solver in the regularization
         :param stationsFMT: format to map station keys k to mesh tags stationsFMT%k or None
@@ -438,10 +430,9 @@ class ERTInversionH2(ERTMisfitCostFunction):
         if sigma_src == None:
             sigma_src = sigma_0_ref
         super().__init__(domain=domain, data=data, sigma_src=sigma_src, pde_tol=pde_tol,
-                         mask_outer_faces = makeMaskForOuterSurface(domain,mask_outer_faces ), data_rtol=data_rtol,
-                         stationsFMT=stationsFMT, logger=logger, useLogMisfit=useLogMisfit, **kargs)
+                         maskOuterFaces= makeMaskForOuterSurface(domain, maskOuterFaces), dataRTolDC=dataRTolDC,
+                         stationsFMT=stationsFMT, logger=logger, useLogMisfitDC=useLogMisfitDC, **kargs)
         self.logclip = logclip
-        self.EPS=EPSILON
         self.sigma_0_ref = sigma_0_ref
         self.logger.info("Reference conductivity sigma_0_ref = %s" % (str(self.sigma_0_ref)))
         # masks for surfaces:
@@ -572,10 +563,10 @@ class ERTInversionGauss(ERTMisfitCostFunction):
     """
 
     def __init__(self, domain=None, data=None,
-                 sigma_0_ref=1e-4, sigma_src=None, w1=1.,  length_scale =1.,
-                 mask_outer_faces = None,
-                 pde_tol=1.e-8, reg_tol=None, stationsFMT="e%s", logclip=5, data_rtol=1e-4,
-                 useLogMisfit=False, logger=None, EPSILON=1e-15, **kargs):
+                 sigma_0_ref=1e-4, sigma_src=None, w1=1., length_scale =1.,
+                 maskOuterFaces = None,
+                 pde_tol=1.e-8, reg_tol=None, stationsFMT="e%s", logclip=5, dataRTolDC=1e-4,
+                 useLogMisfitDC=False, logger=None, EPSILON=1e-15, **kargs):
         """
         :param domain: pde domain
         :param data: survey data, is `fingal.SurveyData`
@@ -584,7 +575,7 @@ class ERTInversionGauss(ERTMisfitCostFunction):
         :param w1: weighting H1 regularization  int grad(m)^2
         :param useL1Norm: use L1+eps regularization
         :param epsilonL1Norm: cut-off for L1+eps regularization
-        :param mask_outer_faces: mask of the faces where potential field 'radiation' is set.
+        :param maskOuterFaces: mask of the faces where potential field 'radiation' is set.
         :param pde_tol: tolerance for the PDE solver
         :param reg_tol: tolerance for the PDE solver in the regularization
         :param stationsFMT: format to map station keys k to mesh tags stationsFMT%k or None
@@ -594,10 +585,9 @@ class ERTInversionGauss(ERTMisfitCostFunction):
         if sigma_src == None:
             sigma_src = sigma_0_ref
         super().__init__(domain=domain, data=data, sigma_src=sigma_src, pde_tol=pde_tol,
-                         mask_outer_faces = makeMaskForOuterSurface(domain,mask_outer_faces ), data_rtol=data_rtol,
-                         stationsFMT=stationsFMT, logger=logger, useLogMisfit=useLogMisfit, **kargs)
+                         maskOuterFaces= makeMaskForOuterSurface(domain, maskOuterFaces), dataRTolDC=dataRTolDC,
+                         stationsFMT=stationsFMT, logger=logger, useLogMisfitDC=useLogMisfitDC, **kargs)
         self.logclip = logclip
-        self.EPS=EPSILON
         self.sigma_0_ref = sigma_0_ref
         self. length_scale = length_scale
         self.logger.info("Reference conductivity sigma_0_ref = %s" % (str(self.sigma_0_ref)))
@@ -716,9 +706,9 @@ class ERTInversionPseudoGaussBase(ERTMisfitCostFunction):
     """
     def __init__(self, domain=None, data=None,
                  sigma_0_ref=1e-4, sigma_src=None, w1=1., length_scale =1.,
-                mask_outer_faces = None,
-                 pde_tol=1.e-8, reg_tol=None, stationsFMT="e%s", logclip=5, data_rtol=1e-4,
-                 useLogMisfit=False, logger=None, EPSILON=1e-15, **kargs):
+                 maskOuterFaces = None,
+                 pde_tol=1.e-8, reg_tol=None, stationsFMT="e%s", logclip=5, dataRTolDC=1e-4,
+                 useLogMisfitDC=False, EPSILON=1e-15, logger=None, **kargs):
         """
         :param domain: pde domain
         :param data: survey data, is `fingal.SurveyData`
@@ -726,7 +716,7 @@ class ERTInversionPseudoGaussBase(ERTMisfitCostFunction):
         :param sigma_src: conductivity used to calculate the injection/source potentials (need to be constant)
         :param w1: weighting H2 regularization int (m+a^2*del(m)) ^2
         :param length_scale: length scale factor a
-        :param mask_outer_faces: mask of the faces where potential field 'radiation' is set.
+        :param maskOuterFaces: mask of the faces where potential field 'radiation' is set.
         :param pde_tol: tolerance for the PDE solver
         :param reg_tol: tolerance for the PDE solver in the regularization
         :param stationsFMT: format to map station keys k to mesh tags stationsFMT%k or None
@@ -736,18 +726,19 @@ class ERTInversionPseudoGaussBase(ERTMisfitCostFunction):
         if sigma_src == None:
             sigma_src = sigma_0_ref
         super().__init__(domain=domain, data=data, sigma_src=sigma_src, pde_tol=pde_tol,
-                         mask_outer_faces = makeMaskForOuterSurface(domain,mask_outer_faces ), data_rtol=data_rtol,
-                         stationsFMT=stationsFMT, logger=logger, useLogMisfit=useLogMisfit, **kargs)
+                         maskOuterFaces= makeMaskForOuterSurface(domain, maskOuterFaces), dataRTolDC=dataRTolDC,
+                         stationsFMT=stationsFMT, logger=logger, useLogMisfitDC=useLogMisfitDC, **kargs)
         self.logclip = logclip
-        self.EPS=EPSILON
         self.pde_tol = pde_tol
         self.sigma_0_ref = sigma_0_ref
         self.length_scale = length_scale
         self.logger.info("Reference conductivity sigma_0_ref = %s" % (str(self.sigma_0_ref)))
-        self.logger.info("length scale = %s" % (str(self.length_scale)))
+        self.logger.info("length scale a = %s" % (str(self.length_scale)))
 
         # regularization
         self.w1 = w1
+        if reg_tol is None:
+            reg_tol=1e-8 + 0*min(sqrt(pde_tol), 1e-3)
         self.setUpInitialHessian(a=self.length_scale, w1=self.w1, reg_tol=reg_tol)
         #  reference conductivity:
         self.updateSigma0Ref(sigma_0_ref)
@@ -780,7 +771,6 @@ class ERTInversionPseudoGaussBase(ERTMisfitCostFunction):
         precalculated parameters:
         """
         m=M[0]
-        # recover temperature (interpolated to elements)
         im = interpolate(m, Function(self.domain))
         im_face =interpolate(m, FunctionOnBoundary(self.domain))
         im_stations = self.grabValuesAtStations(m)
@@ -893,25 +883,9 @@ class ERTInversionPseudoGaussDiagonalHessian(ERTInversionPseudoGaussBase):
 
 class ERTInversionPseudoGauss(ERTInversionPseudoGaussBase):
     def setUpInitialHessian(self, a=1, w1=1, reg_tol=1e-4):
-        self.Hpde = setupERTPDE(self.domain)
-        if not reg_tol:
-            reg_tol=min(sqrt(self.pde_tol), 1e-3)
-        self.Hpde = LinearPDE(self.domain, numEquations=4, numSolutions=4, isComplex=False)
-        self.Hpde.setSymmetryOn()
-        self.logger.debug(f'Tolerance for solving regularization PDE is set to {reg_tol}')
-        self.Hpde.getSolverOptions().setTolerance(reg_tol)
 
-        optionsG = self.Hpde.getSolverOptions()
-        optionsG.setSolverMethod(SolverOptions.PCG)
-        #optionsG.setSolverMethod(SolverOptions.DIRECT)
-        optionsG.setTolerance(reg_tol)
-        if hasFeature('trilinos'):
-            print("TRILINOS FOUND")
-            optionsG.setPackage(SolverOptions.TRILINOS)
-            optionsG.setPreconditioner(SolverOptions.AMG)
-            optionsG.setTrilinosParameter("verbosity", "none")
-            optionsG.setTrilinosParameter("number of equations", 4)
-            optionsG.setTrilinosParameter("problem: symmetric", True)
+        self.Hpde = setupPDESystem(self.domain, numEquations=4, symmetric=True, tolerance=reg_tol)
+
         A = self.Hpde.createCoefficient('A')
         B = self.Hpde.createCoefficient('B')
         C = self.Hpde.createCoefficient('C')

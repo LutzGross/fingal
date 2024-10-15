@@ -32,7 +32,7 @@ parser.add_argument('--xyz', '-x',  dest='xyz', action='store_true', default=Fal
 parser.add_argument('--debug', '-d',  dest='debug', action='store_true', default=False, help="shows more information.")
 args = parser.parse_args()
 
-logger=logging.getLogger('inv')
+logger=logging.getLogger('ERT')
 if args.debug:
     logger.setLevel(logging.DEBUG)
 else:
@@ -75,11 +75,11 @@ if 'GAUSS' in config.regularization_order.upper():
 
 if config.regularization_order == "H1":
     costf=ERTInversionH1(domain, data=survey,
-                       sigma_0_ref=config.sigma0_ref,
-                       w1=config.regularization_w1, useL1Norm=config.use_L1Norm, epsilonL1Norm=config.epsilon_L1Norm,
-                       mask_fixed_property=fixedm, mask_outer_faces = mask_face, data_rtol = config.data_rtol,
-                       pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
-                       useLogMisfit= config.use_log_misfit_ERT, logger=logger)
+                         sigma_0_ref=config.sigma0_ref,
+                         w1=config.regularization_w1, useL1Norm=config.use_L1Norm, epsilonL1Norm=config.epsilon_L1Norm,
+                         maskFixedProperty=fixedm, maskOuterFaces= mask_face, dataRTolDC= config.data_rtol,
+                         pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
+                         useLogMisfitDC= config.use_log_misfit_DC, logger=logger)
     m_init = Scalar(0.0, Solution(domain))
 
 
@@ -118,10 +118,10 @@ if config.regularization_order == "H1":
         1/0
 elif config.regularization_order == "H2":
     costf=ERTInversionH2(domain, data=survey,
-                       sigma_0_ref=config.sigma0_ref,
-                       w1=config.regularization_w1, mask_outer_faces = mask_face, data_rtol = config.data_rtol,
-                       pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
-                       useLogMisfit= config.use_log_misfit_ERT, logger=logger)
+                         sigma_0_ref=config.sigma0_ref,
+                         w1=config.regularization_w1, maskOuterFaces= mask_face, dataRTolDC= config.data_rtol,
+                         pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
+                         useLogMisfitDC= config.use_log_misfit_DC, logger=logger)
     m_init = Vector(0.0, Solution(domain))
 
 
@@ -161,12 +161,12 @@ elif config.regularization_order == "H2":
 
 elif config.regularization_order == "Gauss":
     costf = ERTInversionGauss(domain, data=survey,
-                         sigma_0_ref=config.sigma0_ref,
-                         w1=config.regularization_w1, length_scale = config.regularization_length_scale,
-                          mask_outer_faces=mask_face, data_rtol = config.data_rtol,
-                         pde_tol=config.pde_tol, stationsFMT=config.stationsFMT,
-                         logclip=config.clip_property_function,
-                         useLogMisfit=config.use_log_misfit_ERT, logger=logger)
+                              sigma_0_ref=config.sigma0_ref,
+                              w1=config.regularization_w1, length_scale = config.regularization_length_scale,
+                              maskOuterFaces=mask_face, dataRTolDC= config.data_rtol,
+                              pde_tol=config.pde_tol, stationsFMT=config.stationsFMT,
+                              logclip=config.clip_property_function,
+                              useLogMisfitDC=config.use_log_misfit_DC, logger=logger)
     m_init = Scalar(0.0, Solution(domain))
     # test gradient:
     if False:
@@ -203,22 +203,22 @@ elif config.regularization_order == "Gauss":
         1/0
 elif config.regularization_order == "PseudoGauss":
     costf = ERTInversionPseudoGauss(domain, data=survey,
-                         sigma_0_ref=config.sigma0_ref,
-                         w1=config.regularization_w1, length_scale = config.regularization_length_scale,
-                          mask_outer_faces=mask_face, data_rtol = config.data_rtol,
-                         pde_tol=config.pde_tol, stationsFMT=config.stationsFMT,
-                         logclip=config.clip_property_function,
-                         useLogMisfit=config.use_log_misfit_ERT, logger=logger)
+                                    sigma_0_ref=config.sigma0_ref,
+                                    w1=config.regularization_w1, length_scale = config.regularization_length_scale,
+                                    maskOuterFaces=mask_face, dataRTolDC= config.data_rtol,
+                                    pde_tol=config.pde_tol, stationsFMT=config.stationsFMT,
+                                    logclip=config.clip_property_function,
+                                    useLogMisfitDC=config.use_log_misfit_DC, logger=logger)
     m_init = Data(0.0, (4,), Solution(domain))
 
 elif config.regularization_order == "D-PseudoGauss":
     costf = ERTInversionPseudoGaussDiagonalHessian(domain, data=survey,
-                         sigma_0_ref=config.sigma0_ref,
-                         w1=config.regularization_w1, length_scale = config.regularization_length_scale,
-                          mask_outer_faces=mask_face, data_rtol = config.data_rtol,
-                         pde_tol=config.pde_tol, stationsFMT=config.stationsFMT,
-                         logclip=config.clip_property_function,
-                         useLogMisfit=config.use_log_misfit_ERT, logger=logger)
+                                                   sigma_0_ref=config.sigma0_ref,
+                                                   w1=config.regularization_w1, length_scale = config.regularization_length_scale,
+                                                   maskOuterFaces=mask_face, dataRTolDC= config.data_rtol,
+                                                   pde_tol=config.pde_tol, stationsFMT=config.stationsFMT,
+                                                   logclip=config.clip_property_function,
+                                                   useLogMisfit=config.use_log_misfit_DC, logger=logger)
     m_init = Data(0.0, (4,), Solution(domain))
 
     # test gradient:

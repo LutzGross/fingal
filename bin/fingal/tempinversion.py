@@ -108,7 +108,7 @@ class TemperatureBasedIPInversion(IPMisfitCostFunction):
         :domain: pde domain
         :data: data, is `fingal.SurveyData`
         :sigma_0: reference conductivity
-        :weighting_misfit_DC: weighting factor for
+        :weightingMisfitDC: weighting factor for
         :adjVs_ootStationLocationsToElementCenter: moves the station locations to match element centers.
         :stationsFMT: format to map station keys k to mesh tags stationsFMT%k or None
         :logclip: cliping for p to avoid overflow in conductivity calculation
