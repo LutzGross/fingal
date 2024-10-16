@@ -61,7 +61,7 @@ class ERTMisfitCostFunction(CostFunction):
         # build the misfit data (indexed by source index):
         self.misfit_DC = {}  # potential increment to injection field to get DC potential
         data_atol_DC= self.dataRTolDC * data.getMaximumResistence()
-        self.logger.info(f"Absolute data cut-off tolerance is {data_atol_DC:e}.")
+
         nd_DC = 0 # counting number of data
         n_small_DC = 0 # number of dropped observations
         for A, B in self.data.injectionIterator():
@@ -83,6 +83,7 @@ class ERTMisfitCostFunction(CostFunction):
                     error_DC = np.array([self.data.getResistenceError((A, B, M, N)) for M, N in obs_DC]) + data_atol_DC
                     self.misfit_DC[(iA, iB)] = DataMisfitQuad(iMs=iMs, data=data_DC, iNs=iNs, injections=(A, B), weightings =1./error_DC**2/n_use_DC)
                 nd_DC+= n_use_DC
+        self.logger.info(f"Absolute data cut-off tolerance is {data_atol_DC:e}.")
         self.logger.info(f"{nd_DC} DC data are records used. {n_small_DC} small values found.")
         if nd_DC > 0:
             for iA, iB in self.misfit_DC:
@@ -113,7 +114,8 @@ class ERTMisfitCostFunction(CostFunction):
         :return: dictonary of injections (A,B)->primary_Field
         """
         self.logger.debug("source conductivity sigma_src =  %s" % (str(self.sigma_src)))
-        self.source_potential = getSourcePotentials(self.domain, self.sigma_src, self.data, maskOuterFaces =self.maskOuterFaces, stationsFMT=self.stationsFMT, logger=self.logger)
+        self.source_potential = getSourcePotentials(self.domain, self.sigma_src, self.data, maskOuterFaces =self.maskOuterFaces,
+                                                    stationsFMT=self.stationsFMT, logger=self.logger)
         self.source_potentials_stations = { iA : self.grabValuesAtStations(self.source_potential[iA])
                                                for iA in self.source_potential }
     def fitSigmaRef(self):
@@ -158,7 +160,7 @@ class ERTMisfitCostFunction(CostFunction):
                                                        sigma = sigma_0,
                                                        sigma_faces= sigma_0_face,
                                                        schedule = self.data,
-                                                       sigma_at_station = sigma_0_stations,
+                                                       sigma_stations = sigma_0_stations,
                                                        source_potential = self.source_potential,
                                                        sigma_src = self.sigma_src,
                                                        mask_faces = self.maskOuterFaces, logger=self.logger)
@@ -343,11 +345,11 @@ class ERTInversionH1(ERTMisfitCostFunction):
             R = self.w1 / 2 * integrate(lgm2)
 
         V = R + misfit_0
-        if getMPIRankWorld() == 0:
-            self.logger.debug(
-                f'misfit ERT; reg ; total \t=  {misfit_0:e}, ;{R:e}; = {V:e}')
-            self.logger.debug(
-                f'ratios ERT; reg  [%] \t=  {misfit_0/V*100:g}; {R/V*100:g}')
+
+        self.logger.debug(
+                f'misfit ERT, reg ; total \t=  {misfit_0:e}, {R:e} = {V:e}')
+        self.logger.debug(
+                f'ratios ERT, reg  [%] \t=  {misfit_0/V*100:g}, {R/V*100:g}')
         return V
 
     def getGradient(self, m, im, im_face, isigma_0, isigma_0_face, isigma_0_stations, args2):
@@ -510,11 +512,11 @@ class ERTInversionH2(ERTMisfitCostFunction):
         R = self.w1 / 2 * integrate(length(gM)**2)
 
         V = R + misfit_0
-        if getMPIRankWorld() == 0:
-            self.logger.debug(
-                f'misfit ERT; reg ; total \t=  {misfit_0:e}, ;{R:e}; = {V:e}')
-            self.logger.debug(
-                f'ratios ERT; reg  [%] \t=  {misfit_0/V*100:g}; {R/V*100:g}')
+
+        self.logger.debug(
+                f'misfit ERT, reg; total \t=  {misfit_0:e}, {R:e}; {V:e}')
+        self.logger.debug(
+                f'ratios ERT, reg  [%] \t=  {misfit_0/V*100:g}; {R/V*100:g}')
         return V
 
     def getGradient(self, M, m, im, im_face, isigma_0, isigma_0_face, isigma_0_stations, args2):
@@ -537,11 +539,8 @@ class ERTInversionH2(ERTMisfitCostFunction):
         """
         dM = Vector(0., M.getFunctionSpace())
         for k in range(3):
-            if k==10:
-                dM[k]=0
-            else:
-                self.Hpde.setValue(q= self.Hpde_qs[k], X=r[1][k,:], Y=r[0][k])
-                dM[k] = self.Hpde.getSolution()
+            self.Hpde.setValue(q= self.Hpde_qs[k], X=r[1][k,:], Y=r[0][k])
+            dM[k] = self.Hpde.getSolution()
             self.logger.debug(f"search direction component {k} = {str(dM[k])}.")
         return dM
 
@@ -660,11 +659,10 @@ class ERTInversionGauss(ERTMisfitCostFunction):
         R = self.w1 / 2 * integrate(im**2)
 
         V = R + misfit_0
-        if getMPIRankWorld() == 0:
-            self.logger.debug(
-                f'misfit ERT; reg ; total \t=  {misfit_0:e}, ;{R:e}; = {V:e}')
-            self.logger.debug(
-                f'ratios ERT; reg  [%] \t=  {misfit_0/V*100:g}; {R/V*100:g}')
+        self.logger.debug(
+                f'misfit ERT, reg ; total \t=  {misfit_0:e}, {R:e}; {V:e}')
+        self.logger.debug(
+                f'ratios ERT, reg  [%] \t=  {misfit_0/V*100:g}, {R/V*100:g}')
         return V
 
     def getGradient(self, m, im, im_face, isigma_0, isigma_0_face, isigma_0_stations, args2):
@@ -799,11 +797,10 @@ class ERTInversionPseudoGaussBase(ERTMisfitCostFunction):
 
         R = (reg + gM + cM )/2
         V = R + misfit_0
-        if getMPIRankWorld() == 0:
-            self.logger.debug(
-                f'misfit ERT; reg; div; curl; total \t=  {misfit_0:e} ;{reg:e}; {gM:e}; {cM:e};= {V:e}')
-            self.logger.debug(
-                f'ratios ERT; reg  [%] \t=  {misfit_0/V*100:g}; {R/V*100:g}')
+        self.logger.debug(
+                f'misfit ERT, reg, div, curl; total \t=  {misfit_0:e}, {reg:e}, {gM:e}, {cM:e}; {V:e}')
+        self.logger.debug(
+                f'ratios ERT, reg  [%] \t=  {misfit_0/V*100:g}, {R/V*100:g}')
         return V
 
     def getGradient(self, M, im, im_face, isigma_0, isigma_0_face, isigma_0_stations, args2):

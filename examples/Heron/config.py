@@ -27,7 +27,7 @@ dipoleMeasurements = True
 datadelimiter = ','
 usesStationCoordinates = False
 schedulefile = None
-data_rtol = 1e-4
+data_rtol = 0.001
 #
 #  This section of the file defines the inversion
 #
@@ -53,8 +53,8 @@ regularization_w1=1e-5
 use_L1Norm=False
 epsilon_L1Norm=0.01
 use_log_misfit_DC = False
-regularization_order = 'PseudoGauss' # in ['H1', 'H2', 'Gauss', 'PseudoGauss', D-PseudoGauss']
-regularization_length_scale = 1.3
+regularization_order = 'H2' # in ['H1', 'H2', 'Gauss', 'PseudoGauss', D-PseudoGauss']
+regularization_length_scale = 1.3*2
 # Output handeling:
 #
 outfile='sigma'

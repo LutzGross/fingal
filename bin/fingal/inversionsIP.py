@@ -80,63 +80,57 @@ class IPMisfitCostFunction(CostFunction):
         self.misfit_IP = {}  # secondary potentials
         self.misfit_DC = {}  #
         nd_DC, nd_IP = 0,0 # counting number of data
-        n_dropped_DC, n_dropped_IP= 0,0 # number of dropped observations
+        n_small_DC, n_small_DC= 0,0 # number of dropped observations
         for A, B in self.data.injectionIterator():
             iA = self.data.getStationNumber(A)
             iB = self.data.getStationNumber(B)
             obs = self.data.getObservations(A, B)
             # ........... DC part .................................................................
             data_DC = np.array([self.data.getResistenceData((A, B, M, N)) for M, N in obs])
-            use_mask_DC = abs(data_DC) >= data_atol_DC
-            n_use_DC =  np.count_nonzero(use_mask_DC)
-            n_dropped_DC += len(data_DC)-n_use_DC
+            obs_DC = obs
+            n_small_DC += np.count_nonzero(abs(data_DC) < data_atol_DC)
+            n_use_DC=len(data_DC)
             if n_use_DC > 0:
-                data_DC = data_DC[use_mask_DC]
-                obs_DC = [ o for i,o in enumerate(obs) if use_mask_DC[i]]
                 iMs = [self.data.getStationNumber(M) for M, N in obs_DC]
                 iNs = [self.data.getStationNumber(N) for M, N in obs_DC]
-                assert len(obs_DC) == n_use_DC
                 if self.useLogMisfitDC:
-                    error_DC = np.array([self.data.getResistenceRelError((A, B, M, N)) for M, N in obs_DC])
+                    error_DC = np.array([self.data.getResistenceRelError((A, B, M, N)) for M, N in obs_DC]) + self.dataRTolDC
                     self.misfit_DC[(iA, iB)] =  DataMisfitLog(iMs=iMs, data=data_DC, iNs=iNs, injections=(A,B), weightings=1. / error_DC**2/n_use_DC)
                 else:
-                    #error_DC = max ([self.data.getResistenceError((A, B, M, N)) for M, N in obs])
-                    error_DC = np.array([self.data.getResistenceError((A, B, M, N)) for M, N in obs_DC])
+                    error_DC = np.array([self.data.getResistenceError((A, B, M, N)) for M, N in obs_DC]) + data_atol_DC
                     self.misfit_DC[(iA, iB)] = DataMisfitQuad(iMs=iMs, data=data_DC, iNs=iNs, injections=(A, B), weightings =1./error_DC**2/n_use_DC)
-                nd_DC+= len(self.misfit_DC[(iA, iB)])
+                nd_DC+= n_use_DC
             # ........... IP part .................................................................
             data_IP = np.array([self.data.getSecondaryResistenceData((A, B, M, N)) for M, N in obs])
-            use_mask_IP =np.array( [ not self.data.isUndefined(v) and abs(v) >= data_atol_IP  for v in data_IP ] )
-            n_use_IP = np.count_nonzero(use_mask_IP)
-            n_dropped_IP += len(data_IP) - n_use_IP
+            use_mask_IP =np.array( [ not self.data.isUndefined(v) for v in data_IP ] )
+            data_IP = data_IP[use_mask_IP]
+            obs_IP = [o for i, o in enumerate(obs) if use_mask_IP[i]]
+            n_use_IP = len(data_IP)
+            n_small_DC += np.count_nonzero(abs(data_IP) < data_atol_IP)
             if n_use_IP > 0:
-                data_IP = data_IP[use_mask_IP]
-                obs_IP = [o for i, o in enumerate(obs) if use_mask_IP[i]]
                 iMs = [self.data.getStationNumber(M) for M, N in obs_IP]
                 iNs = [self.data.getStationNumber(N) for M, N in obs_IP]
-                assert len(obs_IP) == n_use_IP
                 if self.useLogMisfitIP:
-                    error_IP = np.array([self.data.getSecondaryResistenceRelError((A, B, M, N)) for M, N in obs_IP])
+                    error_IP = np.array([self.data.getSecondaryResistenceRelError((A, B, M, N)) for M, N in obs_IP])  + self.dataRTolIP
                     self.misfit_IP[(iA, iB)] = DataMisfitLog(iMs=iMs, data=data_IP, iNs=iNs, injections=(A, B),
                                                              weightings=1. / error_IP ** 2 / n_use_IP)
                 else:
-                    error_IP = np.array([self.data.getSecondaryResistenceError((A, B, M, N)) for M, N in obs_IP])
+                    error_IP = np.array([self.data.getSecondaryResistenceError((A, B, M, N)) for M, N in obs_IP]) + data_atol_IP
                     self.misfit_IP[(iA, iB)] = DataMisfitQuad(iMs=iMs, data=data_IP, iNs=iNs, injections=(A, B),
                                                               weightings=1. / error_IP ** 2 / n_use_IP)
                 nd_IP += len(self.misfit_IP[(iA, iB)])
         self.logger.info(f"Data drop tolerance for resistance is {data_atol_DC:e}.")
-        self.logger.info(f"{nd_DC} DC data records are used. {n_dropped_DC} were dropped.")
+        self.logger.info(f"{nd_DC} DC data are records used. {n_small_DC} small values found.")
         self.logger.info(f"Data drop tolerance for secondary resistance is {data_atol_IP:e}.")
-        self.logger.info(f"{nd_IP} IP data records are used. {n_dropped_IP} were dropped.")
+        self.logger.info(f"{nd_IP} IP data are records used. {n_small_IP} small values found.")
+        if nd_IP + nd_DC >0 :
+            raise ValueError("No data for the inversion.")
         if nd_DC > 0:
             for iA, iB in self.misfit_DC:
                 self.misfit_DC[(iA, iB)].rescaleWeight(1. / (2 * nd_DC) )
         if nd_IP > 0:
-            for iA, iB in self.misfit_DC:
+            for iA, iB in self.misfit_IP:
                 self.misfit_IP[(iA, iB)].rescaleWeight(1. / (2 * nd_IP))
-
-        if nd_IP + nd_DC >0 :
-            raise ValueError("No data for the inversion.")
 
     def setMisfitWeighting(self, weightingMisfitDC=1):
         """
@@ -199,7 +193,7 @@ class IPMisfitCostFunction(CostFunction):
                                                         sigma = sigma_0,
                                                         sigma_at_faces= sigma_0_faces,
                                                         schedule = self.data,
-                                                        sigma_at_station = sigma_0_stations,
+                                                        sigma_stations = sigma_0_stations,
                                                         source_potential = self.source_potential,
                                                         sigma_src = self.sigma_src,
                                                         mask_faces = self.maskOuterFaces,
@@ -432,20 +426,20 @@ class IPInversionH1(IPMisfitCostFunction):
         precalculated parameters:
         """
         im = interpolate(m, Function(self.domain))
-        im_face =interpolate(m, FunctionOnBoundary(self.domain))
+        im_faces =interpolate(m, FunctionOnBoundary(self.domain))
         im_stations = self.grabValuesAtStations(m)
         self.logger.debug("m = %s" % ( str(im)))
 
         isigma_0 = self.getSigma0(im[0])
-        isigma_0_faces = self.getSigma0(im_face[0])
+        isigma_0_faces = self.getSigma0(im_faces[0])
         isigma_0_stations =  self.getSigma0(im_stations[0])
         iMn = self.getSigma0(im[1])
-        iMn_faces = self.getSigma0(im_face[1])
+        iMn_faces = self.getSigma0(im_faces[1])
         
         args2 = self.getIPModelAndResponse(isigma_0, isigma_0_faces, isigma_0_stations, iMn, iMn_faces)
-        return im, im_face, isigma_0, isigma_0_faces, isigma_0_stations, iMn, iMn_faces, args2
+        return im, im_faces, isigma_0, isigma_0_faces, isigma_0_stations, iMn, iMn_faces, args2
 
-    def getValue(self, m, im_face, isigma_0, isigma_0_faces, isigma_0_stations, iMn, iMn_faces, *args2):
+    def getValue(self, m, im_faces, isigma_0, isigma_0_faces, isigma_0_stations, iMn, iMn_faces, *args2):
         """
         return the value of the cost function
         """
@@ -473,7 +467,7 @@ class IPInversionH1(IPMisfitCostFunction):
                 f'ratios ERT, IP; reg ; Xgrad [%] \t=  {misfit_0/V*100:g}, {misfit_2/V*100:g};  {R/V*100:g}; {MX/V*100:g}')
         return V
 
-    def getGradient(self, m, im, isigma_0, iMn, args2):
+    def getGradient(self, m,  im_faces, isigma_0, isigma_0_faces, isigma_0_stations, iMn, iMn_faces, *args2):
         """
         returns the gradient of the cost function. Overwrites `getGradient` of `MeteredCostFunction`
         """
@@ -483,56 +477,75 @@ class IPInversionH1(IPMisfitCostFunction):
             X[0] *= 1/sqrt(length(gm[0]) ** 2 + self.epsilonL1Norm ** 2)
             X[1] *= 1/sqrt(length(gm[1]) ** 2 + self.epsilonL1Norm ** 2)
 
-        DMisfitDsigma_0, DMisfitDMn = self.getDMisfit(isigma_0, iMn, *args2)
+        DMisfitDsigma_0,  DMisfitDsigma_0_faces, DMisfitDMn,  DMisfitMn_faces = self.getDMisfit(isigma_0, iMn, *args2)
 
         Dsigma_0Dm0 = self.getDsigma0Dm(isigma_0, im[0])
         DMnDm1 = self.getDMnDm(iMn, im[1])
+        Dsigma_0Dm0_faces = self.getDsigma0Dm(isigma_0_faces, im_faces[0])
+        DMnDm1_faces = self.getDMnDm(iMn_faces, im_faces[1])
         Y=Data(0., (2,), im.getFunctionSpace())
-        Y[1] = DMisfitDMn * DMnDm1
         Y[0] = DMisfitDsigma_0 * Dsigma_0Dm0
+        Y[1] = DMisfitDMn * DMnDm1
+        y=Data(0., (2,), im_faces.getFunctionSpace())
+        y[0] = DMisfitDsigma_0_faces * Dsigma_0Dm0_faces
+        y[1] = DMisfitDMn_faces * DMnDm1_faces
 
         if self.theta>0:
             gm0 = gm[0]
             gm1 = gm[1]
-            lgm0 = length(gm0)
-            lgm1 = length(gm1)
-            lgm0 += whereZero(lgm0, tol=0) * self.EPS
-            lgm1 += whereZero(lgm1, tol=0) * self.EPS
+            lgm0 = length(gm0) + self.m_epsilon
+            lgm1 = length(gm1) + self.m_epsilon
 
             X01 = inner(gm0, gm1)
-
             f = X01 * (1 / lgm0 ** 2 + 1 / lgm1 ** 2)
             X[0, :] += self.theta * ((1 + X01 ** 2 / lgm0 ** 4) * gm0 - f * gm1)
             X[1, :] += self.theta * ((1 + X01 ** 2 / lgm1 ** 4) * gm1 - f * gm0)
 
-        return ArithmeticTuple(Y, X)
+        return ArithmeticTuple(Y, X, y)
 
-    def getInverseHessianApproximation(self, r, m, im, isigma_0, iMn, args2, initializeHessian=False):
+    def getInverseHessianApproximation(self, r, m,  im_faces, isigma_0, isigma_0_faces, isigma_0_stations, 
+                                       iMn, iMn_faces, *args2, initializeHessian=False):
         """
         returns an approximation of inverse of the Hessian. Overwrites `getInverseHessianApproximation` of `MeteredCostFunction`
         """
-        if initializeHessian and self.useL1Norm:
-            gm=grad(m)
-            for k in range(2):
-                L=sqrt(length(gm[k]) ** 2 + self.epsilonL1Norm ** 2)
-                self.Hpde[k].setValue(A=self.w1 * ( 1/L**3 * kronecker(3) - 1/L * outer(gm[k], gm[k])) )
+        if initializeHessian:
+            gm = grad(m)
+            if self.useL1Norm:
+                for k in range(2):
+                    L=sqrt(length(gm[k]) ** 2 + self.epsilonL1Norm ** 2)
+                    self.Hpde[k].setValue(A=self.w1 * ( 1/L**3 * kronecker(3) - 1/L * outer(gm[k], gm[k])) )
+            else:
+                A = self.Hpde.createCoefficient('A')
+                gm = args[1]
+                gm0 = gm[0]
+                gm1 = gm[1]
+                lgm0 = length(gm0) + self.m_epsilon
+                lgm1 = length(gm1) + self.m_epsilon
+                d01 = inner(gm0, gm1)
+                f = 1 / lgm0 ** 2 + 1 / lgm1 ** 2
+                A[0, :, 0, :] = (self.w1 + self.theta * (1 + d01 ** 2 / lgm0 ** 4)) * kronecker(3) + \
+                        self.theta * (2 * d01 / lgm0 ** 4 * (outer(gm0, gm1) + outer(gm1, gm0)) -\
+                            4 * d01 ** 2 / lgm0 ** 6 * outer(gm0, gm0) - f * outer(gm1,gm1))
+                A[1, :, 1, :] = ((self.w1 + self.theta * (1 + d01 ** 2 / lgm1 ** 4)) * kronecker(3) +\
+                            self.theta * (2 * d01 / lgm1 ** 4 * (outer(gm0, gm1) + outer(gm1, gm0)) -\
+                                          4 * d01 ** 2 / lgm1 ** 6 * outer(gm1, gm1) - f * outer(gm0,gm0)))
+                H01 = self.theta * (2 * d01 * (1 / lgm0 ** 4 * outer(gm0, gm0) + 1 / lgm1 ** 4 * outer(gm1, gm1)) -\
+                                    f * (d01 * kronecker(3) + outer(gm1, gm0)))
+                A[0, :, 1, :] = H01
+                A[1, :, 0, :] = transpose(H01)
+                self.Hpde.setValue(A=A)
 
         dm=Data(0., (2,), Solution(self.domain))
-        if self.useL1Norm:
-            for i in [0,1]:
-                self.Hpde[i].setValue(X=r[1][i], Y=r[0][i])
-                dm[i] = self.Hpde[i].getSolution()
-                txt = str(dm[i])
-                if getMPIRankWorld() == 0:
-                    self.logger.debug(f"search direction component {i} = {txt}.")
+        if self.theta> 0:
+            self.Hpde.setValue(X=r[1], Y=r[0], y=r[2])
+            dm = self.Hpde.getSolution()
+            for i in [0, 1]:
+                self.logger.debug(f"search direction component {i} = {str(dm[i])}.")
         else:
             for i in [0,1]:
-                self.Hpde.setValue(X=r[1][i], Y=r[0][i])
+                self.Hpde.setValue(X=r[1][i], Y=r[0][i], y=r[2][i])
                 dm[i] = self.Hpde.getSolution()
-
-                txt = str(dm[i])
-                if getMPIRankWorld() == 0:
-                    self.logger.debug(f"search direction component {i} = {txt}.")
+                self.logger.debug(f"search direction component {i} = {str(dm[i])}.")
         return dm
 
     def getDualProduct(self, m, r):

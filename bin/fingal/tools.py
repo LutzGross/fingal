@@ -54,19 +54,19 @@ def makeSchlumbergerArray(numElectrodes=32, id0=0):
             schedule.append((s + id0, s + 2 * k + 3 + id0, s + k + 1  + id0, s + k + 2 + id0))
     return schedule
 
-def makePointSource(source_key, domain, value=1.,_stationsFMT=None):
+def makePointSource(source_key, domain, value=1.,stationsFMT=None):
     """
 
     """
     s = Scalar(0., DiracDeltaFunctions(domain))
-    if_stationsFMT is None:
+    if stationsFMT is None:
         s.setTaggedValue(source_key, value)
     else:
-        s.setTaggedValue(_stationsFMT % source_key, value)
+        s.setTaggedValue(stationsFMT % source_key, value)
     return s
 
 
-def getSourcePotentials(domain, sigma, survey, sigma_faces=None, maskOuterFaces=None,_stationsFMT=None, logger=None):
+def getSourcePotentials(domain, sigma, survey, sigma_faces=None, maskOuterFaces=None,stationsFMT=None, logger=None):
     """
     return the electric potential for all injections A in the survey using conductivity sigma.
     :sigma: conductivity. Needs to a constant if sigma_source is not present.
@@ -84,10 +84,10 @@ def getSourcePotentials(domain, sigma, survey, sigma_faces=None, maskOuterFaces=
     source_potential = {}
     pde = setupERTPDE(domain)
     pde.setValue(A=sigma * kronecker(3), y_dirac=Data(), X=Data(), Y=Data(), y=Data())
-    for A in survey.getListOfInjection_stations():
+    for A in survey.getListOfInjectionStations():
         iA=survey.getStationNumber(A)
 
-        pde.setValue(y_dirac=makePointSource(A, pde.getDomain(),_stationsFMT=_stationsFMT))
+        pde.setValue(y_dirac=makePointSource(A, pde.getDomain(),stationsFMT=stationsFMT))
         #pde.setValue(y=1)
         # ---
         xA = survey.getStationLocationByKey(A)
@@ -349,7 +349,7 @@ def setupPDESystem(domain, numEquations=1, symmetric=True, tolerance=1e-8):
         optionsG.setTrilinosParameter("verbosity", "none")
         optionsG.setTrilinosParameter("number of equations", numEquations)
         optionsG.setTrilinosParameter("problem: symmetric", symmetric)
-
+    return pde
 def setupERTPDE(domain, tolerance=1e-8, poisson=True, debug=0):
     """
     used to setup all PDEs fro ERT related inversion. If available TRILINOS is usered.
