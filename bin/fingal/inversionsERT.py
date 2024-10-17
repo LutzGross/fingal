@@ -447,7 +447,7 @@ class ERTInversionH2(ERTMisfitCostFunction):
         # regularization
         self.mpde = setupERTPDE(self.domain)
         self.mpde.getSolverOptions().setTolerance(pde_tol)
-        self.mpde.setValue(A=kronecker(3), q= 0*qx + 0*qy + qz )
+        self.mpde.setValue(A=kronecker(3), q= qx + qy + 0* qz )
 
         # regularization
         self.w1 = w1
@@ -456,7 +456,6 @@ class ERTInversionH2(ERTMisfitCostFunction):
             reg_tol=min(sqrt(pde_tol), 1e-3)
         self.logger.debug(f'Tolerance for solving regularization PDE is set to {reg_tol}')
         self.Hpde.getSolverOptions().setTolerance(reg_tol)
-        self.HpdeUpdateCount=2
         self.Hpde.setValue(A=self.w1 * kronecker(3))
         self.Hpde_qs = [ qy + qz, qx + qz,  qx + qy ]
         #  reference conductivity:
