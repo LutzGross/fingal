@@ -118,7 +118,7 @@ if config.regularization_order == "H1":
         1/0
 elif config.regularization_order == "H2":
     costf=ERTInversionH2(domain, data=survey,
-                         sigma_0_ref=config.sigma0_ref,
+                         sigma_0_ref=config.sigma0_ref, reg_tol=1e-8,
                          w1=config.regularization_w1, maskOuterFaces= mask_face, dataRTolDC= config.data_rtol,
                          pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
                          useLogMisfitDC= config.use_log_misfit_DC, logger=logger)

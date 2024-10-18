@@ -14,7 +14,7 @@ SILODIR="results"
 
 survey = { (101, 140) : 5 }
 rho_ref = 100
-rho_frac = rho_ref*10000
+rho_frac = rho_ref*100
 # extract some geometrical information from the geo file:
 minegeo=getGeometryFromGeoFile(GEOFILE)
 

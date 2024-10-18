@@ -28,8 +28,8 @@ meshSizePadding=(RoadLengthWest+RoadWidth+2*PaddingWidth+RoadLengthEast)/20;
 //meshSizeElectrodes = ElectrodeSpacing/10;
 //meshSizeElectrodeFace = ElectrodeSpacing/4;
 
-meshSizeElectrodes = ElectrodeSpacing/3;
-meshSizeElectrodeFace = ElectrodeSpacing;
+meshSizeElectrodes = ElectrodeSpacing/10;
+meshSizeElectrodeFace = ElectrodeSpacing/5;
 
 // Base
 Point(1) = {0, -ExtractionWidth/2, 0, meshSizeElectrodeFace };
