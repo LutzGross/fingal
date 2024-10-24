@@ -12,7 +12,7 @@ FLYFILE = "mine.fly"
 PLOTDIR="plots"
 SILODIR="results"
 
-survey = { (101, 140) : 5 }
+survey = { (101, 120) : 5 }
 rho_ref = 100
 rho_frac = rho_ref*100
 # extract some geometrical information from the geo file:
@@ -103,7 +103,7 @@ for kk in data_north:
 plt.title(f"MN voltage Northern Line A,B={A},{B}")
 plt.legend()
 plt.xlabel("offset [m]")
-plt.ylabel("voltage [mV]")
+plt.ylabel("voltage [V]")
 plt.savefig(os.path.join(PLOTDIR,"data_north.png"))
 
 plt.clf()
@@ -113,7 +113,7 @@ for kk in data_south:
 plt.title(f"MN voltage Southern Line A,B={A},{B}")
 plt.legend()
 plt.xlabel("offset [m]")
-plt.ylabel("voltage [mV]")
+plt.ylabel("voltage [V]")
 plt.savefig(os.path.join(PLOTDIR,"data_south.png"))
 
 plt.clf()
@@ -126,8 +126,8 @@ plt.legend()
 plt.savefig(os.path.join(PLOTDIR, "secondary_south.png"))
 
 plt.clf()
-for kk in rho_north:
-    plt.scatter(X_north, np.array(rho_north[kk])*1000, label = f"f{kk}", s= 10 )
+for kk in data2_north:
+    plt.scatter(X_north, np.array(data2_north[kk])*1000, label = f"f{kk}", s= 10 )
 plt.title(f"MN voltage change Northern Line A,B={A},{B}")
 plt.xlabel("offset [m]")
 plt.ylabel("voltage [mV]")

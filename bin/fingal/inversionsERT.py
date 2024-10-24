@@ -278,7 +278,7 @@ class ERTInversionH1(ERTMisfitCostFunction):
         self.epsilonL1Norm = epsilonL1Norm
         assert not self.useL1Norm, "L1-regularization is not fully implemented yet."
         # regularization
-        self.w1 = w1
+
         self.factor2D=1
         self.Hpde = setupERTPDE(self.domain)
         self.Hpde.setValue(q=self.mask_fixed_property)
@@ -287,13 +287,16 @@ class ERTInversionH1(ERTMisfitCostFunction):
         self.logger.debug(f'Tolerance for solving regularization PDE is set to {reg_tol}')
         self.Hpde.getSolverOptions().setTolerance(reg_tol)
         self.HpdeUpdateCount=2
-        K=kronecker(3)
-        K[1,1]*=self.factor2D
-        self.Hpde.setValue(A=self.w1 * K)
+        self.setW1(w1)
 
         #  reference conductivity:
         self.updateSigma0Ref(sigma_0_ref)
 
+    def setW1(self, w1=1):
+        self.w1 = w1
+        K=kronecker(3)
+        K[1,1]*=self.factor2D
+        self.Hpde.setValue(A=self.w1 * K)
 
     def updateSigma0Ref(self, sigma_0_ref):
         """
@@ -447,20 +450,22 @@ class ERTInversionH2(ERTMisfitCostFunction):
         # regularization
         self.mpde = setupERTPDE(self.domain)
         self.mpde.getSolverOptions().setTolerance(pde_tol)
-        self.mpde.setValue(A=kronecker(3), q= qx + qy + 0* qz )
+        self.mpde.setValue(A=kronecker(3), q= qx + qy + qz )
 
         # regularization
-        self.w1 = w1
+
         self.Hpde = setupERTPDE(self.domain)
         if not reg_tol:
             reg_tol=min(sqrt(pde_tol), 1e-3)
         self.logger.debug(f'Tolerance for solving regularization PDE is set to {reg_tol}')
         self.Hpde.getSolverOptions().setTolerance(reg_tol)
-        self.Hpde.setValue(A=self.w1 * kronecker(3))
         self.Hpde_qs = [ qy + qz, qx + qz,  qx + qy ]
         #  reference conductivity:
         self.updateSigma0Ref(sigma_0_ref)
 
+    def setW1(self, w1):
+        self.w1 = w1
+        self.Hpde.setValue(A=self.w1 * kronecker(3))
 
     def updateSigma0Ref(self, sigma_0_ref):
         """
@@ -601,7 +606,6 @@ class ERTInversionGauss(ERTMisfitCostFunction):
         self.Hpde = setupERTPDE(self.domain)
         if not reg_tol:
             reg_tol=min(sqrt(pde_tol), 1e-3)
-        reg_tol = pde_tol
         self.logger.debug(f'Tolerance for solving regularization PDE is set to {reg_tol}')
         self.Hpde.getSolverOptions().setTolerance(reg_tol)
         self.HpdeUpdateCount=2
@@ -735,7 +739,7 @@ class ERTInversionPseudoGaussBase(ERTMisfitCostFunction):
         # regularization
         self.w1 = w1
         if reg_tol is None:
-            reg_tol=1e-8 + 0*min(sqrt(pde_tol), 1e-3)
+            reg_tol=min(sqrt(pde_tol), 1e-3)
         self.setUpInitialHessian(a=self.length_scale, w1=self.w1, reg_tol=reg_tol)
         #  reference conductivity:
         self.updateSigma0Ref(sigma_0_ref)
@@ -857,7 +861,7 @@ class ERTInversionPseudoGaussBase(ERTMisfitCostFunction):
 
 
 class ERTInversionPseudoGaussDiagonalHessian(ERTInversionPseudoGaussBase):
-    def setUpInitialHessian(self, a=1, w1 = 1,  reg_tol=1e-4):
+    def setUpInitialHessian(self, a=1, w1 = 1,  reg_tol=None):
         self.Hpde = setupERTPDE(self.domain)
         if not reg_tol:
             reg_tol=min(sqrt(self.pde_tol), 1e-3)
@@ -878,10 +882,11 @@ class ERTInversionPseudoGaussDiagonalHessian(ERTInversionPseudoGaussBase):
         return dM
 
 class ERTInversionPseudoGauss(ERTInversionPseudoGaussBase):
-    def setUpInitialHessian(self, a=1, w1=1, reg_tol=1e-4):
+    def setUpInitialHessian(self, a=1, w1=1, reg_tol=None):
 
         self.Hpde = setupPDESystem(self.domain, numEquations=4, symmetric=True, tolerance=reg_tol)
-
+        if not reg_tol:
+            reg_tol=min(sqrt(self.pde_tol), 1e-3)
         A = self.Hpde.createCoefficient('A')
         B = self.Hpde.createCoefficient('B')
         C = self.Hpde.createCoefficient('C')

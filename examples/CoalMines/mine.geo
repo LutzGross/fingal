@@ -26,10 +26,10 @@ meshSizeCore = ElectrodeSpacing;
 meshSizeOuterCore =  ElectrodeSpacing;
 meshSizePadding=(RoadLengthWest+RoadWidth+2*PaddingWidth+RoadLengthEast)/20;
 //meshSizeElectrodes = ElectrodeSpacing/10;
-//meshSizeElectrodeFace = ElectrodeSpacing/4;
+//meshSizeElectrodeFace = ElectrodeSpacing/5;
 
-meshSizeElectrodes = ElectrodeSpacing/10;
-meshSizeElectrodeFace = ElectrodeSpacing/5;
+meshSizeElectrodes = ElectrodeSpacing/30;
+meshSizeElectrodeFace = ElectrodeSpacing/15;
 
 // Base
 Point(1) = {0, -ExtractionWidth/2, 0, meshSizeElectrodeFace };
