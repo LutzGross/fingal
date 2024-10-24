@@ -15,7 +15,7 @@ TABFN="ERT-H1.log"
 import logging
 from datetime import datetime
 
-logger=logging.getLogger('TEST:')
+logger=logging.getLogger('ERT-H1')
 logger.setLevel(logging.DEBUG)
 config = importlib.import_module(CONFIG)
 
@@ -42,10 +42,11 @@ costf=ERTInversionH1(domain, data=survey,
                          useLogMisfitDC= config.use_log_misfit_DC, logger=logger)
 
 tabfile=open(TABFN, 'w')
-for w1 in [0., 10000.]:
+for w1, with_misfit in [(0.,True ), (1., False), (1.e4, True)]:
     print("w1 = ", w1)
-    tabfile.write(f".. w1 = {w1} .............\n")
+    tabfile.write(f".. w1 , = {w1}, with_misfit= {with_misfit} .............\n")
     costf.setW1(w1)
+    costf.ignoreMisfit(not with_misfit)
 
     x = domain.getX()[0]
     y = domain.getX()[1]
@@ -68,12 +69,19 @@ for w1 in [0., 10000.]:
     J0=costf.getValueAndCount(m,  *args)
     print("J(m)=%e"%J0)
     print("gradient = %s"%str(G))
-
+    b=[]
+    x=[]
     tabfile.write("log(a)     J(m)        J(m+a*p)       grad        num. grad     error O(a)   O(1)\n")
     for k in range(4, 13):
         a=0.5**k
         J=costf.getValueAndCount(m+a*dm)
         D=(J-J0)/a
-        tabfile.write("%d      %e %e %e %e %e %e\n"%(k,J0, J, D, Dex, D-Dex, (D-Dex)/a) )
-
+        b.append(log(abs(D-Dex)))
+        x.append(log(a))
+        tabfile.write("%d      %e %e %e %e %e %e\n"%(k,J0, J,Dex,  D, D-Dex, (D-Dex)/a) )
+    m, c = np.linalg.lstsq(np.vstack([np.array(x), np.ones(len(x))]).T, b)[0]
+    if m < 0.999:
+        tabfile.write(f"WARNING: Poor convergence rate = {m}.\n")
+    else:
+        tabfile.write(f"Convergence rate = {m}.\n")
 logger.info("All done - Have a nice day!")

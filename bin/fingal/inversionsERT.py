@@ -90,6 +90,16 @@ class ERTMisfitCostFunction(CostFunction):
                 self.misfit_DC[(iA, iB)].rescaleWeight(1. / nd_DC)
         else:
             raise ValueError("No data for the inversion.")
+        self.ignoreMisfit(flag=False)
+
+    def ignoreMisfit(self, flag=False):
+        """
+        Switch on/off the misfit in the cost function. This is used for testing.
+        """
+        self.ignore_misfit = flag
+        if self.ignore_misfit:
+            self.logger.info(f"WARNING: **** Misfit is ignored in cost function ****")
+
     def grabValuesAtStations(self, m):
         """
         returns the values of m at the stations. The order is given by data.getStationNumeration()
@@ -179,56 +189,59 @@ class ERTMisfitCostFunction(CostFunction):
         for iA in additive_potentials_DC_stations:
             potentials_DC_stations[iA] = self.source_potentials_stations[iA] + additive_potentials_DC_stations[iA]
         misfit_0 = 0.
-        for iA, iB in self.misfit_DC:
-            misfit_0 += self.misfit_DC[(iA, iB)].getValue(
-                potentials_DC_stations[iA] - potentials_DC_stations[iB])
+        if not self.ignore_misfit:
+            for iA, iB in self.misfit_DC:
+                misfit_0 += self.misfit_DC[(iA, iB)].getValue(
+                    potentials_DC_stations[iA] - potentials_DC_stations[iB])
         return misfit_0
     def getDMisfit(self, sigma_0, sigma_0_face, sigma_0_stations, additive_potentials_DC, additive_potentials_DC_stations, *args):
         """
         returns the derivative of the misfit function with respect to sigma_0 with respect to Mn
         """
-        SOURCES=np.zeros( (self.data.getNumStations(), self.data.getNumStations()), float)
-        potentials_DC_stations = {}
-        for iA in additive_potentials_DC_stations:
-            potentials_DC_stations[iA] = self.source_potentials_stations[iA] + additive_potentials_DC_stations[iA]
-
-        for iA, iB in self.misfit_DC:
-            dmis_0 = self.misfit_DC[(iA, iB)].getDerivative(
-                potentials_DC_stations[iA] - potentials_DC_stations[iB])
-            for i in range(len(self.misfit_DC[(iA, iB)])):
-                iM = self.misfit_DC[(iA, iB)].iMs[i]
-                iN = self.misfit_DC[(iA, iB)].iNs[i]
-                #ABMN
-                SOURCES[iA, iM] += dmis_0[i]
-                SOURCES[iB, iM] -= dmis_0[i]
-                SOURCES[iA, iN] -= dmis_0[i]
-                SOURCES[iB, iN] += dmis_0[i]
-
         DMisfitDsigma_0 = Scalar(0., self.forward_pde.getFunctionSpaceForCoefficient('Y'))
         DMisfitDsigma_0_face = Scalar(0., self.forward_pde.getFunctionSpaceForCoefficient('y'))
-        self.forward_pde.setValue(A=sigma_0 * kronecker(self.forward_pde.getDim()), y_dirac=Data(), X=Data(), Y=Data(), y=Data())
-        n = self.domain.getNormal() * self.maskOuterFaces
-        x = FunctionOnBoundary(self.domain).getX()
+        if not self.ignore_misfit:
+            SOURCES=np.zeros( (self.data.getNumStations(), self.data.getNumStations()), float)
+            potentials_DC_stations = {}
+            for iA in additive_potentials_DC_stations:
+                potentials_DC_stations[iA] = self.source_potentials_stations[iA] + additive_potentials_DC_stations[iA]
 
-        for iA in additive_potentials_DC.keys():
-                s = Scalar(0., DiracDeltaFunctions(self.forward_pde.getDomain()))
-                for M in self.data.getStationNumeration():
-                    iM = self.data.getStationNumber(M)
-                    if self.stationsFMT is None:
-                        s.setTaggedValue(M, SOURCES[iA, iM])
-                    else:
-                        s.setTaggedValue(self.stationsFMT % M,  SOURCES[iA, iM])
-                self.forward_pde.setValue(y_dirac=s)
-                r = x - self.data.getStationLocationByNumber(iA)
-                fA = inner(r, n) / length(r) ** 2
-                self.forward_pde.setValue(d=sigma_0_face * fA )
-                VA_star=self.forward_pde.getSolution()
-                #self.logger.debug("DC adjoint potential %d :%s" % (iA, str(VA_star)))
-                VA= self.source_potential[iA] + additive_potentials_DC[iA]
-                DMisfitDsigma_0 -= inner(grad(VA_star), grad(VA))
-                DMisfitDsigma_0_face -= ( fA * VA_star ) * VA
+            for iA, iB in self.misfit_DC:
+                dmis_0 = self.misfit_DC[(iA, iB)].getDerivative(
+                    potentials_DC_stations[iA] - potentials_DC_stations[iB])
+                for i in range(len(self.misfit_DC[(iA, iB)])):
+                    iM = self.misfit_DC[(iA, iB)].iMs[i]
+                    iN = self.misfit_DC[(iA, iB)].iNs[i]
+                    #ABMN
+                    SOURCES[iA, iM] += dmis_0[i]
+                    SOURCES[iB, iM] -= dmis_0[i]
+                    SOURCES[iA, iN] -= dmis_0[i]
+                    SOURCES[iB, iN] += dmis_0[i]
 
-        self.logger.debug("%s adjoint potentials calculated." % len(additive_potentials_DC.keys()))
+
+            self.forward_pde.setValue(A=sigma_0 * kronecker(self.forward_pde.getDim()), y_dirac=Data(), X=Data(), Y=Data(), y=Data())
+            n = self.domain.getNormal() * self.maskOuterFaces
+            x = FunctionOnBoundary(self.domain).getX()
+
+            for iA in additive_potentials_DC.keys():
+                    s = Scalar(0., DiracDeltaFunctions(self.forward_pde.getDomain()))
+                    for M in self.data.getStationNumeration():
+                        iM = self.data.getStationNumber(M)
+                        if self.stationsFMT is None:
+                            s.setTaggedValue(M, SOURCES[iA, iM])
+                        else:
+                            s.setTaggedValue(self.stationsFMT % M,  SOURCES[iA, iM])
+                    self.forward_pde.setValue(y_dirac=s)
+                    r = x - self.data.getStationLocationByNumber(iA)
+                    fA = inner(r, n) / length(r) ** 2
+                    self.forward_pde.setValue(d=sigma_0_face * fA )
+                    VA_star=self.forward_pde.getSolution()
+                    #self.logger.debug("DC adjoint potential %d :%s" % (iA, str(VA_star)))
+                    VA= self.source_potential[iA] + additive_potentials_DC[iA]
+                    DMisfitDsigma_0 -= inner(grad(VA_star), grad(VA))
+                    DMisfitDsigma_0_face -= ( fA * VA_star ) * VA
+
+            self.logger.debug("%s adjoint potentials calculated." % len(additive_potentials_DC.keys()))
         return DMisfitDsigma_0, DMisfitDsigma_0_face
 
 
@@ -498,8 +511,8 @@ class ERTInversionH2(ERTMisfitCostFunction):
         im = interpolate(m, Function(self.domain))
         im_face =interpolate(m, FunctionOnBoundary(self.domain))
         im_stations = self.grabValuesAtStations(m)
+        self.logger.debug("M = %s" % ( str(M)))
         self.logger.debug("m = %s" % ( str(im)))
-
         isigma_0 = self.getSigma0(im)
         isigma_0_face = self.getSigma0(im_face)
         isigma_0_stations =  self.getSigma0(im_stations)
@@ -517,10 +530,8 @@ class ERTInversionH2(ERTMisfitCostFunction):
 
         V = R + misfit_0
 
-        self.logger.debug(
-                f'misfit ERT, reg; total \t=  {misfit_0:e}, {R:e}; {V:e}')
-        self.logger.debug(
-                f'ratios ERT, reg  [%] \t=  {misfit_0/V*100:g}; {R/V*100:g}')
+        self.logger.debug(f'misfit ERT, reg; total \t=  {misfit_0:e}, {R:e}; {V:e}')
+        self.logger.debug(f'ratios ERT, reg  [%] \t=  {misfit_0/V*100:g}; {R/V*100:g}')
         return V
 
     def getGradient(self, M, m, im, im_face, isigma_0, isigma_0_face, isigma_0_stations, args2):
@@ -613,7 +624,6 @@ class ERTInversionGauss(ERTMisfitCostFunction):
         #  reference conductivity:
         self.updateSigma0Ref(sigma_0_ref)
 
-
     def updateSigma0Ref(self, sigma_0_ref):
         """
         set a new reference conductivity
@@ -662,10 +672,8 @@ class ERTInversionGauss(ERTMisfitCostFunction):
         R = self.w1 / 2 * integrate(im**2)
 
         V = R + misfit_0
-        self.logger.debug(
-                f'misfit ERT, reg ; total \t=  {misfit_0:e}, {R:e}; {V:e}')
-        self.logger.debug(
-                f'ratios ERT, reg  [%] \t=  {misfit_0/V*100:g}, {R/V*100:g}')
+        self.logger.debug(f'misfit ERT, reg ; total \t=  {misfit_0:e}, {R:e}; {V:e}')
+        self.logger.debug(f'ratios ERT, reg  [%] \t=  {misfit_0/V*100:g}, {R/V*100:g}')
         return V
 
     def getGradient(self, m, im, im_face, isigma_0, isigma_0_face, isigma_0_stations, args2):

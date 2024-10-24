@@ -92,40 +92,6 @@ elif config.regularization_order == "H2":
     m_init = Vector(0.0, Solution(domain))
 
 
-    # test gradient:
-    if False:
-        #=====
-        x = domain.getX()[0]
-        y = domain.getX()[1]
-        z = domain.getX()[2]
-        #pp=(x - inf(x))*(x - sup(x)) * (y - inf(y))* (y - sup(y))*(z - inf(z))
-        pp = (z - inf(z))
-        pp/=sup(abs(pp))
-        #====
-
-        x=length(domain.getX())
-        m=x/Lsup(x)*pp
-        ddm=(domain.getX()[0]+domain.getX()[1]+0.5*domain.getX()[2])/Lsup(x)/3*10*pp
-        #ddm=pp*0.01
-        print(str(m))
-        print(str(ddm))
-        dm=ddm
-        m*=0
-        args=costf.getArgumentsAndCount(m)
-        G=costf.getGradientAndCount(m, *args)
-        Dex = costf.getDualProductAndCount(dm, G)
-        J0=costf.getValueAndCount(m,  *args)
-        print("J0=%e"%J0)
-        #print("gradient = %s"%str(G))
-
-        print("XX log(a):\tJ0\t\tJ(a)\t\tnum. D\t\tD\t\terror O(a)\t\tO(1)")
-        for k in range(4, 13):
-            a=0.5**k
-            J=costf.getValueAndCount(m+a*dm)
-            D=(J-J0)/a
-            print("XX \t%d:\t%e\t%e\t%e\t%e\t%e\t%e"%(k,J0, J, D, Dex, D-Dex, (D-Dex)/a) )
-        1/0
-
 elif config.regularization_order == "Gauss":
     costf = ERTInversionGauss(domain, data=survey,
                               sigma_0_ref=config.sigma0_ref,
