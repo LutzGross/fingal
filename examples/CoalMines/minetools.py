@@ -1,5 +1,5 @@
 from esys.escript import *
-from fingal import setupERTPDE
+from fingal import setupERTPDE, makeWennerArray
 import numpy as np
 from numpy.linalg import norm
 
@@ -15,8 +15,9 @@ class MineGeometry(object):
     ExtractionWidth = None
     LineHeight = None
     TagFaces = None
-    RemainderLength = None
+    UnMinedLength = None
     RoadHeight = None
+    RoadWidth = None
     LineNorth = []
     LineSouth = []
 
@@ -31,23 +32,45 @@ def getGeometryFromGeoFile(geofile):
             out.ElectrodeSpacing = float(line.split('=')[1][:-2])
         elif line.strip().startswith("ExtractionWidth"):
             out.ExtractionWidth = float(line.split('=')[1][:-2])
+        elif line.strip().startswith("ExtractionLength"):
+            out.ExtractionLength = float(line.split('=')[1][:-2])
         elif line.strip().startswith("LineHeight"):
             out.LineHeight = float(line.split('=')[1][:-2])
-        elif line.strip().startswith("RemainderLength"):
-            out.RemainderLength = float(line.split('=')[1][:-2])
+        elif line.strip().startswith("UnMinedLength"):
+            out.UnMinedLength = float(line.split('=')[1][:-2])
         elif line.strip().startswith("RoadHeight"):
             out.RoadHeight = float(line.split('=')[1][:-2])
-        elif line.strip().startswith("Physical Surface"):
-            out.TagFaces = line.split('"')[1]
+        elif line.strip().startswith("RoadWidth"):
+            out.RoadWidth = float(line.split('=')[1][:-2])
+        elif line.strip().startswith("DamageZoneOffset"):
+            out.DamageZoneOffset = float(line.split('=')[1][:-2])
+        elif line.strip().startswith("DamageHeight"):
+            out.DamageHeight = float(line.split('=')[1][:-2])
+        elif line.strip().startswith("DamageBaseDepth"):
+            out.DamageBaseDepth = float(line.split('=')[1][:-2])
+        elif line.strip().startswith("DamageGeometryExponent"):
+            out.DamageGeometryExponent = float(line.split('=')[1][:-2])
+        elif line.strip().startswith("FringeWidth"):
+            out.FringeWidth = float(line.split('=')[1][:-2])
+        elif line.strip().startswith("ResetDamagedZoneSouth"):
+            out.ResetDamagedZoneSouth = float(line.split('=')[1][:-2])
+        elif line.strip().startswith("ResetDamagedZoneNorth"):
+            out.ResetDamagedZoneNorth = float(line.split('=')[1][:-2])
     print(f"Dimension of electrode array read from file {geofile}.")
     print(f"NumElectrodes= {out.NumElectrodes}.")
     print(f"SpacingElectrodes = {out.ElectrodeSpacing}.")
     print(f"LineOffset = {out.LineOffset}.")
     print(f"LineHeight = {out.LineHeight}.")
-    print(f"ExtractionWidth = {out.ExtractionWidth}.")
-    print(f"RemainderLength = {out.RemainderLength}.")
+    print(f"UnMinedLength = {out.UnMinedLength}.")
     print(f"RoadHeight = {out.RoadHeight}.")
-    print(f"Tag for faces = '{out.TagFaces}'.")
+    print(f"RoadWidth = {out.RoadWidth}.")
+    print(f"DamageZoneOffset = {out.DamageZoneOffset}.")
+    print(f"DamageHeight = {out.DamageHeight}.")
+    print(f"DamageBaseDepth = {out.DamageBaseDepth}.")
+    print(f"DamageGeometryExponent = {out.DamageGeometryExponent}.")
+    print(f"FringeWidth = {out.FringeWidth}.")
+    print(f"ResetDamagedZoneSouth = {out.ResetDamagedZoneSouth}.")
+    print(f"ResetDamagedZoneNorth = {out.ResetDamagedZoneNorth}.")
 
     # south line:
     for k in range(out.NumElectrodes):
@@ -55,11 +78,15 @@ def getGeometryFromGeoFile(geofile):
         out.LineSouth.append(stid)
         out.Stations[stid]=np.array([out.LineOffset + k * out.ElectrodeSpacing, -out.ExtractionWidth / 2, out.LineHeight])
     # north line:
-    for k in range(out.NumElectrodes):
-        stid = 200 + (k+1)
-        out.LineNorth.append(stid)
-        out.Stations[stid]=np.array([out.LineOffset + k * out.ElectrodeSpacing, out.ExtractionWidth / 2, out.LineHeight])
-    print(f"{len(out.Stations)} electodes found.")
+    #for k in range(out.NumElectrodes):
+    #    stid = 200 + (k+1)
+    #    out.LineNorth.append(stid)
+    #    out.Stations[stid]=np.array([out.LineOffset + k * out.ElectrodeSpacing, out.ExtractionWidth / 2, out.LineHeight])
+    #print(f"{len(out.Stations)} electrodes found.")
+
+    out.Schedule = makeWennerArray(numElectrodes=out.NumElectrodes, id0=101)
+    #out.Schedule += makeWennerArray(numElectrodes=out.NumElectrodes, id0=100)
+    print("Wenner survey created.")
     return out
 
 def makePrimaryPotentials(domain, minegeo, sigma_ref, survey):
@@ -138,6 +165,27 @@ def makeResistivity1(domain, width_fracture_zone, rho_ref, rho_frac, minegeo):
     f = m1 * m2 * d1 * d2 * e1 * e2
     rho = rho_ref * (1 - f) + rho_frac * f
     return rho
+
+def applyDamage(rho, minegeo, rho_raise_factor_damage = 5):
+    domain = rho.getDomain()
+    X=domain.getX()
+    x=X[0]
+    y=X[1]
+    z=X[2]
+    h_top=minegeo.DamageHeight*clip((x- (minegeo.UnMinedLength-minegeo.DamageZoneOffset))/(minegeo.ExtractionLength+minegeo.DamageZoneOffset), minval =0.  )**minegeo.DamageGeometryExponent
+    h_base=minegeo.DamageBaseDepth*clip((x- (minegeo.UnMinedLength-minegeo.DamageZoneOffset))/(minegeo.ExtractionLength+minegeo.DamageZoneOffset), minval =0.  )**minegeo.DamageGeometryExponent
+    m2=clip( 1-(z-h_top)/minegeo.FringeWidth, minval =0., maxval =1.)
+    m2*=clip( 1-(minegeo.UnMinedLength-minegeo.DamageZoneOffset-x)/minegeo.FringeWidth, minval =0., maxval =1.)
+    m2*=clip( (z+h_base)/minegeo.FringeWidth+1, minval =0., maxval =1.)
+    d1 = clip( (y - (-minegeo.ExtractionWidth / 2 + minegeo.ResetDamagedZoneSouth)) / minegeo.FringeWidth, minval=0,
+              maxval=1)
+    d2 = clip( ((minegeo.ExtractionWidth / 2 - minegeo.ResetDamagedZoneNorth) - y) / minegeo.FringeWidth, minval=0,
+              maxval=1)
+    m2*=d1*d2
+    m2=interpolate(m2, Function(domain))
+    m2.setTaggedValue('Padding', 0)
+    m2.setTaggedValue('Goaf', 0)
+    return rho *  (1 + m2 * (rho_raise_factor_damage-1) )
 
 def makeApparentResitivity(line, data, minegeo, injections=(), I =1, dir=0):
     A, B = injections
