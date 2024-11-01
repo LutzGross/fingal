@@ -90,14 +90,14 @@ class ERTMisfitCostFunction(CostFunction):
                 self.misfit_DC[(iA, iB)].rescaleWeight(1. / nd_DC)
         else:
             raise ValueError("No data for the inversion.")
-        self.ignoreMisfit(flag=False)
+        self.ignoreERTMisfit(flag=False)
 
-    def ignoreMisfit(self, flag=False):
+    def ignoreERTMisfit(self, flag=False):
         """
         Switch on/off the misfit in the cost function. This is used for testing.
         """
-        self.ignore_misfit = flag
-        if self.ignore_misfit:
+        self.ignore_ERTmisfit = flag
+        if self.ignore_ERTmisfit:
             self.logger.info(f"WARNING: **** Misfit is ignored in cost function ****")
 
     def grabValuesAtStations(self, m):
@@ -189,7 +189,7 @@ class ERTMisfitCostFunction(CostFunction):
         for iA in additive_potentials_DC_stations:
             potentials_DC_stations[iA] = self.source_potentials_stations[iA] + additive_potentials_DC_stations[iA]
         misfit_0 = 0.
-        if not self.ignore_misfit:
+        if not self.ignore_ERTmisfit:
             for iA, iB in self.misfit_DC:
                 misfit_0 += self.misfit_DC[(iA, iB)].getValue(
                     potentials_DC_stations[iA] - potentials_DC_stations[iB])
@@ -200,7 +200,7 @@ class ERTMisfitCostFunction(CostFunction):
         """
         DMisfitDsigma_0 = Scalar(0., self.forward_pde.getFunctionSpaceForCoefficient('Y'))
         DMisfitDsigma_0_face = Scalar(0., self.forward_pde.getFunctionSpaceForCoefficient('y'))
-        if not self.ignore_misfit:
+        if not self.ignore_ERTmisfit:
             SOURCES=np.zeros( (self.data.getNumStations(), self.data.getNumStations()), float)
             potentials_DC_stations = {}
             for iA in additive_potentials_DC_stations:
@@ -252,7 +252,7 @@ class ERTInversionH1(ERTMisfitCostFunction):
 
     def __init__(self, domain=None, data=None,
                  sigma_0_ref=1e-4, sigma_src=None, w1=1., useL1Norm=False, epsilonL1Norm=1e-4,
-                 maskFixedProperty = None, maskOuterFaces = None,
+                 maskFixedProperty = None, maskOuterFaces = None, fixTop=False,
                  pde_tol=1.e-8, reg_tol=None, stationsFMT="e%s", logclip=5, dataRTolDC=1e-4,
                  useLogMisfitDC=False, logger=None, EPSILON=1e-15, **kargs):
         """
@@ -284,7 +284,9 @@ class ERTInversionH1(ERTMisfitCostFunction):
             qx = whereZero(x[0] - inf(x[0])) + whereZero(x[0] - sup(x[0]))
             qy = whereZero(x[1] - inf(x[1])) + whereZero(x[1] - sup(x[1]))
             qz = whereZero(x[2] - inf(x[2]))
-            self.mask_fixed_property  =  0 * qx + 0* qy + qz
+            if fixTop:
+                qz += whereZero(x[2] - sup(x[2]))
+            self.mask_fixed_property  =  qx + qy + qz
         else:
             self.mask_fixed_property = wherePositive(maskFixedProperty)
         self.useL1Norm = useL1Norm
@@ -299,7 +301,6 @@ class ERTInversionH1(ERTMisfitCostFunction):
             reg_tol=min(sqrt(pde_tol), 1e-3)
         self.logger.debug(f'Tolerance for solving regularization PDE is set to {reg_tol}')
         self.Hpde.getSolverOptions().setTolerance(reg_tol)
-        self.HpdeUpdateCount=2
         self.setW1(w1)
 
         #  reference conductivity:
@@ -310,6 +311,7 @@ class ERTInversionH1(ERTMisfitCostFunction):
         K=kronecker(3)
         K[1,1]*=self.factor2D
         self.Hpde.setValue(A=self.w1 * K)
+        self.logger.debug(f'w1 = {self.w1:g}')
 
     def updateSigma0Ref(self, sigma_0_ref):
         """
@@ -427,7 +429,7 @@ class ERTInversionH2(ERTMisfitCostFunction):
 
     def __init__(self, domain=None, data=None,
                  sigma_0_ref=1e-4, sigma_src=None, w1=1.,
-                 maskOuterFaces = None,
+                 maskOuterFaces = None, fixTop=False,
                  pde_tol=1.e-8, reg_tol=None, stationsFMT="e%s", logclip=5, dataRTolDC=1e-4,
                  useLogMisfitDC=False, logger=None, EPSILON=1e-15, **kargs):
         """
@@ -458,6 +460,8 @@ class ERTInversionH2(ERTMisfitCostFunction):
         qx = whereZero(x[0] - inf(x[0])) + whereZero(x[0] - sup(x[0]))
         qy = whereZero(x[1] - inf(x[1])) + whereZero(x[1] - sup(x[1]))
         qz = whereZero(x[2] - inf(x[2]))
+        if fixTop:
+            qz += whereZero(x[2] - sup(x[2]))
 
 
         # regularization
@@ -473,6 +477,7 @@ class ERTInversionH2(ERTMisfitCostFunction):
         self.logger.debug(f'Tolerance for solving regularization PDE is set to {reg_tol}')
         self.Hpde.getSolverOptions().setTolerance(reg_tol)
         self.Hpde_qs = [ qy + qz, qx + qz,  qx + qy ]
+        self.setW1(w1)
         #  reference conductivity:
         self.updateSigma0Ref(sigma_0_ref)
 

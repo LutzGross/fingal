@@ -1,4 +1,7 @@
+from symtable import Function
+
 from esys.escript import *
+from esys.escript.pdetools import MaskFromTag
 from fingal import setupERTPDE, makeWennerArray
 import numpy as np
 from numpy.linalg import norm
@@ -14,7 +17,7 @@ class MineGeometry(object):
     LineOffset = None
     ExtractionWidth = None
     LineHeight = None
-    TagFaces = None
+    TagFaces = [ 'Faces']
     UnMinedLength = None
     RoadHeight = None
     RoadWidth = None
@@ -50,6 +53,8 @@ def getGeometryFromGeoFile(geofile):
             out.DamageBaseDepth = float(line.split('=')[1][:-2])
         elif line.strip().startswith("DamageGeometryExponent"):
             out.DamageGeometryExponent = float(line.split('=')[1][:-2])
+        elif line.strip().startswith("GoafLength"):
+            out.GoafLength = float(line.split('=')[1][:-2])
         elif line.strip().startswith("FringeWidth"):
             out.FringeWidth = float(line.split('=')[1][:-2])
         elif line.strip().startswith("ResetDamagedZoneSouth"):
@@ -62,6 +67,7 @@ def getGeometryFromGeoFile(geofile):
     print(f"LineOffset = {out.LineOffset}.")
     print(f"LineHeight = {out.LineHeight}.")
     print(f"UnMinedLength = {out.UnMinedLength}.")
+    print(f"GoafLength = {out.GoafLength}.")
     print(f"RoadHeight = {out.RoadHeight}.")
     print(f"RoadWidth = {out.RoadWidth}.")
     print(f"DamageZoneOffset = {out.DamageZoneOffset}.")
@@ -89,50 +95,48 @@ def getGeometryFromGeoFile(geofile):
     print("Wenner survey created.")
     return out
 
-def makePrimaryPotentials(domain, minegeo, sigma_ref, survey):
-    injections=[]
-    for A, B in survey.keys():
-        if not A in injections:
-            injections.append(A)
-        if not B in injections:
-            injections.append(B)
+def makePrimaryPotentials(domain, minegeo, schedule, sigma_at_stations):
+    sigma_ref=1.
     mask_faces = Scalar(0, FunctionOnBoundary(domain))
-    mask_faces.setTaggedValue(minegeo.TagFaces, 1)
+    [  mask_faces.setTaggedValue(t, 1) for t in minegeo.TagFaces ]
     n = domain.getNormal() * mask_faces
     x = n.getX()
     primary_potentials = {}
     pde = setupERTPDE(domain, tolerance=1e-10)
     pde.setValue(A=sigma_ref * kronecker(3), y_dirac=Data(), X=Data(), Y=Data(), y=Data())
-    for A in injections:
+    for A in schedule.getListOfInjectionStations():
+        iA=schedule.getStationNumber(A)
         s = Scalar(0., DiracDeltaFunctions(domain))
         s.setTaggedValue(f"s{A}", 1.)
         pde.setValue(y_dirac=s)
-        r = x - minegeo.Stations[A]
+        r = x -schedule.getStationLocationByKey(A)
         pde.setValue(d=sigma_ref * inner(r, n) / length(r) ** 2)  # doi:10.1190/1.1440975
-        primary_potentials[A] = pde.getSolution()
-        assert Lsup(primary_potentials[A]) > 0, "Zero potential for injection %s" % A
-        print(f"primary potential for injection at {A}: {str(primary_potentials[A])}.")
+        primary_potentials[iA] = pde.getSolution()*(sigma_ref/sigma_at_stations[iA])
+        assert Lsup(primary_potentials[iA]) > 0, "Zero potential for injection %s" % A
+        print(f"primary potential for injection at {A}: {str(primary_potentials[iA])}.")
     print(f"{len(primary_potentials)} primary potentials calculated.")
     return primary_potentials
 
-def makeSecondaryPotentials(domain, minegeo, sigma, sigma_ref, primary_potentials):
+def makeSecondaryPotentials(domain, minegeo, sigma, sigma_faces, sigma_at_stations, primary_potentials, schedule):
     """
     It is assumed that sigma_ref=sigma on faces!!!!
     """
 
     mask_faces = Scalar(0, FunctionOnBoundary(domain))
-    mask_faces.setTaggedValue(minegeo.TagFaces, 1)
+    [  mask_faces.setTaggedValue(t, 1) for t in minegeo.TagFaces ]
     n = domain.getNormal() * mask_faces
     x = n.getX()
     pde = setupERTPDE(domain, tolerance=1e-10)
     secondary_potentials = {}
     pde.setValue(A=sigma * kronecker(3), y_dirac=Data(), X=Data(), Y=Data(), y=Data())
-    for A in primary_potentials:
-        r = x - minegeo.Stations[A]
-        pde.setValue(d=sigma_ref * inner(r, n) / length(r) ** 2)
-        pde.setValue(X=(sigma_ref-sigma)*grad(primary_potentials[A]))
-        secondary_potentials[A] = pde.getSolution()
-        print(f"secondary potential for injection at {A}: {str(secondary_potentials[A])}.")
+    for iA in primary_potentials:
+        sigma_ref = sigma_at_stations[iA]
+        r = x -schedule.getStationLocationByNumber(iA)
+        fA=inner(r, n) / length(r) ** 2
+        pde.setValue(d=sigma_faces * fA)
+        pde.setValue(X=(sigma_ref-sigma)*grad(primary_potentials[iA]), y =(sigma_ref-sigma_faces) * fA * primary_potentials[iA] )
+        secondary_potentials[iA] = pde.getSolution()
+        print(f"secondary potential for injection at {schedule.getKeyOfStationNumber(iA)}: {str(secondary_potentials[iA])}.")
     print(f"{len(secondary_potentials)} secondary potentials calculated.")
     return secondary_potentials
 
@@ -172,8 +176,10 @@ def applyDamage(rho, minegeo, rho_raise_factor_damage = 5):
     x=X[0]
     y=X[1]
     z=X[2]
-    h_top=minegeo.DamageHeight*clip((x- (minegeo.UnMinedLength-minegeo.DamageZoneOffset))/(minegeo.ExtractionLength+minegeo.DamageZoneOffset), minval =0.  )**minegeo.DamageGeometryExponent
-    h_base=minegeo.DamageBaseDepth*clip((x- (minegeo.UnMinedLength-minegeo.DamageZoneOffset))/(minegeo.ExtractionLength+minegeo.DamageZoneOffset), minval =0.  )**minegeo.DamageGeometryExponent
+    LL2 = minegeo.UnMinedLength + minegeo.ExtractionLength + minegeo.GoafLength
+    LL1 = minegeo.UnMinedLength-minegeo.DamageZoneOffset
+    h_top=minegeo.DamageHeight*clip((x- LL1)/(LL2-LL1), minval =0.  )**minegeo.DamageGeometryExponent
+    h_base=minegeo.DamageBaseDepth*clip((x- LL1)/(LL2-LL1), minval =0.  )**minegeo.DamageGeometryExponent
     m2=clip( 1-(z-h_top)/minegeo.FringeWidth, minval =0., maxval =1.)
     m2*=clip( 1-(minegeo.UnMinedLength-minegeo.DamageZoneOffset-x)/minegeo.FringeWidth, minval =0., maxval =1.)
     m2*=clip( (z+h_base)/minegeo.FringeWidth+1, minval =0., maxval =1.)
@@ -185,7 +191,37 @@ def applyDamage(rho, minegeo, rho_raise_factor_damage = 5):
     m2=interpolate(m2, Function(domain))
     m2.setTaggedValue('Padding', 0)
     m2.setTaggedValue('Goaf', 0)
-    return rho *  (1 + m2 * (rho_raise_factor_damage-1) )
+    return rho *  (1 + m2 * (rho_raise_factor_damage-1) ), m2
+
+def applyDamage2(rho, minegeo, rho_raise_factor_damage = 5, grab_values_stations=None):
+    domain = rho.getDomain()
+    X=domain.getX()
+    X = ReducedFunction(domain).getX()
+    x=X[0]
+    y=X[1]
+    z=X[2]
+    LL2 = minegeo.UnMinedLength + minegeo.ExtractionLength + minegeo.GoafLength
+    LL1 = minegeo.UnMinedLength-minegeo.DamageZoneOffset
+    h_top=minegeo.DamageHeight*clip((x- LL1)/(LL2-LL1), minval =0.  )**minegeo.DamageGeometryExponent
+    h_base=minegeo.DamageBaseDepth*clip((x- LL1)/(LL2-LL1), minval =0.  )**minegeo.DamageGeometryExponent
+    m2=whereNonNegative(X[2]+h_base) * whereNonPositive(X[2] - h_top)
+    # restrict to mined section
+    m2*=whereNonPositive(X[1]-minegeo.ExtractionWidth/2)*whereNonNegative(X[1]+minegeo.ExtractionWidth/2)
+    # no damage in the goaf:
+    #m2.setTaggedValue('Goaf', 0)
+    #m2.setTaggedValue('Padding', 0)
+
+    # apply some smoothing:
+    pde = setupERTPDE(domain, tolerance=1e-8)
+    q=MaskFromTag(domain, 'Goaf', 'Padding')*0
+    pde.setValue(D=1, A=minegeo.FringeWidth**2 * kronecker(3), Y=interpolate(m2, Function(domain)), q=q)
+    m=clip(pde.getSolution(), minval=0, maxval=1)
+
+    m3 = clip(interpolate(m, rho.getFunctionSpace()), minval=0, maxval=1)
+    m3.setTaggedValue('Goaf', 0)
+    m3.setTaggedValue('Padding', 0)
+
+    return rho *  (1 + m3 * (rho_raise_factor_damage-1) ), m3, np.array(grab_values_stations(m))
 
 def makeApparentResitivity(line, data, minegeo, injections=(), I =1, dir=0):
     A, B = injections

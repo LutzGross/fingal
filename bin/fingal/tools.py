@@ -66,7 +66,7 @@ def makePointSource(source_key, domain, value=1.,stationsFMT=None):
     return s
 
 
-def getSourcePotentials(domain, sigma, survey, sigma_faces=None, maskOuterFaces=None,stationsFMT=None, logger=None):
+def getSourcePotentials(domain, sigma, survey, sigma_faces=None, maskOuterFaces=None, stationsFMT=None, logger=None):
     """
     return the electric potential for all injections A in the survey using conductivity sigma.
     :sigma: conductivity. Needs to a constant if sigma_source is not present.

@@ -12,6 +12,7 @@ import config
 GEOFILE = "mine.geo"
 PLOTDIR="plots"
 SILODIR="results"
+REL_ERR = 0.02
 
 # extract some geometrical information from the geo file:
 minegeo=getGeometryFromGeoFile(GEOFILE)
@@ -31,141 +32,56 @@ schedule = readSurveyData(config.schedulefile, stations=elocations, usesStationC
 domain=ReadMesh(config.meshfile)
 print("Mesh read from "+config.meshfile)
 
+grab_values_stations = Locator(DiracDeltaFunctions(domain),  [schedule.getStationLocationByKey(S) for S in schedule.getStationNumeration()])
 # setup conductivity
 RHO_BASE = 5000
 RHO_COAL = 500
-RHO_MINE = 1500
+RHO_MINE = 5000
+
+RHO_BASE = 500
+RHO_COAL = 500
+RHO_MINE = 500
 RHO_GOAF = 50000
-RHO_REF = RHO_BASE
+RHO_REF = sqrt(RHO_BASE*RHO_MINE)
+
 rho = Scalar(RHO_REF, Function(domain) )
 rho.setTaggedValue( 'Base', RHO_BASE)
 rho.setTaggedValue('Seam', RHO_COAL)
 rho.setTaggedValue( 'Goaf', RHO_GOAF)
 rho.setTaggedValue('Mass', RHO_MINE)
 rho.expand()
-
-rho = applyDamage(rho, minegeo, rho_raise_factor_damage = 5)
-saveSilo("sigma", rho=rho, tag=makeTagMap(Function(domain)))
-1/0
-survey = { (101, 120) : 5 }
-rho_ref = 100
-rho_frac = rho_ref*100
-# extract some geometrical information from the geo file:
-minegeo=getGeometryFromGeoFile(GEOFILE)
-
-minegeo.ResetFactureZoneNorth = 20
-minegeo.ResetFactureZoneSouth = 20
-minegeo.ThicknessFactureZone = 5
-minegeo.FringFractureZone = 10
-SteppingFractureZone = 30
-
-# get the mesh
-domain = ReadMesh(FLYFILE)
-print(f"read FEM file from {FLYFILE}.")
-
-north_grab_values_stations = Locator(DiracDeltaFunctions(domain), [ minegeo.Stations[k] for k in minegeo.LineNorth ])
-south_grab_values_stations = Locator(DiracDeltaFunctions(domain), [ minegeo.Stations[k] for k in minegeo.LineSouth ])
-
-# calculate primary potentials for constant conductivity sigma_ref
-primary_potentials = makePrimaryPotentials(domain, minegeo, sigma_ref=1/rho_ref, survey=survey)
-# ---------------- this is a bit of a hack: ----------------------------
-A, B=list(survey.keys())[0]
-I = survey[ (A,B) ]
-
-Nsteps = 6
-u1 = (primary_potentials[A] - primary_potentials[B]) * I
-u1_north = north_grab_values_stations(u1)
-u1_south = south_grab_values_stations(u1)
-X_north, data1_north = makeMeasurements(minegeo.LineNorth, u1_north, minegeo, injections=[A, B], dir=0)
-X_south, data1_south = makeMeasurements(minegeo.LineSouth, u1_south, minegeo, injections=[A, B], dir=0)
-X_north, rho1_north= makeApparentResitivity(minegeo.LineNorth, u1_north, minegeo, injections=(A, B), I=I, dir=0)
-X_south, rho1_south= makeApparentResitivity(minegeo.LineSouth, u1_south, minegeo, injections=(A, B), I=I, dir=0)
-data2_north = {}
-data2_south = {}
-data_north = {}
-data_south = {}
-rho_north = {}
-rho_south = {}
-for kk in range(Nsteps):
-    rho = makeResistivity1(domain, SteppingFractureZone * kk, rho_ref, rho_frac, minegeo)
-    #===========
-    secondary_potentials = makeSecondaryPotentials(domain, minegeo, sigma = 1/rho, sigma_ref=1/rho_ref, primary_potentials=primary_potentials)
-
-    u2=(secondary_potentials[A]-secondary_potentials[B])*I
-    u=u1+u2
-
-    u2_north=north_grab_values_stations(u2)
-    u2_south=south_grab_values_stations(u2)
-    u_north=north_grab_values_stations(u)
-    u_south=south_grab_values_stations(u)
-
-    X_north, data2_north[kk] = makeMeasurements(minegeo.LineNorth , u2_north, minegeo, injections=[A, B], dir=0)
-    X_south, data2_south[kk] = makeMeasurements(minegeo.LineSouth , u2_south, minegeo, injections=[A, B], dir=0)
-    X_north, data_north[kk] = makeMeasurements(minegeo.LineNorth , u_north, minegeo, injections=[A, B], dir=0)
-    X_south, data_south[kk] = makeMeasurements(minegeo.LineSouth , u_south, minegeo, injections=[A, B], dir=0)
-    X_north, rho_north[kk] = makeApparentResitivity(minegeo.LineNorth, u_north, minegeo, injections=(A, B), I = I, dir=0)
-    X_south, rho_south[kk] = makeApparentResitivity(minegeo.LineSouth,u_south, minegeo, injections=(A, B), I = I, dir=0)
-
-    SILOFILE=os.path.join(SILODIR,f"u{kk}")
-    saveSilo(SILOFILE, u1=u1, u=u, u2=u2,  rho=rho, tag=makeTagMap(ReducedFunction(domain)))
-    print(f'results written to file {SILOFILE}.silo.')
-import matplotlib.pyplot as plt
+rho_raise_factor_damage = 5
+rho, damage, damage_at_stations = applyDamage2(rho, minegeo, rho_raise_factor_damage = rho_raise_factor_damage, grab_values_stations=grab_values_stations)
+sigma_at_stations = 1/(RHO_COAL *  (1 + damage_at_stations * (rho_raise_factor_damage-1) ) )
 
 
-plt.scatter(X_north, np.array(rho1_north), label = "i" , s= 10)
-for kk in rho_north:
-    plt.scatter(X_north, np.array(rho_north[kk]), label = f"f{kk}", s= 10 )
-plt.title(f"apparent resistivity Northern Line A,B={A},{B}")
-plt.legend()
-plt.xlabel("offset [m]")
-plt.ylabel("rho [Ohmm]")
-plt.savefig(os.path.join(PLOTDIR,"rho_north.png"))
+primary_potentials = makePrimaryPotentials(domain, minegeo, schedule=schedule, sigma_at_stations=sigma_at_stations)
 
-plt.clf()
-plt.scatter(X_south, np.array(rho1_south), label = "i", s= 10 )
-for kk in rho_south:
-    plt.scatter(X_south, np.array(rho_south[kk]), label = f"f{kk}", s= 10 )
-plt.title(f"apparent resistivity Southern Line A,B={A},{B}")
-plt.legend()
-plt.xlabel("offset [m]")
-plt.ylabel("rho [Ohmm]")
-plt.savefig(os.path.join(PLOTDIR,"rho_south.png"))
+secondary_potentials = makeSecondaryPotentials(domain, minegeo, sigma = 1/rho, sigma_faces = 1/RHO_REF,\
+                                               primary_potentials=primary_potentials, schedule=schedule,  sigma_at_stations=sigma_at_stations)
 
-plt.clf()
-plt.scatter(X_north, np.array(data1_north)  , label = "i", s= 10 )
-for kk in data_north:
-    plt.scatter(X_north, np.array(data_north[kk]) , label = f"f{kk}", s= 10 )
-plt.title(f"MN voltage Northern Line A,B={A},{B}")
-plt.legend()
-plt.xlabel("offset [m]")
-plt.ylabel("voltage [V]")
-plt.savefig(os.path.join(PLOTDIR,"data_north.png"))
+potentials_at_stations = {}
+for iA in primary_potentials:
+    u1 = np.array(grab_values_stations( primary_potentials[iA]))
+    u2 = np.array(grab_values_stations(secondary_potentials[iA]))
+    potentials_at_stations[iA] = u1 + u2
 
-plt.clf()
-plt.scatter(X_south, np.array(data1_south) , label = "init", s= 10  )
-for kk in data_south:
-    plt.scatter(X_south, np.array(data_south[kk]) , label = f"f{kk}", s= 10 )
-plt.title(f"MN voltage Southern Line A,B={A},{B}")
-plt.legend()
-plt.xlabel("offset [m]")
-plt.ylabel("voltage [V]")
-plt.savefig(os.path.join(PLOTDIR,"data_south.png"))
+f=open(config.datafile,'w')
+for A,B,M,N in schedule.tokenIterator():
+    iA=schedule.getStationNumber(A)
+    iB=schedule.getStationNumber(B)
+    iM=schedule.getStationNumber(M)
+    iN=schedule.getStationNumber(N)
+    if REL_ERR > 0 :
+        pert = np.random.uniform(low=-REL_ERR, high=REL_ERR)
+    else:
+        pert = 0.
+    u=(potentials_at_stations[iA][iM]-potentials_at_stations[iB][iM]-potentials_at_stations[iA][iN]+potentials_at_stations[iB][iN]) * (1+pert)
+    f.write(f"{A:d}, {B:d}, {M:d}, {N:d}, {u:g}\n")
+f.close()
+u101=primary_potentials[schedule.getStationNumber(101)]+secondary_potentials[schedule.getStationNumber(101)]
+u146=primary_potentials[schedule.getStationNumber(146)]+secondary_potentials[schedule.getStationNumber(146)]
+u123=primary_potentials[schedule.getStationNumber(123)]+secondary_potentials[schedule.getStationNumber(123)]
+saveSilo("setup", sigma=1/rho, u=u101-u146, u101=u101, u146=u146, u123=u123, damage=damage, tag=makeTagMap(Function(domain)))
 
-plt.clf()
-for kk in data2_south:
-    plt.scatter(X_south, np.array(data2_south[kk])*1000, label = f"f{kk}", s= 10 )
-plt.title(f"MN voltage change Southern Line A,B={A},{B}")
-plt.xlabel("offset [m]")
-plt.ylabel("voltage [mV]")
-plt.legend()
-plt.savefig(os.path.join(PLOTDIR, "secondary_south.png"))
-
-plt.clf()
-for kk in data2_north:
-    plt.scatter(X_north, np.array(data2_north[kk])*1000, label = f"f{kk}", s= 10 )
-plt.title(f"MN voltage change Northern Line A,B={A},{B}")
-plt.xlabel("offset [m]")
-plt.ylabel("voltage [mV]")
-plt.legend()
-plt.savefig(os.path.join(PLOTDIR, "secondary_north.png"))
 

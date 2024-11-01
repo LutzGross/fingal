@@ -41,6 +41,7 @@ true_properties=None
 #
 pde_tol = 1e-10
 fixed_region_tags=[]
+fix_top = False
 #weighting_misfit_ERT=0.5
 clip_property_function=10
 regularization_w1=1e-5

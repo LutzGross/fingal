@@ -46,7 +46,7 @@ for w1, with_misfit in [(0.,True ), (1., False), (1.e4, True)]:
     print("w1 = ", w1)
     tabfile.write(f".. w1 , = {w1}, with_misfit= {with_misfit} .............\n")
     costf.setW1(w1)
-    costf.ignoreMisfit(not with_misfit)
+    costf.ignoreERTMisfit(not with_misfit)
 
     x = domain.getX()[0]
     y = domain.getX()[1]

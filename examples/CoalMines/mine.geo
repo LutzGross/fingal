@@ -2,49 +2,51 @@ Mesh.MshFileVersion = 2.2;
 
 // ERT setup
 ElectrodeSpacing = 5;
-NumElectrodes = 40;
-LineOffset = 10;
+NumElectrodes = 49;
+LineOffset = 5;
 LineHeight = 1;
 LineLength = ElectrodeSpacing * (NumElectrodes-1) ;
 // Geometry:
 SeamThickness=13;
 ExtractionWidth = 200;
-ExtractionLength = 200;
+ExtractionLength = 10;
 UnMinedLength = 250;
-GoafLength = 100;
-RoadWidth = 8;
+GoafLength = 250;
+RoadWidth = 5;
 RoadHeight = 5;
 WingRoadLength = 50;
 Road2Offset = 90;
 BaseThickness = 100;
-RockMassThickness = 150;
-PaddingWidth = 300
+RockMassThickness = 100;
+PaddingWidth = 100;
 // not used for meshing but read to generate synthetic data:
-DamageZoneOffset = 50;
+DamageZoneOffset = 100;
 DamageHeight = 80;
 DamageBaseDepth = 40;
 DamageGeometryExponent = 0.5;
-FringeWidth = 40;
-ResetDamagedZoneSouth = 2;
-ResetDamagedZoneNorth =2;
+FringeWidth = 5;
+ResetDamagedZoneSouth = 3;
+ResetDamagedZoneNorth =3;
 
 ExtraLength = ExtractionLength/2 + ExtractionLength + GoafLength - (ExtractionLength/2 + Road2Offset+RoadWidth) ;
-CoreLengthX=Road2Offset+RoadWidth+ExtraLength+UnMinedLength+ExtractionLength+GoafLength;
+CoreLengthX=UnMinedLength+ExtractionLength+GoafLength + Road2Offset+RoadWidth+ExtraLength;
 CoreLengthY=ExtractionWidth+2*RoadWidth+2*WingRoadLength;
 // Mesh sizes:
 // region of most interest = coal
 
-meshSizeCenter = ElectrodeSpacing/2;
+meshSizeCenter = ElectrodeSpacing;
+meshSizeCenterNorth = ElectrodeSpacing;
+meshSizeCenterSouth = ElectrodeSpacing/5;
 meshSizeCoreClose = ElectrodeSpacing;
 meshSizeCore = 2*ElectrodeSpacing;
 meshSizePadding=(CoreLengthX+2*PaddingWidth)/15;
-meshSizeElectrodes = ElectrodeSpacing/20;
+meshSizeElectrodes = ElectrodeSpacing/25;
 
 // Base
-Point(1) = {0, -ExtractionWidth/2, 0, meshSizeCenter };
-Point(2) = {0, ExtractionWidth/2, 0, meshSizeCenter };
-Point(3) = {UnMinedLength, -ExtractionWidth/2, 0, meshSizeCenter };
-Point(4) = {UnMinedLength,  ExtractionWidth/2, 0, meshSizeCenter };
+Point(1) = {0, -ExtractionWidth/2, 0, meshSizeCenterSouth };
+Point(2) = {0, ExtractionWidth/2, 0, meshSizeCenterNorth };
+Point(3) = {UnMinedLength, -ExtractionWidth/2, 0, meshSizeCenterSouth };
+Point(4) = {UnMinedLength,  ExtractionWidth/2, 0, meshSizeCenterNorth };
 Point(7) = {0, -ExtractionWidth/2-RoadWidth, 0, meshSizeCoreClose };
 Point(8) = {0, ExtractionWidth/2+RoadWidth, 0, meshSizeCoreClose };
 Point(9) = {UnMinedLength+ExtractionLength, -ExtractionWidth/2-RoadWidth, 0, meshSizeCore };
@@ -143,10 +145,10 @@ Curve Loop(10) = {17, -38, -9, 36};
 Plane Surface(10) = {10};
 
 // Roads
-Point(101) = {0, -ExtractionWidth/2, RoadHeight, meshSizeCenter };
-Point(102) = {0, ExtractionWidth/2, RoadHeight, meshSizeCenter };
-Point(103) = {UnMinedLength, -ExtractionWidth/2, RoadHeight, meshSizeCenter };
-Point(104) = {UnMinedLength,  ExtractionWidth/2, RoadHeight, meshSizeCenter };
+Point(101) = {0, -ExtractionWidth/2, RoadHeight, meshSizeCenterSouth };
+Point(102) = {0, ExtractionWidth/2, RoadHeight, meshSizeCenterNorth };
+Point(103) = {UnMinedLength, -ExtractionWidth/2, RoadHeight, meshSizeCenterSouth };
+Point(104) = {UnMinedLength,  ExtractionWidth/2, RoadHeight, meshSizeCenterNorth };
 Point(107) = {0, -ExtractionWidth/2-RoadWidth, RoadHeight, meshSizeCoreClose };
 Point(108) = {0, ExtractionWidth/2+RoadWidth, RoadHeight, meshSizeCoreClose };
 Point(113) = {0, -ExtractionWidth/2-RoadWidth-WingRoadLength, RoadHeight, meshSizeCore };
@@ -396,14 +398,14 @@ Physical Volume("Mass", 118) = {4};
 // Padding
 
 
-Point(441) = {-CoreLengthX/2-PaddingWidth, -CoreLengthY/2-PaddingWidth, -BaseThickness-PaddingWidth, meshSizePadding };
-Point(442) = { CoreLengthX/2+PaddingWidth, -CoreLengthY/2-PaddingWidth, -BaseThickness-PaddingWidth, meshSizePadding };
-Point(443) = {-CoreLengthX/2-PaddingWidth, CoreLengthY/2+PaddingWidth, -BaseThickness-PaddingWidth, meshSizePadding };
-Point(444) = { CoreLengthX/2+PaddingWidth, CoreLengthY/2+PaddingWidth, -BaseThickness-PaddingWidth, meshSizePadding };
-Point(445) = {-CoreLengthX/2-PaddingWidth, -CoreLengthY/2-PaddingWidth, RockMassThickness+PaddingWidth, meshSizePadding };
-Point(446) = { CoreLengthX/2+PaddingWidth, -CoreLengthY/2-PaddingWidth, RockMassThickness+PaddingWidth, meshSizePadding };
-Point(447) = {-CoreLengthX/2-PaddingWidth, CoreLengthY/2+PaddingWidth, RockMassThickness+PaddingWidth, meshSizePadding };
-Point(448) = { CoreLengthX/2+PaddingWidth, CoreLengthY/2+PaddingWidth, RockMassThickness+PaddingWidth, meshSizePadding };
+Point(441) = {-Road2Offset-RoadWidth-ExtraLength-PaddingWidth, -CoreLengthY/2-PaddingWidth, -BaseThickness-PaddingWidth, meshSizePadding };
+Point(442) = { UnMinedLength+ExtractionLength+GoafLength+PaddingWidth, -CoreLengthY/2-PaddingWidth, -BaseThickness-PaddingWidth, meshSizePadding };
+Point(443) = {-Road2Offset-RoadWidth-ExtraLength-PaddingWidth, CoreLengthY/2+PaddingWidth, -BaseThickness-PaddingWidth, meshSizePadding };
+Point(444) = { UnMinedLength+ExtractionLength+GoafLength+PaddingWidth, CoreLengthY/2+PaddingWidth, -BaseThickness-PaddingWidth, meshSizePadding };
+Point(445) = {-Road2Offset-RoadWidth-ExtraLength-PaddingWidth, -CoreLengthY/2-PaddingWidth, RockMassThickness+PaddingWidth, meshSizePadding };
+Point(446) = { UnMinedLength+ExtractionLength+GoafLength+PaddingWidth, -CoreLengthY/2-PaddingWidth, RockMassThickness+PaddingWidth, meshSizePadding };
+Point(447) = {-Road2Offset-RoadWidth-ExtraLength-PaddingWidth, CoreLengthY/2+PaddingWidth, RockMassThickness+PaddingWidth, meshSizePadding };
+Point(448) = { UnMinedLength+ExtractionLength+GoafLength+PaddingWidth, CoreLengthY/2+PaddingWidth, RockMassThickness+PaddingWidth, meshSizePadding };
 
 Line(131) = {447, 448};
 Line(132) = {448, 446};
@@ -439,8 +441,11 @@ For k In {0:NumElectrodes-1}
     kk = newp;
     Point(kk) = { LineOffset + k * ElectrodeSpacing ,   -ExtractionWidth/2, LineHeight, meshSizeElectrodes};
     Point{kk} In Surface {19};
-    kk = newp;
-    Point(kk) = { LineOffset + k * ElectrodeSpacing ,   ExtractionWidth/2, LineHeight, meshSizeElectrodes};
-    Point{kk} In Surface {21};
 EndFor
+
+//For k In {0:NumElectrodes-1}
+//    kk = newp;
+//    Point(kk) = { LineOffset + k * ElectrodeSpacing ,   ExtractionWidth/2, LineHeight, meshSizeElectrodes};
+//    Point{kk} In Surface {21};
+//EndFor
 

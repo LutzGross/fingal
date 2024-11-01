@@ -21,7 +21,7 @@ stationsFMT = 's%s'
 # this defines the data file: 
 # 
 datafile = 'data.csv'
-datacolumns = ['R', 'ETA']
+datacolumns = ['R']
 dipoleInjections = True
 dipoleMeasurements = True
 datadelimiter = ','
@@ -33,31 +33,23 @@ data_rtol = 1e-4
 #
 sigma0_ref=0.002
 Mn_ref=0.01*sigma0_ref
-def true_properties(domain):
-    from esys.escript import Scalar, Function
-    sigma0_true=Scalar(sigma0_ref , Function(domain))
-    sigma0_true.setTaggedValue('anomaly_left', sigma0_ref * 100)
-    sigma0_true.setTaggedValue('anomaly_right', sigma0_ref / 100)
-    Mn_true=Scalar(Mn_ref, Function(domain))
-    Mn_true.setTaggedValue('anomaly_left', Mn_ref * 100 * 0.25)
-    Mn_true.setTaggedValue('anomaly_right', Mn_ref * 0.25)
-    return sigma0_true, Mn_true
-
+true_properties=None
 #
 #
 #  Inversion:
 #
 fixed_region_tags=[]
+fix_top = True
 #weighting_misfit_ERT=0.5
 clip_property_function=10
 m_tolerance=1.e-4
-g_tolerance=1.e-6
+g_tolerance=1.e-4
 interpolation_order=3
 imax=400
 truncation=20
-restart=60
+restart=6000
 pde_tol=1e-10
-regularization_w1=1e-2
+regularization_w1=1e-3
 #regularization_w1=1e-4
 use_L1Norm=False
 epsilon_L1Norm=0.01

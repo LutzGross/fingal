@@ -40,8 +40,8 @@ true_properties=None
 #  Inversion:
 #
 pde_tol = 1e-10
-fixed_region_tags=[]
 fix_top = False
+fixed_region_tags=[]
 #weighting_misfit_ERT=0.5
 clip_property_function=10
 regularization_w1=1e-5

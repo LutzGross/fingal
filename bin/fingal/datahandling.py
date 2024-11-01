@@ -301,6 +301,10 @@ class SurveyData(object):
         else:
             return self.default_rel_error
 
+    def getChargeabilityData(self, token):
+        return self.getDataRecord(token, datatype='ETA')
+    def getChargeabilitError(self, token):
+        return self.getDataRecord(token, datatype='ERR_ETA')
     # ======================
     def getSecondaryResistenceData(self, token):
         if self.hasDataType("R2"):
@@ -308,7 +312,7 @@ class SurveyData(object):
         else:
             eta=self.getChargeabilityData(token)
             r=self.getResistenceData(token)
-            if self.isUndefined(r) or self.isUndefined(m):
+            if self.isUndefined(r) or self.isUndefined(eta):
                 return self.unDefined
             else:
                 return eta * r

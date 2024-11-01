@@ -32,7 +32,7 @@ parser.add_argument('--xyz', '-x',  dest='xyz', action='store_true', default=Fal
 parser.add_argument('--debug', '-d',  dest='debug', action='store_true', default=False, help="shows more information.")
 args = parser.parse_args()
 
-logger=logging.getLogger('ERT')
+logger=logging.getLogger('Inversion')
 if args.debug:
     logger.setLevel(logging.DEBUG)
 else:
@@ -76,25 +76,25 @@ if 'GAUSS' in config.regularization_order.upper():
 # initialize cost function:
 if config.regularization_order == "H1":
     costf=ERTInversionH1(domain, data=survey,
-                         sigma_0_ref=config.sigma0_ref,
+                         sigma_0_ref=config.sigma0_ref, fixTop=config.fix_top,
                          w1=config.regularization_w1, useL1Norm=config.use_L1Norm, epsilonL1Norm=config.epsilon_L1Norm,
                          maskFixedProperty=fixedm, maskOuterFaces= mask_face, dataRTolDC= config.data_rtol,
                          pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
-                         useLogMisfitDC= config.use_log_misfit_DC, logger=logger)
+                         useLogMisfitDC= config.use_log_misfit_DC, logger=logger.getChild("ERT-H1"))
     m_init = Scalar(0.0, Solution(domain))
 
 elif config.regularization_order == "H2":
     costf=ERTInversionH2(domain, data=survey,
-                         sigma_0_ref=config.sigma0_ref, reg_tol=None,
+                         sigma_0_ref=config.sigma0_ref, reg_tol=None, fixTop=config.fix_top,
                          w1=config.regularization_w1, maskOuterFaces= mask_face, dataRTolDC= config.data_rtol,
                          pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
-                         useLogMisfitDC= config.use_log_misfit_DC, logger=logger)
+                         useLogMisfitDC= config.use_log_misfit_DC, logger=logger.getChild("ERT-H2"))
     m_init = Vector(0.0, Solution(domain))
 
 
 elif config.regularization_order == "Gauss":
     costf = ERTInversionGauss(domain, data=survey,
-                              sigma_0_ref=config.sigma0_ref,
+                              sigma_0_ref=config.sigma0_ref, fixTop=config.fix_top,
                               w1=config.regularization_w1, length_scale = config.regularization_length_scale,
                               maskOuterFaces=mask_face, dataRTolDC= config.data_rtol,
                               pde_tol=config.pde_tol, stationsFMT=config.stationsFMT,
@@ -136,17 +136,17 @@ elif config.regularization_order == "Gauss":
         1/0
 elif config.regularization_order == "PseudoGauss":
     costf = ERTInversionPseudoGauss(domain, data=survey,
-                                    sigma_0_ref=config.sigma0_ref,
+                                    sigma_0_ref=config.sigma0_ref, fixTop=config.fix_top,
                                     w1=config.regularization_w1, length_scale = config.regularization_length_scale,
                                     maskOuterFaces=mask_face, dataRTolDC= config.data_rtol,
                                     pde_tol=config.pde_tol, stationsFMT=config.stationsFMT,
                                     logclip=config.clip_property_function,
-                                    useLogMisfitDC=config.use_log_misfit_DC, logger=logger)
+                                    useLogMisfitDC=config.use_log_misfit_DC, logger=logger.getChild("ERT-Gauss"))
     m_init = Data(0.0, (4,), Solution(domain))
 
 elif config.regularization_order == "D-PseudoGauss":
     costf = ERTInversionPseudoGaussDiagonalHessian(domain, data=survey,
-                                                   sigma_0_ref=config.sigma0_ref,
+                                                   sigma_0_ref=config.sigma0_ref, fixTop=config.fix_top,
                                                    w1=config.regularization_w1, length_scale = config.regularization_length_scale,
                                                    maskOuterFaces=mask_face, dataRTolDC= config.data_rtol,
                                                    pde_tol=config.pde_tol, stationsFMT=config.stationsFMT,
@@ -199,7 +199,7 @@ if not args.nooptimize:
     #costf.setSigmaSrc(new_sigma_ref)
 if args.testonly:
     exit(0)
-def myCallback(iterCount, m, dm, Fm, grad_Fm, norm_m, norm_gradFm, args_m, failed):
+def myCallback(iterCount, m, dm, Fm, grad_Fm, norm_m, args_m, failed):
     if args.RESTARTFN and iterCount >0:
         m.dump(args.RESTARTFN)
         logger.info(f"restart file {iterCount} for step {args.RESTARTFN} created.")
@@ -208,7 +208,7 @@ def myCallback(iterCount, m, dm, Fm, grad_Fm, norm_m, norm_gradFm, args_m, faile
 
 
 # set up solver:
-solver= MinimizerLBFGS(F=costf, iterMax=config.imax, logger=logger)
+solver= MinimizerLBFGS(F=costf, iterMax=config.imax, logger=logger.getChild("LBFGS"))
 solver.getLineSearch().setOptions(interpolationOrder=config.interpolation_order)
 solver.setOptions(m_tol=config.m_tolerance, truncation=config.truncation, restart=config.restart, grad_tol=config.g_tolerance)
 solver.setCallback(myCallback)

@@ -48,6 +48,7 @@ def true_properties(domain):
 #  Inversion:
 #
 fixed_region_tags=[]
+fix_top = False
 #weighting_misfit_ERT=0.5
 clip_property_function=10
 m_tolerance=1.e-4

@@ -48,7 +48,7 @@ tabfile=open(TABFN, 'w')
 for w1, with_misfit in [(1., False), (0., True), (1.e8, True)]:
     print("w1 = ", w1)
     costf.setW1(w1)
-    costf.ignoreMisfit(not with_misfit)
+    costf.ignoreERTMisfit(not with_misfit)
 
     x = domain.getX()[0]
     y = domain.getX()[1]
