@@ -20,7 +20,7 @@ BaseThickness = 100;
 RockMassThickness = 100;
 PaddingWidth = 100;
 // not used for meshing but read to generate synthetic data:
-DamageZoneOffset = 100;
+DamageZoneOffset = 150;
 DamageHeight = 80;
 DamageBaseDepth = 40;
 DamageGeometryExponent = 0.5;

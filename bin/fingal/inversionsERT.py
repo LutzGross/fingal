@@ -6,6 +6,8 @@ by l.gross@uq.edu.au, 2021, 2028
 
 from esys.escript import *
 from esys.escript.minimizer import CostFunction, MinimizerException
+from yt_dlp.extractor.ign import IGNBaseIE
+
 from .tools import setupERTPDE, getSourcePotentials, makeMaskForOuterSurface, getAdditivePotentials, DataMisfitQuad, DataMisfitLog, setupPDESystem
 import logging
 import numpy as np
@@ -54,13 +56,17 @@ class ERTMisfitCostFunction(CostFunction):
             station_locations.append(data.getStationLocationByKey(k))
         #self.__grab_values_stations = Locator(Solution(domain), station_locations) # Dirac?
         #TODO: is this really working?
-
         self.__grab_values_stations = Locator(DiracDeltaFunctions(domain), station_locations)  # Dirac?
         self.sigma_src = sigma_src # needs to be a constant.
         self.setSourcePotentials()  # S_s is in the notes
+        self.have_all_adjoints=set(self.data.getInjectionStations()).issubset(self.data.getObservationStations())
+        if self.have_all_adjoints:
+            self.logger.info(f"Have all adjoint potentials.")
+
         # build the misfit data (indexed by source index):
         self.misfit_DC = {}  # potential increment to injection field to get DC potential
         data_atol_DC= self.dataRTolDC * data.getMaximumResistence()
+
 
         nd_DC = 0 # counting number of data
         n_small_DC = 0 # number of dropped observations
@@ -217,30 +223,41 @@ class ERTMisfitCostFunction(CostFunction):
                     SOURCES[iB, iM] -= dmis_0[i]
                     SOURCES[iA, iN] -= dmis_0[i]
                     SOURCES[iB, iN] += dmis_0[i]
-
-
-            self.forward_pde.setValue(A=sigma_0 * kronecker(self.forward_pde.getDim()), y_dirac=Data(), X=Data(), Y=Data(), y=Data())
             n = self.domain.getNormal() * self.maskOuterFaces
             x = FunctionOnBoundary(self.domain).getX()
-
-            for iA in additive_potentials_DC.keys():
-                    s = Scalar(0., DiracDeltaFunctions(self.forward_pde.getDomain()))
-                    for M in self.data.getStationNumeration():
-                        iM = self.data.getStationNumber(M)
-                        if self.stationsFMT is None:
-                            s.setTaggedValue(M, SOURCES[iA, iM])
-                        else:
-                            s.setTaggedValue(self.stationsFMT % M,  SOURCES[iA, iM])
-                    self.forward_pde.setValue(y_dirac=s)
+            if self.have_all_adjoints:
+                VA = { iA : self.source_potential[iA] + additive_potentials_DC[iA] for iA in additive_potentials_DC.keys()}
+                for iA in additive_potentials_DC.keys():
+                    RA_star = Scalar(0., Solution(self.domain))
+                    for iM in VA:
+                        M=self.data.getKeyOfStationNumber(iM)
+                        iM2 = self.data.getInjectionStationIndex(M)
+                        RA_star+= SOURCES[iA, iM] * VA[iM]
+                    # self.logger.debug("DC adjoint potential %d :%s" % (iA, str(VA_star)))
+                    DMisfitDsigma_0 -= inner(grad(RA_star), grad(VA[iA]))
                     r = x - self.data.getStationLocationByNumber(iA)
-                    fA = inner(r, n) / length(r) ** 2
-                    self.forward_pde.setValue(d=sigma_0_face * fA )
-                    VA_star=self.forward_pde.getSolution()
-                    #self.logger.debug("DC adjoint potential %d :%s" % (iA, str(VA_star)))
-                    VA= self.source_potential[iA] + additive_potentials_DC[iA]
-                    DMisfitDsigma_0 -= inner(grad(VA_star), grad(VA))
-                    DMisfitDsigma_0_face -= ( fA * VA_star ) * VA
+                    DMisfitDsigma_0_face -= (inner(r, n) / length(r) ** 2 * RA_star) * VA[iA]
+            else:
+                self.forward_pde.setValue(A=sigma_0 * kronecker(self.forward_pde.getDim()), y_dirac=Data(), X=Data(), Y=Data(), y=Data())
 
+
+                for iA in additive_potentials_DC.keys():
+                        s = Scalar(0., DiracDeltaFunctions(self.forward_pde.getDomain()))
+                        for M in self.data.getStationNumeration():
+                            iM = self.data.getStationNumber(M)
+                            if self.stationsFMT is None:
+                                s.setTaggedValue(M, SOURCES[iA, iM])
+                            else:
+                                s.setTaggedValue(self.stationsFMT % M,  SOURCES[iA, iM])
+                        self.forward_pde.setValue(y_dirac=s)
+                        r = x - self.data.getStationLocationByNumber(iA)
+                        fA = inner(r, n) / length(r) ** 2
+                        self.forward_pde.setValue(d=sigma_0_face * fA )
+                        RA_star=self.forward_pde.getSolution()
+                        #self.logger.debug("DC adjoint potential %d :%s" % (iA, str(VA_star)))
+                        VA= self.source_potential[iA] + additive_potentials_DC[iA]
+                        DMisfitDsigma_0 -= inner(grad(RA_star), grad(VA))
+                        DMisfitDsigma_0_face -= ( fA * RA_star ) * VA
             self.logger.debug("%s adjoint potentials calculated." % len(additive_potentials_DC.keys()))
         return DMisfitDsigma_0, DMisfitDsigma_0_face
 
@@ -720,7 +737,7 @@ class ERTInversionPseudoGaussBase(ERTMisfitCostFunction):
     """
     def __init__(self, domain=None, data=None,
                  sigma_0_ref=1e-4, sigma_src=None, w1=1., length_scale =1.,
-                 maskOuterFaces = None,
+                 maskOuterFaces = None, fixTop=False,
                  pde_tol=1.e-8, reg_tol=None, stationsFMT="e%s", logclip=5, dataRTolDC=1e-4,
                  useLogMisfitDC=False, EPSILON=1e-15, logger=None, **kargs):
         """
@@ -748,15 +765,20 @@ class ERTInversionPseudoGaussBase(ERTMisfitCostFunction):
         self.length_scale = length_scale
         self.logger.info("Reference conductivity sigma_0_ref = %s" % (str(self.sigma_0_ref)))
         self.logger.info("length scale a = %s" % (str(self.length_scale)))
-
+        # masks for surfaces:
+        x=self.forward_pde.getDomain().getX()
+        qx = whereZero(x[0] - inf(x[0])) + whereZero(x[0] - sup(x[0]))
+        qy = whereZero(x[1] - inf(x[1])) + whereZero(x[1] - sup(x[1]))
+        qz = whereZero(x[2] - inf(x[2]))
+        if fixTop:
+            qz += whereZero(x[2] - sup(x[2]))
+        self.q = [ qx+qy+qz, qy + qz, qx + qz,  qx + qy ]
         # regularization
-        self.w1 = w1
         if reg_tol is None:
             reg_tol=min(sqrt(pde_tol), 1e-3)
-        self.setUpInitialHessian(a=self.length_scale, w1=self.w1, reg_tol=reg_tol)
+        self.setUpInitialHessian(w1=w1, reg_tol=reg_tol)
         #  reference conductivity:
         self.updateSigma0Ref(sigma_0_ref)
-
 
     def updateSigma0Ref(self, sigma_0_ref):
         """
@@ -874,14 +896,19 @@ class ERTInversionPseudoGaussBase(ERTMisfitCostFunction):
 
 
 class ERTInversionPseudoGaussDiagonalHessian(ERTInversionPseudoGaussBase):
-    def setUpInitialHessian(self, a=1, w1 = 1,  reg_tol=None):
+    def setUpInitialHessian(self, w1 = 1,  reg_tol=None):
         self.Hpde = setupERTPDE(self.domain)
         if not reg_tol:
             reg_tol=min(sqrt(self.pde_tol), 1e-3)
         self.logger.debug(f'Tolerance for solving regularization PDE is set to {reg_tol}')
         self.Hpde.getSolverOptions().setTolerance(reg_tol)
         self.HpdeUpdateCount=1
-        self.Hpde.setValue(A=w1 * a**2 * kronecker(3), D=w1 )
+        self.setW1(w1)
+
+    def setW1(self, w1):
+        a = self.length_scale
+        self.Hpde.setValue(A=w1 * a ** 2 * kronecker(3), D=w1)
+        self.w1=w1
 
     def getInverseHessianApproximation(self, r, M, im, im_face, isigma_0, isigma_0_face, isigma_0_stations, args2, initializeHessian=False):
         """
@@ -889,17 +916,22 @@ class ERTInversionPseudoGaussDiagonalHessian(ERTInversionPseudoGaussBase):
         """
         dM=Data(0., M.getShape(), M.getFunctionSpace() )
         for i in range(M.getDomain().getDim()+1):
-            self.Hpde.setValue(X=r[1][i,:], Y=r[0][i], y=r[2][i])
+            self.Hpde.setValue(X=r[1][i,:], Y=r[0][i], y=r[2][i], q=self.q[i])
             dM[i] = self.Hpde.getSolution()
             self.logger.debug(f"search direction component {i} = {str(dM[i])}.")
         return dM
 
 class ERTInversionPseudoGauss(ERTInversionPseudoGaussBase):
-    def setUpInitialHessian(self, a=1, w1=1, reg_tol=None):
+    def setUpInitialHessian(self, w1=1, reg_tol=None):
 
         self.Hpde = setupPDESystem(self.domain, numEquations=4, symmetric=True, tolerance=reg_tol)
         if not reg_tol:
             reg_tol=min(sqrt(self.pde_tol), 1e-3)
+        self.Hpde.setValue(q=self.q[0]*[1,0,0,0]+self.q[1]*[0,1,0,0]+self.q[2]*[0,0,1,0]+self.q[3]*[0,0,0,1])
+        self.setW1(w1)
+
+    def setW1(self, w1):
+        a = self.length_scale
         A = self.Hpde.createCoefficient('A')
         B = self.Hpde.createCoefficient('B')
         C = self.Hpde.createCoefficient('C')
@@ -945,6 +977,8 @@ class ERTInversionPseudoGauss(ERTInversionPseudoGaussBase):
         D[2, 2] = 1
         D[3, 3] = 1
         self.Hpde.setValue(A= w1 * A, B = w1 *B, C = w1 * C, D = w1 *D)
+        self.w1=w1
+
     def getInverseHessianApproximation(self, r, M, im, im_face, isigma_0, isigma_0_face, isigma_0_stations, args2, initializeHessian=False):
         """
         returns an approximation of inverse of the Hessian. Overwrites `getInverseHessianApproximation` of `MeteredCostFunction`

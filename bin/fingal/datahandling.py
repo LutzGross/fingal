@@ -512,10 +512,12 @@ class SurveyData(object):
                     if M1 == M and out.count(A) ==0:
                         out.append(A)
         return out         
-
     def getObservationElectrodes(self):
+        return self. getObservationStations()
+
+    def getObservationStations(self):
         """
-        returns a list of the observations electrodes:
+        returns a list of the observations stations:
         """
         if self.observationElectrodes is None:
             out=[]
@@ -565,7 +567,13 @@ class SurveyData(object):
             return l.index(M)
         else:
             raise ValueError("Unknown observation electrode %s"%M)
-        
+    def getObservationElectrodeKey(self, iM):
+        """
+        returns the index of the injection station M in self.getObservationElectrodes()
+        """
+        return self.getObservationElectrodes()[iM]
+
+
     def getObservations(self, A=None, B=None, insertSource=False):
         """
         returns a list of the observations (M, N) using injection (A,B)
