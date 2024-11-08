@@ -6,16 +6,17 @@ sys.path.append(os.getcwd())
 from fingal import ERTInversionH1
 from fingal import readElectrodeLocations, readSurveyData, makeMaskForOuterSurface
 from esys.finley import ReadMesh
+from esys.escript.pdetools import MaskFromBoundaryTag
 import numpy as np
 
 
-CONFIG="config-ERT-H1-line"
-TABFN="ERT-H1-line.log"
+CONFIG="config-ERT-H1"
+TABFN="ERT-H1.log"
 
 import logging
 from datetime import datetime
 
-logger=logging.getLogger('ERT-H1-line')
+logger=logging.getLogger('ERT-H1')
 logger.setLevel(logging.DEBUG)
 config = importlib.import_module(CONFIG)
 
@@ -32,12 +33,12 @@ survey=readSurveyData(config.datafile, stations=elocations, usesStationCoordinat
                       delimiter=config.datadelimiter, commend='#', printInfo=True)
 assert survey.getNumObservations()>0, "no data found."
 
-mask_face=makeMaskForOuterSurface(domain, taglist=config.faces_tags)
+mask_face = MaskFromBoundaryTag(domain, *config.faces_tags)
 
 costf=ERTInversionH1(domain, data=survey,
                          sigma_0_ref=config.sigma0_ref,
                          w1=config.regularization_w1, useL1Norm=config.use_L1Norm, epsilonL1Norm=config.epsilon_L1Norm,
-                         maskOuterFaces= mask_face, dataRTolDC= config.data_rtol,
+                         maskZeroPotential= mask_face, dataRTolDC= config.data_rtol,
                          pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
                          useLogMisfitDC= config.use_log_misfit_DC, logger=logger)
 
@@ -60,7 +61,7 @@ for w1, with_misfit in [(0.,True ), (1., False), (1.e4, True)]:
     r=length(domain.getX())
     m=r/Lsup(r)*pp
 
-    ddm=(x+y+0.5*z)/Lsup(r)/3*10*pp/100
+    ddm=(x+y+0.5*z)/Lsup(r)/3*10*pp/200
     dm=ddm
 
     args=costf.getArgumentsAndCount(m)
@@ -79,7 +80,7 @@ for w1, with_misfit in [(0.,True ), (1., False), (1.e4, True)]:
         b.append(log(abs(D-Dex)))
         x.append(log(a))
         tabfile.write("%d      %e %e %e %e %e %e\n"%(k,J0, J,Dex,  D, D-Dex, (D-Dex)/a) )
-    m, c = np.linalg.lstsq(np.vstack([np.array(x), np.ones(len(x))]).T, b)[0]
+    m, c = np.linalg.lstsq(np.vstack([np.array(x), np.ones(len(x))]).T, b, rcond=None)[0]
     if m < 0.999:
         tabfile.write(f"WARNING: Poor convergence rate = {m}.\n")
     else:

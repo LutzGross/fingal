@@ -3,19 +3,19 @@ from esys.escript import *
 import importlib, os, sys
 
 sys.path.append(os.getcwd())
-from fingal import ERTInversionH1
+from fingal import ERTInversionGauss
 from fingal import readElectrodeLocations, readSurveyData, makeMaskForOuterSurface
 from esys.finley import ReadMesh
 import numpy as np
 
 
-CONFIG="config-ERT-H1"
-TABFN="ERT-H1.log"
+CONFIG="config-ERT-Gauss"
+TABFN="ERT-Gauss.log"
 
 import logging
 from datetime import datetime
 
-logger=logging.getLogger('ERT-H1')
+logger=logging.getLogger('ERT-Gauss')
 logger.setLevel(logging.DEBUG)
 config = importlib.import_module(CONFIG)
 
@@ -34,15 +34,15 @@ assert survey.getNumObservations()>0, "no data found."
 
 mask_face=makeMaskForOuterSurface(domain, taglist=config.faces_tags)
 
-costf=ERTInversionH1(domain, data=survey,
+costf=ERTInversionGauss(domain, data=survey,
                          sigma_0_ref=config.sigma0_ref,
-                         w1=config.regularization_w1, useL1Norm=config.use_L1Norm, epsilonL1Norm=config.epsilon_L1Norm,
+                         w1=config.regularization_w1,
                          maskOuterFaces= mask_face, dataRTolDC= config.data_rtol,
                          pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
                          useLogMisfitDC= config.use_log_misfit_DC, logger=logger)
 
 tabfile=open(TABFN, 'w')
-for w1, with_misfit in [(0.,True ), (1., False), (1.e4, True)]:
+for w1, with_misfit in [(0.,True ), (1., False), (1.e1, True)]:
     print("w1 = ", w1)
     tabfile.write(f".. w1 , = {w1}, with_misfit= {with_misfit} .............\n")
     costf.setW1(w1)
@@ -60,7 +60,7 @@ for w1, with_misfit in [(0.,True ), (1., False), (1.e4, True)]:
     r=length(domain.getX())
     m=r/Lsup(r)*pp
 
-    ddm=(x+y+0.5*z)/Lsup(r)/3*10*pp
+    ddm=(x+y+0.5*z)/Lsup(r)/3*pp
     dm=ddm
 
     args=costf.getArgumentsAndCount(m)
@@ -79,7 +79,7 @@ for w1, with_misfit in [(0.,True ), (1., False), (1.e4, True)]:
         b.append(log(abs(D-Dex)))
         x.append(log(a))
         tabfile.write("%d      %e %e %e %e %e %e\n"%(k,J0, J,Dex,  D, D-Dex, (D-Dex)/a) )
-    m, c = np.linalg.lstsq(np.vstack([np.array(x), np.ones(len(x))]).T, b)[0]
+    m, c = np.linalg.lstsq(np.vstack([np.array(x), np.ones(len(x))]).T, b, rcond=1)[0]
     if m < 0.999:
         tabfile.write(f"WARNING: Poor convergence rate = {m}.\n")
     else:

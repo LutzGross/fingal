@@ -3,18 +3,14 @@ from esys.escript import *
 import importlib, os, sys
 
 sys.path.append(os.getcwd())
-from fingal import ERTInversionH1, ERTInversionGauss, ERTInversionPseudoGauss, ERTInversionH2, ERTInversionPseudoGaussDiagonalHessian
+from fingal import ERTInversionH1, ERTInversionGauss, ERTInversionH2, ERTInversionGaussWithDiagonalHessian
 from fingal import readElectrodeLocations, readSurveyData, makeMaskForOuterSurface
 from esys.finley import ReadMesh
+from esys.escript.pdetools import MaskFromBoundaryTag, MaskFromTag
 import numpy as np
 from esys.weipa import saveVTK, saveSilo
 import argparse
-#from esys.downunder import MinimizerLBFGS
-from esys.escript.pdetools import MaskFromTag
 from esys.escript.minimizer import MinimizerLBFGS
-#from esys.escript.pdetools import Locator, ArithmeticTuple, MaskFromTag
-
-
 
 import logging
 from datetime import datetime
@@ -24,7 +20,7 @@ parser = argparse.ArgumentParser(description='driver to invert an ERT survey', e
 parser.add_argument(dest='config', metavar='configfile', type=str, help='python setting configuration')
 parser.add_argument('--restartfile', '-R', dest='RESTARTFN', metavar='RESTARTFN', type=str, default="restart", help='reststart file name')
 parser.add_argument('--restart', '-r',  dest='restart', action='store_true', default=False, help="start from restart file. RESTARTFN need to be set and exist.")
-
+parser.add_argument('--savememory', '-s',  dest='savememory', action='store_true', default=False, help="try to save memory at the costs of CPU time.")
 parser.add_argument('--nooptimize', '-n',  dest='nooptimize', action='store_true', default=False, help="Don't calibrated the value for config.sigma_ref before iteration starts.")
 parser.add_argument('--test', '-t',  dest='testonly', action='store_true', default=False, help="stop after rescaling config.sigma_ref.")
 parser.add_argument('--vtk', '-v',  dest='vtk', action='store_true', default=False, help="VTK format is used for output otherwise silo is used.")
@@ -56,6 +52,8 @@ survey=readSurveyData(config.datafile, stations=elocations, usesStationCoordinat
                      dipoleInjections=config.dipoleInjections, dipoleMeasurements=config.dipoleMeasurements, delimiter=config.datadelimiter, commend='#', printInfo=args.debug)
 assert survey.getNumObservations()>0, "no data found."
 
+# .... Load reference .... Work to do here!
+m_ref = None
 # set the reference conductivity:
 
 # define region with fixed conductivity:
@@ -65,7 +63,11 @@ if config.fixed_region_tags and isinstance(config.fixed_region_tags , list):
         logger.info("Tags of regions with fixed property function : %s"%(config.fixed_region_tags) )
 else:
     fixedm=None
-mask_face=makeMaskForOuterSurface(domain, taglist=config.faces_tags)
+# ... create mask where robin BC are applied or potential is set to zero, respectively.
+if  config.use_robin_condition_in_model:
+    mask_face = makeMaskForOuterSurface(domain, taglist=config.faces_tags)
+else:
+    mask_face = MaskFromBoundaryTag(domain, *config.faces_tags)
 
 # create cost function:
 logger.info(f"Regularization type = {config.regularization_order}.")
@@ -75,128 +77,61 @@ if 'GAUSS' in config.regularization_order.upper():
 
 # initialize cost function:
 if config.regularization_order == "H1":
-    costf=ERTInversionH1(domain, data=survey,
-                         sigma_0_ref=config.sigma0_ref, fixTop=config.fix_top,
+    if config.use_robin_condition_in_model:
+        assert m_ref is None, "ERTInversionH1WithRobinCondition does not support a reference property function yet."
+        logger.info(f"Robin boundary conditions are applied in Forward model.")
+        costf=ERTInversionH1WithRobinCondition(domain, data=survey,
+                             sigma_0_ref=config.sigma0_ref, fixTop=config.fix_top,
+                             w1=config.regularization_w1, useL1Norm=config.use_L1Norm, epsilonL1Norm=config.epsilon_L1Norm,
+                             maskFixedProperty=fixedm, maskOuterFaces= mask_face, dataRTolDC= config.data_rtol,
+                             pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
+                             useLogMisfitDC= config.use_log_misfit_DC, logger=logger.getChild("ERT-H1-Robin"))
+    else:
+        costf=ERTInversionH1(domain, data=survey,
+                             sigma_0_ref=config.sigma0_ref, fixTop=config.fix_top,
                          w1=config.regularization_w1, useL1Norm=config.use_L1Norm, epsilonL1Norm=config.epsilon_L1Norm,
-                         maskFixedProperty=fixedm, maskOuterFaces= mask_face, dataRTolDC= config.data_rtol,
+                         maskFixedProperty=fixedm, maskZeroPotential= mask_face, dataRTolDC= config.data_rtol, m_ref=m_ref,
                          pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
                          useLogMisfitDC= config.use_log_misfit_DC, logger=logger.getChild("ERT-H1"))
-    m_init = Scalar(0.0, Solution(domain))
+    dM_init = Scalar(0.0, Solution(domain))
 
 elif config.regularization_order == "H2":
-    costf=ERTInversionH2(domain, data=survey,
+    assert not config.use_robin_condition_in_model, "H2 Regularization does not support robin_condition in the model."
+    costf=ERTInversionH2(domain, data=survey, save_memory = args.savememory,
                          sigma_0_ref=config.sigma0_ref, reg_tol=None, fixTop=config.fix_top,
-                         w1=config.regularization_w1, maskOuterFaces= mask_face, dataRTolDC= config.data_rtol,
+                         w1=config.regularization_w1, maskZeroPotential= mask_face, dataRTolDC= config.data_rtol,  m_ref=m_ref,
                          pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
                          useLogMisfitDC= config.use_log_misfit_DC, logger=logger.getChild("ERT-H2"))
-    m_init = Vector(0.0, Solution(domain))
-
-
+    dM_init = Vector(0.0, Solution(domain))
 elif config.regularization_order == "Gauss":
+    assert not config.use_robin_condition_in_model, "Gauss Regularization does not support robin_condition in the model."
     costf = ERTInversionGauss(domain, data=survey,
-                              sigma_0_ref=config.sigma0_ref, fixTop=config.fix_top,
-                              w1=config.regularization_w1, length_scale = config.regularization_length_scale,
-                              maskOuterFaces=mask_face, dataRTolDC= config.data_rtol,
-                              pde_tol=config.pde_tol, stationsFMT=config.stationsFMT,
-                              logclip=config.clip_property_function,
-                              useLogMisfitDC=config.use_log_misfit_DC, logger=logger)
-    m_init = Scalar(0.0, Solution(domain))
-    # test gradient:
-    if False:
-        #=====
-        x = domain.getX()[0]
-        y = domain.getX()[1]
-        z = domain.getX()[2]
-        #pp=(x - inf(x))*(x - sup(x)) * (y - inf(y))* (y - sup(y))*(z - inf(z))
-        pp = (z - inf(z))
-        pp/=sup(abs(pp))
-        #====
-
-        x=length(domain.getX())
-        m=x/Lsup(x)*pp
-        ddm=(domain.getX()[0]+domain.getX()[1]+0.5*domain.getX()[2])/Lsup(x)/3*pp
-        #ddm=pp*0.01
-        print(str(m))
-        print(str(ddm))
-        dm=ddm
-        #m*=0
-        args=costf.getArgumentsAndCount(m)
-        G=costf.getGradientAndCount(m, *args)
-        Dex = costf.getDualProductAndCount(dm, G)
-        J0=costf.getValueAndCount(m,  *args)
-        print("J0=%e"%J0)
-        #print("gradient = %s"%str(G))
-
-        print("XX log(a):\tJ0\t\tJ(a)\t\tnum. D\t\tD\t\terror O(a)\t\tO(1)")
-        for k in range(4, 13):
-            a=0.5**k
-            J=costf.getValueAndCount(m+a*dm)
-            D=(J-J0)/a
-            print("XX \t%d:\t%e\t%e\t%e\t%e\t%e\t%e"%(k,J0, J, D, Dex, D-Dex, (D-Dex)/a) )
-        1/0
-elif config.regularization_order == "PseudoGauss":
-    costf = ERTInversionPseudoGauss(domain, data=survey,
                                     sigma_0_ref=config.sigma0_ref, fixTop=config.fix_top,
                                     w1=config.regularization_w1, length_scale = config.regularization_length_scale,
-                                    maskOuterFaces=mask_face, dataRTolDC= config.data_rtol,
-                                    pde_tol=config.pde_tol, stationsFMT=config.stationsFMT,
+                                    maskZeroPotential=mask_face, dataRTolDC= config.data_rtol,
+                                    pde_tol=config.pde_tol, stationsFMT=config.stationsFMT,  m_ref=m_ref,
                                     logclip=config.clip_property_function,
                                     useLogMisfitDC=config.use_log_misfit_DC, logger=logger.getChild("ERT-Gauss"))
-    m_init = Data(0.0, (4,), Solution(domain))
-
-elif config.regularization_order == "D-PseudoGauss":
-    costf = ERTInversionPseudoGaussDiagonalHessian(domain, data=survey,
+    dM_init = Data(0.0, (4,), Solution(domain))
+elif config.regularization_order == "DGauss":
+    assert not config.use_robin_condition_in_model, "DGauss Regularization does not support robin_condition in the model."
+    costf = ERTInversionGaussWithDiagonalHessian(domain, data=survey,
                                                    sigma_0_ref=config.sigma0_ref, fixTop=config.fix_top,
                                                    w1=config.regularization_w1, length_scale = config.regularization_length_scale,
-                                                   maskOuterFaces=mask_face, dataRTolDC= config.data_rtol,
+                                                   maskZeroPotential=mask_face, dataRTolDC= config.data_rtol,
                                                    pde_tol=config.pde_tol, stationsFMT=config.stationsFMT,
-                                                   logclip=config.clip_property_function,
-                                                   useLogMisfit=config.use_log_misfit_DC, logger=logger)
-    m_init = Data(0.0, (4,), Solution(domain))
-
-    # test gradient:
-    if False:
-        # =====
-        x = domain.getX()[0]
-        y = domain.getX()[1]
-        z = domain.getX()[2]
-        # pp=(x - inf(x))*(x - sup(x)) * (y - inf(y))* (y - sup(y))*(z - inf(z))
-        pp = (z - inf(z))
-        pp /= sup(abs(pp))
-        # ====
-
-        x = length(domain.getX())
-        m = x / Lsup(x) * pp
-        M= m * [1,1.5,2,2.5]
-        ddm = (domain.getX()[0] + domain.getX()[1] + 0.5 * domain.getX()[2]) / Lsup(x) / 3  * pp
-        # ddm=pp*0.01
-        print(str(m))
-        print(str(ddm))
-        dM = ddm * [-0.1,0.1,0.4,-0.4]
-        args = costf.getArgumentsAndCount(M)
-        G = costf.getGradientAndCount(M, *args)
-        Dex = costf.getDualProductAndCount(dM, G)
-        J0 = costf.getValueAndCount(M, *args)
-        print("J0=%e" % J0)
-        # print("gradient = %s"%str(G))
-
-        print("XX log(a):\tJ0\t\tJ(a)\t\tnum. D\t\tD\t\terror O(a)\t\tO(1)")
-        for k in range(4, 15):
-            a = 0.5 ** k
-            J = costf.getValueAndCount(M + a * dM)
-            D = (J - J0) / a
-            print("XX \t%d:\t%e\t%e\t%e\t%e\t%e\t%e" % (k, J0, J, D, Dex, D - Dex, (D - Dex) / a))
-        1 / 0
-
-
+                                                   logclip=config.clip_property_function,  m_ref=m_ref,
+                                                   useLogMisfitDC=config.use_log_misfit_DC, logger=logger)
+    dM_init = Data(0.0, (4,), Solution(domain))
 else:
-    raise ValueError("unknown regularization type "+config.regularization_order)
+    raise ValueError("Unknown regularization type "+config.regularization_order)
+
 # set up solver:
 if not args.nooptimize:
     new_sigma_ref=costf.fitSigmaRef()
     logger.info(f"New value for config.sigma_ref = {new_sigma_ref}.")
     costf.updateSigma0Ref(new_sigma_ref)
-    #costf.setSigmaSrc(new_sigma_ref)
+
 if args.testonly:
     exit(0)
 def myCallback(iterCount, m, dm, Fm, grad_Fm, norm_m, args_m, failed):
@@ -216,28 +151,24 @@ solver.setCallback(myCallback)
 if args.restart:
     kk=[v for i,v in enumerate(os.listdir()) if v.startswith(args.RESTARTFN) ]
     if kk:
-        m_init=load(args.RESTARTFN, domain)
-        logger.info(f"Restart file {args.RESTARTFN} read. Initial M = {str(m_init)}.")
+        dM_init=load(args.RESTARTFN, domain)
+        logger.info(f"Restart file {args.RESTARTFN} read. Initial dM = {str(dM_init)}.")
+
         if config.regularization_order == 1:
-            assert m_init.getShape() == ()
+            assert dM_init.getShape() == ()
         else:
-            assert m_init.getShape() == (4, )
+            assert dM_init.getShape() == (4, )
 # run solver:
-solver.run(m_init)
-M=solver.getResult()
-m=costf.extractPropertyFunction(M)
-if M.getShape() == (4,):
-    V=M[1:]
-elif M.getShape() == (3,):
-    V=M
-else:
-    V=grad(M)
+solver.run(dM_init)
+print(costf.getStatistics())
+dM=solver.getResult()
+m=costf.extractPropertyFunction(dM)
 sigma=costf.getSigma0(m, applyInterploation=False)
 if args.vtk:
-    saveVTK(config.outfile, sigma=sigma, tag=makeTagMap(Function(domain)), V=V)
+    saveVTK(config.outfile, sigma=sigma, tag=makeTagMap(Function(domain)))
     logger.info(f"Result written to {config.outfile}.vtu.")
 else:
-    saveSilo(config.outfile, sigma=sigma, tag=makeTagMap(Function(domain)), V=V)
+    saveSilo(config.outfile, sigma=sigma, tag=makeTagMap(Function(domain)))
     logger.info(f"Result written to {config.outfile}.silo.")
 
 if args.xyz:

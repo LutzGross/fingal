@@ -4,7 +4,7 @@ import importlib, sys, os
 sys.path.append(os.getcwd())
 import numpy as np
 from .datahandling import SurveyData
-from fingal import readElectrodeLocations, readSurveyData, setupERTPDE, getSourcePotentials, makeMaskForOuterSurface, getSecondaryPotentials
+from fingal import readElectrodeLocations, readSurveyData, setupERTPDE, getSourcePotentials, makeMaskForOuterSurface, getAdditivePotentials
 
 from esys.escript.pdetools import Locator, MaskFromTag
 
@@ -89,11 +89,11 @@ class IPSynthetic(object):
         pde = setupERTPDE(self.domain)
         if sigma_0_at_stations is None:
              sigma_0_at_stations = self.stationlocators(sigma_0)
-        self.potential_0 = getSecondaryPotentials(pde,
+        self.potential_0 = getAdditivePotentials(pde,
                                                   sigma = sigma_0,
-                                                  sigma_at_faces = sigma_0_faces,
+                                                  sigma_faces = sigma_0_faces,
                                                   schedule = self.schedule,
-                                                  sigma_at_station = sigma_0_at_stations,
+                                                  sigma_stations = sigma_0_at_stations,
                                                   source_potential = self.source_potential,
                                                   sigma_src = self.sigma_src,
                                                   mask_faces = self.mask_faces)
@@ -124,11 +124,11 @@ class IPSynthetic(object):
                 print("M_n = ", str(M_n))
                 print("M_n_faces = ", str(M_n_faces))
 
-            self.potential_oo = getSecondaryPotentials(pde,
+            self.potential_oo = getAdditivePotentials(pde,
                                                        sigma = sigma_oo,
-                                                       sigma_at_faces = sigma_oo_faces,
+                                                       sigma_faces = sigma_oo_faces,
                                                        schedule = self.schedule,
-                                                       sigma_at_station = sigma_oo_at_stations,
+                                                       sigma_stations = sigma_oo_at_stations,
                                                        source_potential = self.source_potential,
                                                        sigma_src = self.sigma_src,
                                                        mask_faces = self.mask_faces)

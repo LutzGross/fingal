@@ -31,9 +31,10 @@ data_rtol = 1e-4
 #
 #  This section of the file defines the inversion
 #
-sigma0_ref=0.0004
+sigma0_ref=0.002
 Mn_ref=0.01*sigma0_ref
 true_properties=None
+use_robin_condition_in_model = False
 #
 #
 #  Inversion:
@@ -49,14 +50,16 @@ imax=400
 truncation=20
 restart=6000
 pde_tol=1e-10
-regularization_w1=1e-2 # nicht schlecht! H2
-regularization_w1=1e-1
+
+regularization_w1=1e-4 # H1
+
 #regularization_w1=1e-4
 use_L1Norm=False
 epsilon_L1Norm=0.01
 use_log_misfit_DC = False
-regularization_order = 'H2' # in ['H1', 'H2', 'Gauss', 'PseudoGauss', D-PseudoGauss']
-regularization_length_scale = 15
+regularization_order = 'H1' # in ['H1', 'H2', 'Gauss', 'DGauss' ]
+regularization_length_scale = 5
+regularization_w1=1e-6
 # Output handeling:
 #
 outfile='sigma'

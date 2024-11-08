@@ -65,8 +65,31 @@ def makePointSource(source_key, domain, value=1.,stationsFMT=None):
         s.setTaggedValue(stationsFMT % source_key, value)
     return s
 
+def getSourcePotentials(domain, sigma, survey, maskZeroPotential, stationsFMT=None, logger=None):
+    """
+    return the electric potential for all injections A in the survey using conductivity sigma.
+    :domain: PDE domin
+    :sigma: conductivity.
+    :maskZeroPotential: mask of locations where potentials are zero.
+    :return: dictionary of injections A->source_potential assuming conductivity is sigma
+    """
+    source_potential = {}
+    pde = setupERTPDE(domain)
+    pde.setValue(A=sigma * kronecker(3), y_dirac=Data(), X=Data(), Y=Data(), q=maskZeroPotential)
+    for A in survey.getListOfInjectionStations():
+        iA=survey.getStationNumber(A)
+        pde.setValue(y_dirac=makePointSource(A, pde.getDomain(),stationsFMT=stationsFMT))
+        source_potential[iA] = pde.getSolution()
+        #if logger:
+        #      logger.debug(f"processing source {iA} key = {A}: {source_potential[iA]}")
+        assert Lsup(source_potential[iA]) > 0, "Zero potential for injection %s" % A
+    if logger:
+       logger.debug(f"{len(source_potential)} source potentials calculated.")
+    return source_potential
 
-def getSourcePotentials(domain, sigma, survey, sigma_faces=None, maskOuterFaces=None, stationsFMT=None, logger=None):
+
+
+def getSourcePotentialsWithRobinCondition(domain, sigma, survey, sigma_faces=None, maskZeroPotential=None, stationsFMT=None, logger=None):
     """
     return the electric potential for all injections A in the survey using conductivity sigma.
     :sigma: conductivity. Needs to a constant if sigma_source is not present.
@@ -101,8 +124,52 @@ def getSourcePotentials(domain, sigma, survey, sigma_faces=None, maskOuterFaces=
        logger.debug(f"{len(source_potential)} source potentials calculated.")
     return source_potential
 
+def getAdditivePotentials(pde, sigma, schedule, sigma_stations=None, source_potential={},
+                          sigma_src=1., sigma_src_stations=None, maskZeroPotential=None,
+                          logger=None):
+    """
+    calculates the extra/additive potentials V_A for given sigma and source potentials for sigma_src
 
-def getAdditivePotentials(pde, sigma, sigma_faces, schedule, sigma_stations=None, source_potential={},
+    :param pde: PDE used to get the secondary potential. Coefficients are altered.
+    :param sigma: electrical conductivity
+    :param schedule: schedule of the survey 'ABMN' (or AMN, etc)
+    :type schedule: `SurveyData`
+    :param sigma_stations:electric conductivity at_stations
+    :type sigma_stations:  `dict` of `float`
+    :param source_potential: potentionals for a sources with assumed conductivity sigma_src
+    :type source_potential: `dict` of `Scalar`
+    :param sigma_src: conductivity used to calculate source potentials
+    :param sigma_src_stations: conductivity for source potentials  at_stations. If not set  'sigma_src' is used.
+    :param maskZeroPotential: mask where additional potential is to zero.
+    :type maskZeroPotential: `Scalar` with `Solution` attribute
+    :return:  secondary/incremental potential to source potential due to conductivity sigma and the associated rescaling
+                factor to adjust conductivity at source.
+    """
+    if sigma_src_stations is None:
+        sigma_src_stations = {iA: sigma_src for iA in source_potential}
+
+    potential = {}
+    src_potential_scale = {}
+    pde.setValue(A=sigma * kronecker(3), y_dirac=Data(), X=Data(), Y=Data(), q=maskZeroPotential)
+    for iA in source_potential:
+        if sigma_stations is None:
+            alpha_A = 1.
+        elif isinstance(sigma_src_stations, dict):
+            alpha_A = sigma_src_stations[iA] / sigma_stations[iA]
+        else:
+            alpha_A = sigma_src_stations / sigma_stations[iA]
+
+        pde.setValue(X=(sigma_src - sigma * alpha_A) * grad(source_potential[iA]))
+        potential[iA] = pde.getSolution()
+        #from esys.weipa import saveSilo
+        #saveSilo("xxx", ds=(sigma_src - sigma * alpha_A), X=(sigma_src - sigma * alpha_A) * grad(source_potential[iA]), u=potential[iA], q=maskZeroPotential)
+        src_potential_scale [iA] = alpha_A
+    if logger:
+        logger.info(f"{len(potential)} additive DC potentials calculated.")
+    return potential, src_potential_scale
+
+
+def getAdditivePotentialsWithRobinCondition(pde, sigma, sigma_faces, schedule, sigma_stations=None, source_potential={},
                           sigma_src=1., sigma_src_faces=None, sigma_src_stations=None, mask_faces=None,
                           logger=None):
     """
@@ -150,7 +217,8 @@ def getAdditivePotentials(pde, sigma, sigma_faces, schedule, sigma_stations=None
         pde.setValue(d=sigma_faces * fA, y=(sigma_src_faces - sigma_faces * alpha_A) * fA * source_potential[iA])
         pde.setValue(X=(sigma_src - sigma * alpha_A) * grad(source_potential[iA]))
         potential[iA] = pde.getSolution() + (alpha_A - 1.) * source_potential[iA]
-    logger.info(f"{len(potential)} additive DC potentials calculated.")
+    if logger:
+        logger.info(f"{len(potential)} additive DC potentials calculated.")
     return potential
 
 def getSecondaryPotentials(pde, sigma_oo, sigma_oo_faces, schedule,
@@ -342,13 +410,14 @@ def setupPDESystem(domain, numEquations=1, symmetric=True, tolerance=1e-8):
     optionsG = pde.getSolverOptions()
     optionsG.setSolverMethod(SolverOptions.PCG)
     optionsG.setTolerance(tolerance)
-    # optionsG.setSolverMethod(SolverOptions.DIRECT)
+
     if hasFeature('trilinos'):
         optionsG.setPackage(SolverOptions.TRILINOS)
         optionsG.setPreconditioner(SolverOptions.AMG)
         optionsG.setTrilinosParameter("verbosity", "none")
         optionsG.setTrilinosParameter("number of equations", numEquations)
         optionsG.setTrilinosParameter("problem: symmetric", symmetric)
+
     return pde
 def setupERTPDE(domain, tolerance=1e-8, poisson=True, debug=0):
     """
@@ -370,6 +439,7 @@ def setupERTPDE(domain, tolerance=1e-8, poisson=True, debug=0):
     optionsG = pde.getSolverOptions()
     optionsG.setSolverMethod(SolverOptions.PCG)
     optionsG.setTolerance(tolerance)
+    #optionsG.setSolverMethod(SolverOptions.DIRECT)
     if hasFeature('trilinos'):
         optionsG.setPackage(SolverOptions.TRILINOS)
         optionsG.setPreconditioner(SolverOptions.AMG)

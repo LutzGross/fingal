@@ -8,6 +8,7 @@ sys.path.append(os.getcwd())
 from fingal import ERTInversionH2
 from fingal import readElectrodeLocations, readSurveyData, makeMaskForOuterSurface
 from esys.finley import ReadMesh
+from esys.escript.pdetools import MaskFromBoundaryTag
 import numpy as np
 
 
@@ -34,18 +35,18 @@ survey=readSurveyData(config.datafile, stations=elocations, usesStationCoordinat
                       delimiter=config.datadelimiter, commend='#', printInfo=True)
 assert survey.getNumObservations()>0, "no data found."
 
-mask_face=makeMaskForOuterSurface(domain, taglist=config.faces_tags)
+mask_face=MaskFromBoundaryTag(domain, *config.faces_tags)
 
 costf = ERTInversionH2(domain, data=survey,
                        sigma_0_ref=config.sigma0_ref, reg_tol=None,
-                       w1=config.regularization_w1, maskOuterFaces=mask_face, dataRTolDC=config.data_rtol,
+                       w1=config.regularization_w1, maskZeroPotential=mask_face, dataRTolDC=config.data_rtol,
                        pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
                        useLogMisfitDC=config.use_log_misfit_DC, logger=logger)
 
 
 tabfile=open(TABFN, 'w')
 #for w1, with_misfit in [(0.,True ), (1., False), (1.e4, True)]:
-for w1, with_misfit in [(1., False), (0., True), (1.e8, True)]:
+for w1, with_misfit in [(1., False), (0., True), (1.e9, True)]:
     print("w1 = ", w1)
     costf.setW1(w1)
     costf.ignoreERTMisfit(not with_misfit)
@@ -68,7 +69,7 @@ for w1, with_misfit in [(1., False), (0., True), (1.e8, True)]:
     M[2] = 0.2e-2 * r / Lsup(r) * ppy * ppx
 
     for d in [ [ppy*ppz,0,0] , [0,ppx*ppz,0], [0,0,ppy*ppx], [ppy*ppz,ppx*ppz,ppy*ppx]  ] :
-        dm=(x+y+0.5*z)/Lsup(r)/35
+        dm=(x+y+0.5*z)/Lsup(r)/35/25
         dM = Vector(0., ContinuousFunction(domain))
         f="["
         for i, c in enumerate(d):
