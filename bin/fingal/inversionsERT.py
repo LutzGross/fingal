@@ -690,11 +690,11 @@ class ERTInversionGaussBase(ERTMisfitCostFunction):
         """
         misfit_0 = self.getMisfit(isigma_0, isigma_0_stations, *args2)
         a=self.length_scale
-        gradm =grad(dM[0], where=im.getFunctionSpace())
+        graddm =grad(dM[0], where=im.getFunctionSpace())
         divdM = div(dM[1:], where=im.getFunctionSpace())
         curldM = curl(dM[1:], where = im.getFunctionSpace())
 
-        reg = self.w1 * integrate((M[0]-a*divdM)**2)
+        reg = self.w1 * integrate((dM[0]-a*divdM)**2)
         gM =  self.w1 * integrate(length(dM[1:]-a*graddm)**2)
         cM =  self.w1 * integrate(length(a * curldM)**2)
 
@@ -718,10 +718,10 @@ class ERTInversionGaussBase(ERTMisfitCostFunction):
         X = Data(0, (4,3), Function(dM.getDomain()))
         Y = Data(0, (4,),  Function(dM.getDomain()))
 
-        Y[1:]+= M[1:]- a * graddm
+        Y[1:]+= dM[1:]- a * graddm
         X[0,:] = - a * (dM[1:]- a * graddm)
 
-        d=M[0]-a*divdM
+        d=dM[0]-a*divdM
         Y[0]+=d
         for i in range(0, self.domain.getDim()):
                 X[1+i,i]= - a * d
