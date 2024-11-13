@@ -3,7 +3,7 @@ from esys.escript import *
 import importlib, os, sys
 
 sys.path.append(os.getcwd())
-from fingal import ERTInversionGauss
+from fingal import ERTInversionGauss, ERTInversionGaussWithDiagonalHessian
 from fingal import readElectrodeLocations, readSurveyData, makeMaskForOuterSurface
 from esys.finley import ReadMesh
 from esys.escript.pdetools import MaskFromBoundaryTag
@@ -35,10 +35,11 @@ assert survey.getNumObservations()>0, "no data found."
 
 mask_face = MaskFromBoundaryTag(domain, *config.faces_tags)
 
-
-costf=ERTInversionGauss(domain, data=survey,
+#costf=ERTInversionGaussWithDiagonalHessian(
+costf=ERTInversionGauss(
+                        domain, data=survey,
                          sigma_0_ref=config.sigma0_ref,
-                         w1=config.regularization_w1,
+                         w1=config.regularization_w1, penalty_factor=config.regularization_penalty_factor,
                          maskZeroPotential= mask_face, dataRTolDC= config.data_rtol,
                          pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
                          useLogMisfitDC= config.use_log_misfit_DC, logger=logger)
@@ -69,7 +70,7 @@ for w1, with_misfit in [(0.,True ), (1., False), (1.e4, True)]:
 
     for d in [[ppy * ppz * ppx, 0, 0, 0], [0, ppy * ppz, 0, 0], [0, 0, ppx * ppz, 0], [0, 0, 0, ppy * ppx],
               [ppy * ppz * ppx, ppy * ppz, ppx * ppz, ppy * ppx]]:
-        dm = (x + y + 0.5 * z) / Lsup(r) / 40
+        dm = (x + y + 0.5 * z) / Lsup(r) / 40/10
         dM = Data(0., (4,), ContinuousFunction(domain))
         f = "["
         for i, c in enumerate(d):

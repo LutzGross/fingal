@@ -597,7 +597,8 @@ class ERTInversionGaussBase(ERTMisfitCostFunction):
     """
     def __init__(self, domain=None, data=None,
                  sigma_0_ref=1e-4, sigma_src=None, w1=1., length_scale =1.,
-                 maskZeroPotential = None, fixTop=False, m_ref = None,
+                 penalty_factor=1,
+                 maskZeroPotential = None, fixTop=False, m_ref = None, save_memory = False,
                  pde_tol=1.e-8, reg_tol=None, stationsFMT="e%s", logclip=5, dataRTolDC=1e-4,
                  useLogMisfitDC=False, EPSILON=1e-15, logger=None, **kargs):
         """
@@ -621,9 +622,11 @@ class ERTInversionGaussBase(ERTMisfitCostFunction):
                          stationsFMT=stationsFMT, logger=logger, useLogMisfitDC=useLogMisfitDC, **kargs)
         self.logclip = logclip
         self.pde_tol = pde_tol
+        self.save_memory = save_memory
         self.m_ref = m_ref
         self.sigma_0_ref = sigma_0_ref
         self.length_scale = length_scale
+        self.penalty_factor = penalty_factor
         self.logger.info("Reference conductivity sigma_0_ref = %s" % (str(self.sigma_0_ref)))
         self.logger.info("length scale a = %s" % (str(self.length_scale)))
         # masks for surfaces:
@@ -690,12 +693,13 @@ class ERTInversionGaussBase(ERTMisfitCostFunction):
         """
         misfit_0 = self.getMisfit(isigma_0, isigma_0_stations, *args2)
         a=self.length_scale
+        b = self.penalty_factor
         graddm =grad(dM[0], where=im.getFunctionSpace())
         divdM = div(dM[1:], where=im.getFunctionSpace())
         curldM = curl(dM[1:], where = im.getFunctionSpace())
 
         reg = self.w1 * integrate((dM[0]-a*divdM)**2)
-        gM =  self.w1 * integrate(length(dM[1:]-a*graddm)**2)
+        gM =  self.w1 * b**2 * integrate(length(dM[1:]-a*graddm)**2)
         cM =  self.w1 * integrate(length(a * curldM)**2)
 
         R = (reg + gM + cM )/2
@@ -711,6 +715,7 @@ class ERTInversionGaussBase(ERTMisfitCostFunction):
         returns the gradient of the cost function. Overwrites `getGradient` of `MeteredCostFunction`
         """
         a=self.length_scale
+        b=self.penalty_factor
         graddm =grad(dM[0], where=im.getFunctionSpace())
         divdM = div(dM[1:], where=im.getFunctionSpace())
         curldM = curl(dM[1:], where = im.getFunctionSpace())
@@ -718,11 +723,11 @@ class ERTInversionGaussBase(ERTMisfitCostFunction):
         X = Data(0, (4,3), Function(dM.getDomain()))
         Y = Data(0, (4,),  Function(dM.getDomain()))
 
-        Y[1:]+= dM[1:]- a * graddm
-        X[0,:] = - a * (dM[1:]- a * graddm)
+        Y[1:]+= b**2 *  (dM[1:]- a * graddm)
+        X[0,:] = - a * b**2 *  (dM[1:]- a * graddm)
 
         d=dM[0]-a*divdM
-        Y[0]+=d
+        Y[0]+= d
         for i in range(0, self.domain.getDim()):
                 X[1+i,i]= - a * d
 
@@ -748,7 +753,7 @@ class ERTInversionGaussBase(ERTMisfitCostFunction):
         """
         return integrate(inner(r[0],dM) + inner(r[1], grad(dM)))
 
-    def getNorm(self, eM):
+    def getNorm(self, dM):
         """
         returns the norm of property function `m`. Overwrites `getNorm` of `MeteredCostFunction`
         """
@@ -768,33 +773,54 @@ class ERTInversionGaussBase(ERTMisfitCostFunction):
 
 class ERTInversionGaussWithDiagonalHessian(ERTInversionGaussBase):
     def setUpInitialHessian(self, w1 = 1,  reg_tol=None):
-        self.Hpde = setupERTPDE(self.domain)
         if not reg_tol:
-            reg_tol=min(sqrt(self.pde_tol), 1e-3)
+            reg_tol = min(sqrt(self.pde_tol), 1e-3)
         self.logger.debug(f'Tolerance for solving regularization PDE is set to {reg_tol}')
-        self.Hpde.getSolverOptions().setTolerance(reg_tol)
-        self.HpdeUpdateCount=1
+        if self.save_memory:
+            self.Hpde = setupERTPDE(self.domain)
+            self.Hpde.getSolverOptions().setTolerance(reg_tol)
+        else:
+            self.Hpdes = []
+            for i in range(4):
+                pde =  setupERTPDE(self.domain)
+                pde.setValue( q= self.q[i] )
+                self.Hpdes.append(pde)
+
         self.setW1(w1)
 
     def setW1(self, w1):
         a = self.length_scale
-        self.Hpde.setValue(A=w1 * a ** 2 * kronecker(3), D=w1)
+        b = self.penalty_factor
+        if self.save_memory:
+            self.Hpde.setValue(A=w1 * a ** 2 * kronecker(3), D=w1)
+        else:
+            [ pde.setValue(A=w1 * a ** 2 * kronecker(3), D=w1) for pde in self.Hpdes ]
         self.w1=w1
 
     def getInverseHessianApproximation(self, r, dM, im, isigma_0, isigma_0_stations, args2, initializeHessian=False):
         """
         returns an approximation of inverse of the Hessian. Overwrites `getInverseHessianApproximation` of `MeteredCostFunction`
         """
+        w1=self.w1
+        a = self.length_scale
+        b = self.penalty_factor
+
         P=Data(0., dM.getShape(), dM.getFunctionSpace() )
         for i in range(dM.getDomain().getDim()+1):
-            self.Hpde.setValue(X=r[1][i,:], Y=r[0][i], y=r[2][i], q=self.q[i])
-            P[i] = self.Hpde.getSolution()
+            if self.save_memory:
+                if i == 0:
+                    self.Hpde.setValue(X=r[1][i,:], Y=r[0][i], q=self.q[i], A=(a**2*b**2*w1)* kronecker(3) , D=w1 )
+                else:
+                    self.Hpde.setValue(X=r[1][i,:], Y=r[0][i], q=self.q[i], A=(a**2*w1)* kronecker(3) , D=w1*b**2)
+                P[i] = self.Hpde.getSolution()
+            else:
+                self.Hpdes[i].setValue(X=r[1][i,:], Y=r[0][i])
+                P[i] = self.Hpdes[i].getSolution()
             self.logger.debug(f"search direction component {i} = {str(P[i])}.")
         return P
 
 class ERTInversionGauss(ERTInversionGaussBase):
     def setUpInitialHessian(self, w1=1, reg_tol=None):
-
         self.Hpde = setupPDESystem(self.domain, numEquations=4, symmetric=True, tolerance=reg_tol)
         if not reg_tol:
             reg_tol=min(sqrt(self.pde_tol), 1e-3)
@@ -803,13 +829,14 @@ class ERTInversionGauss(ERTInversionGaussBase):
 
     def setW1(self, w1):
         a = self.length_scale
+        b = self.penalty_factor
         A = self.Hpde.createCoefficient('A')
         B = self.Hpde.createCoefficient('B')
         C = self.Hpde.createCoefficient('C')
         D = self.Hpde.createCoefficient('D')
-        A[0, 0, 0, 0] = a ** 2
-        A[0, 1, 0, 1] = a ** 2
-        A[0, 2, 0, 2] = a ** 2
+        A[0, 0, 0, 0] = a ** 2 * b ** 2
+        A[0, 1, 0, 1] = a ** 2 * b ** 2
+        A[0, 2, 0, 2] = a ** 2 * b ** 2
         A[1, 0, 1, 0] = a ** 2
         A[1, 0, 2, 1] = a ** 2
         A[1, 0, 3, 2] = a ** 2
@@ -831,22 +858,22 @@ class ERTInversionGauss(ERTInversionGaussBase):
         A[3, 2, 1, 0] = a ** 2
         A[3, 2, 2, 1] = a ** 2
         A[3, 2, 3, 2] = a ** 2
-        B[0, 0, 1] = -a
-        B[0, 1, 2] = -a
-        B[0, 2, 3] = -a
+        B[0, 0, 1] = -a * b ** 2
+        B[0, 1, 2] = -a * b ** 2
+        B[0, 2, 3] = -a * b ** 2
         B[1, 0, 0] = -a
         B[2, 1, 0] = -a
         B[3, 2, 0] = -a
         C[0, 1, 0] = -a
         C[0, 2, 1] = -a
         C[0, 3, 2] = -a
-        C[1, 0, 0] = -a
-        C[2, 0, 1] = -a
-        C[3, 0, 2] = -a
+        C[1, 0, 0] = -a * b ** 2
+        C[2, 0, 1] = -a * b ** 2
+        C[3, 0, 2] = -a * b ** 2
         D[0, 0] = 1
-        D[1, 1] = 1
-        D[2, 2] = 1
-        D[3, 3] = 1
+        D[1, 1] = b ** 2
+        D[2, 2] = b ** 2
+        D[3, 3] = b ** 2
         self.Hpde.setValue(A= w1 * A, B = w1 *B, C = w1 * C, D = w1 *D)
         self.w1=w1
 
@@ -854,7 +881,7 @@ class ERTInversionGauss(ERTInversionGaussBase):
         """
         returns an approximation of inverse of the Hessian. Overwrites `getInverseHessianApproximation` of `MeteredCostFunction`
         """
-        self.Hpde.setValue(X=r[1], Y=r[0], y=r[2])
+        self.Hpde.setValue(X=r[1], Y=r[0])
         P = self.Hpde.getSolution()
         for i in range(dM.getDomain().getDim()+1):
             self.logger.debug(f"search direction component {i} = {str(P[i])}.")

@@ -108,16 +108,17 @@ elif config.regularization_order == "Gauss":
     costf = ERTInversionGauss(domain, data=survey,
                                     sigma_0_ref=config.sigma0_ref, fixTop=config.fix_top,
                                     w1=config.regularization_w1, length_scale = config.regularization_length_scale,
-                                    maskZeroPotential=mask_face, dataRTolDC= config.data_rtol,
+                                    penalty_factor=config.regularization_penalty_factor, maskZeroPotential=mask_face, dataRTolDC= config.data_rtol,
                                     pde_tol=config.pde_tol, stationsFMT=config.stationsFMT,  m_ref=m_ref,
                                     logclip=config.clip_property_function,
                                     useLogMisfitDC=config.use_log_misfit_DC, logger=logger.getChild("ERT-Gauss"))
     dM_init = Data(0.0, (4,), Solution(domain))
 elif config.regularization_order == "DGauss":
     assert not config.use_robin_condition_in_model, "DGauss Regularization does not support robin_condition in the model."
-    costf = ERTInversionGaussWithDiagonalHessian(domain, data=survey,
+    costf = ERTInversionGaussWithDiagonalHessian(domain, data=survey, save_memory = args.savememory,
                                                    sigma_0_ref=config.sigma0_ref, fixTop=config.fix_top,
-                                                   w1=config.regularization_w1, length_scale = config.regularization_length_scale,
+                                                   penalty_factor=config.regularization_penalty_factor,
+                                                    w1=config.regularization_w1, length_scale = config.regularization_length_scale,
                                                    maskZeroPotential=mask_face, dataRTolDC= config.data_rtol,
                                                    pde_tol=config.pde_tol, stationsFMT=config.stationsFMT,
                                                    logclip=config.clip_property_function,  m_ref=m_ref,

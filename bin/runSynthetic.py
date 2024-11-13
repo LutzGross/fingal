@@ -82,9 +82,6 @@ else:
 #anomaly_mask_Mn =  core * whereNonPositive(r - args.radius/100.  * diameter )
 #M_n+= (config.Mn_ref * args.increase - M_n ) * anomaly_mask_Mn
 
-M_n_faces = config.Mn_ref
-sigma0_faces = config.sigma0_ref
-
 if args.silofile:
     M_n.expand()
     sigma_0.expand()
@@ -94,13 +91,13 @@ if args.silofile:
 
 # -----------------------------------------------------------------------------------
 runner=IPSynthetic(domain, schedule,  sigma_src=config.sigma0_ref,
-                    mask_faces = makeMaskForOuterSurface(domain, taglist=config.faces_tags),
+                    maskZeroPotential= maskZeroPotential,
                     stationsFMT=config.stationsFMT,
                     createSecondaryData=True,
                     createFieldData=args.fullwaver,  printInfo = True)
 
-runner.setProperties(sigma_0=interpolate(sigma_0, Function(domain)), sigma_0_faces=sigma0_faces,
-                     M_n=interpolate(M_n, Function(domain)), M_n_faces=M_n_faces)
+runner.setProperties(sigma_0=interpolate(sigma_0, Function(domain)),
+                     M_n=interpolate(M_n, Function(domain)))
 
 
 runner.write(config.datafile , datacolumns = config.datacolumns, addNoise = args.noise>0,

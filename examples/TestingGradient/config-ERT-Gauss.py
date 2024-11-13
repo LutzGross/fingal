@@ -51,6 +51,7 @@ epsilon_L1Norm=0.01
 use_log_misfit_DC = False
 regularization_order = 'Gauss' # in ['H1', 'H2', 'Gauss', 'PseudoGauss', D-PseudoGauss']
 regularization_length_scale = 1.3*2
+regularization_penalty_factor = 5
 
 
 

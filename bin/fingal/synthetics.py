@@ -4,7 +4,7 @@ import importlib, sys, os
 sys.path.append(os.getcwd())
 import numpy as np
 from .datahandling import SurveyData
-from fingal import readElectrodeLocations, readSurveyData, setupERTPDE, getSourcePotentials, makeMaskForOuterSurface, getAdditivePotentials
+from fingal import readElectrodeLocations, readSurveyData, setupERTPDE, getSourcePotentials, getAdditivePotentials
 
 from esys.escript.pdetools import Locator, MaskFromTag
 
@@ -71,8 +71,7 @@ class IPSynthetic(object):
             print(str(len(self.source_field)) + " source fields calculated.")
 
 
-    def setProperties(self, sigma_0=1., sigma_0_faces=None, M_n=None, M_n_faces=None,
-                      sigma_0_at_stations=None, M_n_at_stations = None):
+    def setProperties(self, sigma_0=1., M_n=None, sigma_0_at_stations=None, M_n_at_stations = None):
         """
         sets the DC conductivity sigma_0 and normalized chargeability.
         if createSecondaryData M_n and M_n_faces must be given.
@@ -91,7 +90,6 @@ class IPSynthetic(object):
              sigma_0_at_stations = self.stationlocators(sigma_0)
         self.potential_0 = getAdditivePotentials(pde,
                                                   sigma = sigma_0,
-                                                  sigma_faces = sigma_0_faces,
                                                   schedule = self.schedule,
                                                   sigma_stations = sigma_0_at_stations,
                                                   source_potential = self.source_potential,
@@ -109,10 +107,9 @@ class IPSynthetic(object):
 
         if self.createSecondaryData:
             # secondary potential -div(sigma_oo grad(V_2) = -div((sigma_src-sigma_oo) grad(V_s))
-            if M_n is None or M_n_faces is None:
-                raise ValueError("Secondary potential needed but no normalized chargeability M_n or M_n_faces give")
+            if M_n is None:
+                raise ValueError("Secondary potential needed but no normalized chargeability M_n give")
             sigma_oo = M_n + sigma_0
-            sigma_oo_faces = M_n_faces + sigma_0_faces
             if M_n_at_stations is None or sigma_0_at_stations is None:
                 sigma_oo_at_stations = self.stationlocators(sigma_oo)
             else:
@@ -120,13 +117,10 @@ class IPSynthetic(object):
             if self.printinfo:
                 print(".... secondary (IP) potentials:")
                 print("sigma_oo = ", str(sigma_oo))
-                print("sigma_oo_faces = ", str(sigma_oo_faces))
                 print("M_n = ", str(M_n))
-                print("M_n_faces = ", str(M_n_faces))
 
             self.potential_oo = getAdditivePotentials(pde,
                                                        sigma = sigma_oo,
-                                                       sigma_faces = sigma_oo_faces,
                                                        schedule = self.schedule,
                                                        sigma_stations = sigma_oo_at_stations,
                                                        source_potential = self.source_potential,
