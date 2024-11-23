@@ -31,7 +31,7 @@ data_rtol = 1e-4
 #
 #  This section of the file defines the inversion
 #
-sigma0_ref=0.0060
+sigma0_ref=0.1
 Mn_ref=0.01*sigma0_ref
 true_properties=None
 use_robin_condition_in_model = False
@@ -56,10 +56,14 @@ pde_tol=1e-10
 use_L1Norm=False
 epsilon_L1Norm=0.01
 use_log_misfit_DC = False
-regularization_order = 'H1' # in ['H1', 'H2', 'Gauss', DGauss']
-regularization_length_scale = 15
-regularization_penalty_factor = 5
+regularization_order = 'Gauss' # in ['H1', 'H2', 'Gauss', DGauss']
+
+# Good H2
 regularization_w1=1e-3
+# GAuss
+regularization_w1=1e-8
+regularization_length_scale = 10
+regularization_penalty_factor = 5
 # Output handeling:
 #
 outfile='sigma'

@@ -636,7 +636,7 @@ class ERTInversionGaussBase(ERTMisfitCostFunction):
         qz = whereZero(x[2] - inf(x[2]))
         if fixTop:
             qz += whereZero(x[2] - sup(x[2]))
-        self.q = [ (qx+qy+qz), (qy + qz), (qx + qz),  (qx + qy) ]
+        self.q = [ 0*(qx+qy+qz), 0*(qy + qz), 0*(qx + qz),  0*(qx + qy) ]
         # regularization
         if reg_tol is None:
             reg_tol=min(sqrt(pde_tol), 1e-3)
