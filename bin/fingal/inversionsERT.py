@@ -46,6 +46,7 @@ class ERTMisfitCostFunction(CostFunction):
         # setup PDE for forward models (potentials are fixed on all faces except the surface)
         self.forward_pde = setupERTPDE(domain)
         self.forward_pde.getSolverOptions().setTolerance(pde_tol)
+        self.forward_pde.setValue(q=self.maskZeroPotential)
         self.data = data
         self.useLogMisfitDC=useLogMisfitDC
         self.dataRTolDC = dataRTolDC
@@ -161,7 +162,7 @@ class ERTMisfitCostFunction(CostFunction):
                                                        sigma_stations = sigma_0_stations,
                                                        source_potential = self.source_potential,
                                                        sigma_src = self.sigma_src,
-                                                       maskZeroPotential = self.maskZeroPotential, logger=self.logger)
+                                                       logger=self.logger)
         additive_potentials_DC_stations = {iA : self.grabValuesAtStations(additive_potentials_DC[iA])
                                               for iA in additive_potentials_DC}
         #if self.logger.isEnabledFor(logging.DEBUG) :

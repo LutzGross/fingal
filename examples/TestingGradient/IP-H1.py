@@ -7,7 +7,7 @@ from fingal import IPInversionH1
 from fingal import readElectrodeLocations, readSurveyData, makeMaskForOuterSurface
 from esys.finley import ReadMesh
 import numpy as np
-
+from esys.escript.pdetools import MaskFromBoundaryTag
 
 CONFIG="config-IP-H1"
 TABFN="IP-H1.log"
@@ -32,19 +32,19 @@ survey=readSurveyData(config.datafile, stations=elocations, usesStationCoordinat
                       delimiter=config.datadelimiter, commend='#', printInfo=True)
 assert survey.getNumObservations()>0, "no data found."
 
-mask_face=makeMaskForOuterSurface(domain, taglist=config.faces_tags)
+mask_face = MaskFromBoundaryTag(domain, *config.faces_tags)
 
 costf=IPInversionH1(domain, data=survey,
                          sigma_0_ref=config.sigma0_ref, Mn_ref = config.Mn_ref,
                          w1=config.regularization_w1,
-                         maskOuterFaces= mask_face, dataRTolDC= config.data_rtol,
+                        maskZeroPotential=mask_face, dataRTolDC= config.data_rtol,
                          pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
                          useLogMisfitDC= config.use_log_misfit_DC, logger=logger)
 
 tabfile=open(TABFN, 'w')
 #for w1, with_misfit in [(0.,True ), (1., False), (1.e4, True)]:
-#for w1, theta, with_ERTmisfit, with_IPmisfit  in [(0., 0., True, False), (0., 0., False, True), (1., 0., False, False), (0., 1., False, False) ]:
-for w1, theta, with_ERTmisfit, with_IPmisfit in [(0., 0., False, True)]:
+for w1, theta, with_ERTmisfit, with_IPmisfit  in [(0., 0., True, False), (0., 0., False, True), (1., 0., False, False), (0., 1., False, False) ]:
+#for w1, theta, with_ERTmisfit, with_IPmisfit in [(0., 0., False, True)]:
     print("w1 = ", w1)
 
     costf.setW1andTheta(w1, theta)
@@ -60,17 +60,12 @@ for w1, theta, with_ERTmisfit, with_IPmisfit in [(0., 0., False, True)]:
     pp/=sup(abs(pp))
     #====
     r= length(domain.getX())
-    r1 = length(domain.getX()*[1,2,3])
-    r1 = clip(cos(length(domain.getX() * [1,2,3]) / 100+50), maxval =0)
-    r2 = clip(sin(length(domain.getX()*[-1,4,1])/100), minval=0)
-    M=Data(0., (2,), ContinuousFunction(domain))
-    M[0]= -0.2e-2* r1/Lsup(r1) *  pp
-    M[1] = 0.1e-2 * r2  * pp
+    M=RandomData((2,), ContinuousFunction(domain))*pp
     #print(abs(inner(grad(M[0]), grad(M[1])) / (length(grad(M[0]))*length(grad(M[1])))))
     #1/0
     ddm=(x+y+0.5*z)/Lsup(r)/3*10*pp/10000
-    ddm = (x + y + 0.5 * z) / Lsup(r) * pp / 50
-    for d in [ [1, 0] , [0, 1] , [1, -0.5] ] :
+    ddm = (x + y + 0.5 * z) / Lsup(r) * pp / 6
+    for d in [ [1, 0] , [0, -0.25] , [1, -0.5] ] :
         tabfile.write(
             f".. w1 , = {w1}, theta = {theta}, with_ERTmisfit= {with_ERTmisfit}, with_IPmisfit= {with_IPmisfit} d={d}  .............\n")
         dM=ddm * d

@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+-#!/usr/bin/python3
 from esys.escript import *
 import importlib, os, sys
 sys.path.append(os.getcwd())
@@ -95,44 +95,6 @@ costf=IPInversion(domain, data=survey,
                   logclip=config.clip_property_function,
                   EPSILON=1e-8, logger=logger)
 
-
-#if args.optimize or args.testsigma_ref:
-#    sigma_opt, f_opt,  defect = costf.optimizesigma_ref()
-#    if getMPIRankWorld() == 0:
-#         print("Better value for sigma_ref = %s, correction factor %s, defect = %s"%(sigma_opt, f_opt,  defect))
-#         print("update your configuration file %s"%args.config)
-#         if args.testsigma_ref:
-#            print("And goodbye")
-#         else:
-#            print("sigma_ref will be updated.")
-#    if args.testsigma_ref:
-#        sys.exit()
-#    else:
-#        costf.scalesigma_ref(f_opt)
-
-# test gradient:
-if False:
-    x=length(domain.getX())
-    m=(x/Lsup(x))*[1,1]
-    m+=(domain.getX()[1]/Lsup(x))*[1,0]
-
-    ddm=(domain.getX()[0]+domain.getX()[1]+0.5*domain.getX()[2])/Lsup(x)/3*10
-    print(str(m))
-    print(str(ddm))
-    dm=ddm*[1,0]
-    J0=costf.getValueAndCount(m)
-    print("J0=%e"%J0)	
-    G=costf.getGradientAndCount(m)
-    #print("gradient = %s"%str(G))
-    Dex=costf.getDualProductAndCount(dm,G)
-    print("XX log(a):\tJ0\t\tJ(a)\t\tnum. D\t\tD\t\terror O(a)\t\tO(1)")
-    for k in range(4, 13):
-        a=0.5**k
-        J=costf.getValueAndCount(m+a*dm)
-        D=(J-J0)/a
-        print("XX \t%d:\t%e\t%e\t%e\t%e\t%e\t%e"%(k,J0, J, D, Dex, D-Dex, (D-Dex)/a) )
-
-# set up solver:
 
 def myCallback(iterCount, m, dm, Fm, grad_Fm, norm_m, norm_gradFm, args_m, failed):
     if args.RESTARTFN and iterCount >0:

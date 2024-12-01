@@ -2,7 +2,6 @@
 from esys.escript import *
 import importlib, os, sys
 
-from wx.lib.agw.pyprogress import Continue
 
 sys.path.append(os.getcwd())
 from fingal import ERTInversionH2

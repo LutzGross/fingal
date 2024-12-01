@@ -39,7 +39,7 @@ true_properties=None
 #
 #  Inversion:
 #
-pde_tol = 1e-10
+pde_tol = 1e-12
 fix_top = False
 fixed_region_tags=[]
 #weighting_misfit_ERT=0.5

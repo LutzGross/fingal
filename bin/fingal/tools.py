@@ -125,8 +125,7 @@ def getSourcePotentialsWithRobinCondition(domain, sigma, survey, sigma_faces=Non
     return source_potential
 
 def getAdditivePotentials(pde, sigma, schedule, sigma_stations=None, source_potential={},
-                          sigma_src=1., sigma_src_stations=None, maskZeroPotential=None,
-                          logger=None):
+                          sigma_src=1., sigma_src_stations=None, logger=None):
     """
     calculates the extra/additive potentials V_A for given sigma and source potentials for sigma_src
 
@@ -150,7 +149,7 @@ def getAdditivePotentials(pde, sigma, schedule, sigma_stations=None, source_pote
 
     potential = {}
     src_potential_scale = {}
-    pde.setValue(A=sigma * kronecker(3), y_dirac=Data(), X=Data(), Y=Data(), q=maskZeroPotential)
+    pde.setValue(A=sigma * kronecker(3), y_dirac=Data(), X=Data(), Y=Data())
     for iA in source_potential:
         if sigma_stations is None:
             alpha_A = 1.
@@ -161,9 +160,7 @@ def getAdditivePotentials(pde, sigma, schedule, sigma_stations=None, source_pote
 
         pde.setValue(X=(sigma_src - sigma * alpha_A) * grad(source_potential[iA]))
         potential[iA] = pde.getSolution()
-        #from esys.weipa import saveSilo
-        #saveSilo("xxx", ds=(sigma_src - sigma * alpha_A), X=(sigma_src - sigma * alpha_A) * grad(source_potential[iA]), u=potential[iA], q=maskZeroPotential)
-        src_potential_scale [iA] = alpha_A
+        src_potential_scale[iA] = alpha_A
     if logger:
         logger.info(f"{len(potential)} additive DC potentials calculated.")
     return potential, src_potential_scale
@@ -221,41 +218,27 @@ def getAdditivePotentialsWithRobinCondition(pde, sigma, sigma_faces, schedule, s
         logger.info(f"{len(potential)} additive DC potentials calculated.")
     return potential
 
-def getSecondaryPotentials(pde, sigma_oo, sigma_oo_faces, schedule,
-                            M_n, M_n_faces, source_potential={}, additive_potential_DC ={},
-                            mask_faces=None, logger=None):
+def getSecondaryPotentials(pde, sigma_oo, M_n, source_potential={}, src_potential_scale_DC = {}, additive_potential_DC ={}, logger=None):
     """
     calculates the extra/additive potentials V_A for given sigma and source potentials for sigma_src
 
     :param pde: PDE used to get the secondary potential. Coefficients are altered.
     :param sigma_oo: electrical conductivity (for high frequencies)
-    :param sigma_oo_faces: electrical conductivity at faces (for high frequencies)
     :param schedule: schedule of the survey 'ABMN' (or AMN, etc)
     :type schedule: `SurveyData`
     :param M_n: normalized chargeability
     :type M_n:  `dict` of `Scalar`
-    :param M_n_faces normalized chargeability at faces
     :param source_potential: potentials for a sources with assumed conductivity
     :type source_potential: `dict` of `Scalar`
     :param additive_potential_DC: additive potentials for a sources for sigma_0 = sigma_oo - M_n
     :type additive_potential_DC: `dict` of `Scalar`
-    :param mask_faces: mask of surface elements to apply `radiation` conditions for potentials.
-        If not set to bottom, front, back, left, right elements.
     :type mask_faces: `None` or `Scalar` with `FunctionOnBoundary` attribute
     :return:  secondary/over-voltage potential
     """
-    if mask_faces is None:
-        mask_faces = makeMaskForOuterSurface(pde.getDomain())
-    n = pde.getDomain().getNormal() * mask_faces
-    x_bc = FunctionOnBoundary(pde.getDomain()).getX()
     potential = {}
-    pde.setValue(A=sigma_oo * kronecker(3), y_dirac=Data(), d=Data(), X=Data(), Y=Data(), y=Data())
+    pde.setValue(A=sigma_oo * kronecker(3), y_dirac=Data(), X=Data(), Y=Data())
     for iA in source_potential:
-        VA = source_potential[iA] + additive_potential_DC[iA]
-        xA = schedule.getStationLocationByNumber(iA)
-        r = x_bc - xA
-        fA = inner(r, n) / length(r) ** 2
-        pde.setValue(d=sigma_oo_faces * fA, y=-M_n_faces * fA * VA)
+        VA = src_potential_scale_DC[iA]  * source_potential[iA] + additive_potential_DC[iA]
         pde.setValue(X=-M_n * grad(VA))
         potential[iA] = pde.getSolution()
     logger.info(f"{len(potential)} secondary IP potentials calculated.")
