@@ -7,6 +7,7 @@ import argparse
 import numpy as np
 from fingal import readElectrodeLocations, readSurveyData, IPSynthetic, makeMaskForOuterSurface
 from esys.finley import ReadMesh, ReadGmsh
+from esys.escript.pdetools import MaskFromBoundaryTag, MaskFromTag
 from esys.weipa import saveVTK, saveSilo
 #from esys.escript.pdetools import Locator, MaskFromTag
 
@@ -89,9 +90,10 @@ if args.silofile:
     saveSilo(args.silofile , **kwargs)
     print(f'values {kwargs.keys()} written to file {args.silofile}.')
 
+mask_face = MaskFromBoundaryTag(domain, *config.faces_tags)
 # -----------------------------------------------------------------------------------
 runner=IPSynthetic(domain, schedule,  sigma_src=config.sigma0_ref,
-                    maskZeroPotential= maskZeroPotential,
+                    maskZeroPotential= mask_face,
                     stationsFMT=config.stationsFMT,
                     createSecondaryData=True,
                     createFieldData=args.fullwaver,  printInfo = True)

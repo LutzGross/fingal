@@ -2,7 +2,7 @@
 from esys.escript import *
 import importlib, os, sys
 sys.path.append(os.getcwd())
-from fingal import IPInversion, readElectrodeLocations, readSurveyData
+from fingal import IPInversionH1, readElectrodeLocations, readSurveyData
 from esys.finley import ReadMesh
 import numpy as np
 from esys.weipa import saveVTK, saveSilo
@@ -31,79 +31,67 @@ parser.add_argument('--xyz', '-x',  dest='xyz', action='store_true', default=Fal
 parser.add_argument('--debug', '-d',  dest='debug', action='store_true', default=False, help="shows more information.")
 args = parser.parse_args()
 
-logger=logging.getLogger('inv')
+logger=logging.getLogger('Inversion')
 if args.debug:
     logger.setLevel(logging.DEBUG)
-else:    
+else:
     logger.setLevel(logging.INFO)
 
 
 config = importlib.import_module(args.config)
 
 
-print("** This is an IP inversion @ %s **"%datetime.now().strftime("%d.%m.%Y %H:%M"))
-print("configuration "+args.config+" imported.")
+logger.info("** This is an IP inversion @ %s **"%datetime.now().strftime("%d.%m.%Y %H:%M"))
+logger.info("configuration "+args.config+" imported.")
 
 elocations=readElectrodeLocations(config.stationfile, delimiter=config.stationdelimiter)
-print("%s electrode locations read from %s."%(len(elocations), config.stationfile))
+logger.info("%s electrode locations read from %s."%(len(elocations), config.stationfile))
 
 domain=ReadMesh(config.meshfile)
-print("Mesh read from "+config.meshfile)
+logger.info("Mesh read from "+config.meshfile)
 
-      
 survey=readSurveyData(config.datafile, stations=elocations, usesStationCoordinates=config.usesStationCoordinates, columns=config.datacolumns, 
                      dipoleInjections=config.dipoleInjections, dipoleMeasurements=config.dipoleMeasurements, delimiter=config.datadelimiter, commend='#', printInfo=args.debug)
 assert survey.getNumObservations()>0, "no data found."
 
-# set the reference conductivity:
-if isinstance(config.sigma_ref, dict):
-    sigma_ref=Scalar(config.sigma_background,Function(domain))
-    for k in config.sigma_ref:
-        sigma_ref.setTaggedValue(k, config.sigma_ref[k])
-else:
-    sigma_ref=config.sigma_ref
-print("Reference conductivity sigma_ref = %s"%(str(sigma_ref)))
-
-if config.Mn_ref and isinstance(config.Mn_ref, dict):
-    Mn_ref=Scalar(0.,Function(domain))
-    for k in config.Mn_ref:
-        Mn_ref.setTaggedValue(k, config.sigma_ref[k])
-else:
-    Mn_ref=config.Mn_ref
-print("Reference normalized chargeabilty Mn_ref = %s"%(str(Mn_ref)))
-print("Background conductivity sigma_background = %s"%(str(config.sigma_background)))
-
+# .... Load reference .... Work to do here!
+m_ref = None
+# set the reference conductivityand normalized chargeability:
 
 # define region with fixed conductivity:
-if config.region_fixed and isinstance(config.region_fixed , list):
-    fixedm=MaskFromTag(domain, *tuple(config.region_fixed))
-    if len(config.region_fixed)> 0:
-        print("Tags of regions with fixed property function : %s"%(config.region_fixed) )
+if config.fixed_region_tags and isinstance(config.fixed_region_tags , list):
+    fixedm=MaskFromTag(domain, *tuple(config.fixed_region_tags))
+    if len(config.fixed_region_tags)> 0:
+        logger.info("Tags of regions with fixed property function : %s"%(config.fixed_region_tags) )
 else:
-    x=domain.getX()
-    fixedm=whereZero(x[2]-inf(x[2]))
-    del x
-    print("Properties are fixed at the bottom of the domain.")
-
-
+    fixedm=None
+# ... create mask where potential is set to zero:
+mask_face = MaskFromBoundaryTag(domain, *config.faces_tags)
 # create cost function:
-costf=IPInversion(domain, data=survey,
-                  sigma_0_ref=sigma_ref, Mn_ref=Mn_ref, sigma_background=config.sigma_background,
-                  w1=config.w1, theta=config.theta, usel1=config.usel1, epsl1=config.epsl1,
-                  mask_fixed_property=fixedm,
-                  weightingMisfitDC=config.weighting_misfit_ERT, pde_tol=config.pde_tol, stationsFMT=config.stationsFMT,
-                  logclip=config.clip_property_function,
-                  EPSILON=1e-8, logger=logger)
+logger.info(f"Regularization type = {config.regularization_order}.")
+logger.info(f"Regularization_w1 = {config.regularization_w1}.")
 
+# initialize cost function:
+if config.regularization_order == "H1":
+    costf = IPInversionH1(domain, data=survey, sigma_0_ref=config.sigma0_ref, Mn_ref = config.Mn_ref,
+                            w1 = config.regularization_w1, theta = config.regularization_theta,
+                            maskZeroPotential=mask_face, maskFixedProperty=fixedm,
+                            stationsFMT=config.stationsFMT, pde_tol= config.pde_tol,
+                            weightingMisfitDC=config.regularization_weighting_DC_misfit,
+                            useLogMisfitIP = config.use_log_misfit_IP, useLogMisfitDC=config.use_log_misfit_DC,
+                            dataRTolDC = config.data_rtol, dataRTolIP = config.data_rtol,  m_ref=m_ref,
+                            logclip=config.clip_property_function, logger =  logger=logger.getChild("IP-H1"))
+    dM_init = Data(0.0, (2,), Solution(domain))
+elif config.regularization_order == "H2":
+    raise ValueError("H2 not implemented yet.")
+    dM_init = Data(0.0, (6,), Solution(domain))
+else:
+    raise ValueError("Unknown regularization type " + config.regularization_order)
 
-def myCallback(iterCount, m, dm, Fm, grad_Fm, norm_m, norm_gradFm, args_m, failed):
+def myCallback(iterCount, m, dm, Fm, grad_Fm, norm_m, args_m, failed):
     if args.RESTARTFN and iterCount >0:
         m.dump(args.RESTARTFN)
-        if getMPIRankWorld() == 0:
-            print("restart file %s for step %s created."%(iterCount, args.RESTARTFN))
-    #print(f"snapshot for step {k} saved.")
-    #saveSilo("snapshot_"+args.OUTFILE, m=x)
-
+        logger.info("restart file %s for step %s created."%(iterCount, args.RESTARTFN))
 
 # set up solver:
 solver= MinimizerLBFGS(F=costf, iterMax=config.imax, logger=logger)
@@ -114,16 +102,15 @@ solver.setCallback(myCallback)
 if args.restart and args.restart:
    kk=[v for i,v in enumerate(os.listdir()) if v.startswith(args.RESTARTFN) ]
    if kk:
-     m_init=load(args.RESTARTFN, domain)
-     txt=str(m_init)
-     if getMPIRankWorld() == 0:
-             print("restart file %s read. initial M = %s"%(args.RESTARTFN, txt))
-else:
-    m_init = Data(0.,(2,), Solution(domain))
-# run solver:
-solver.run(m_init)
-m=solver.getResult()
+        dM_init=load(args.RESTARTFN, domain)
+        txt=str(m_init)
+        print("restart file %s read. initial M = %s"%(args.RESTARTFN, txt))
 
+# run solver:
+solver.run(dM_init)
+dM=solver.getResult()
+
+#===================================================================
 
 if args.query:
     sigma, potentials, dV=costf.getArguments(m)

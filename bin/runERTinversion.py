@@ -164,6 +164,7 @@ solver.run(dM_init)
 print(costf.getStatistics())
 dM=solver.getResult()
 m=costf.extractPropertyFunction(dM)
+
 sigma=costf.getSigma0(m, applyInterploation=False)
 if args.vtk:
     saveVTK(config.outfile, sigma=sigma, tag=makeTagMap(Function(domain)))

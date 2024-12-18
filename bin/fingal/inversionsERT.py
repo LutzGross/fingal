@@ -310,6 +310,7 @@ class ERTInversionH1(ERTMisfitCostFunction):
         self.sigma_0_ref=sigma_0_ref
         self.logger.info("Reference conductivity sigma_0_ref is set to %s" % (str(self.sigma_0_ref)))
 
+
     def getSigma0(self, m, applyInterploation=False):
         if applyInterploation:
             im = interpolate(m, Function(self.domain))
@@ -321,16 +322,20 @@ class ERTInversionH1(ERTMisfitCostFunction):
 
     def getDsigma0Dm(self, sigma_0, m):
         return sigma_0
+
+
     def extractPropertyFunction(self, m):
-        return m
-    def getArguments(self, dm):
-        """
-        precalculated parameters:
-        """
         if self.m_ref:
             m = dm + self.m_ref
         else:
             m = dm
+        return m
+
+    def getArguments(self, dm):
+        """
+        precalculated parameters:
+        """
+        m=self.extractPropertyFunction(dm)
         im = interpolate(m, Function(self.domain))
         im_stations = self.grabValuesAtStations(m)
         self.logger.debug("m = %s" % ( str(im)))

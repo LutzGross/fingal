@@ -190,9 +190,10 @@ class IPMisfitCostFunction(CostFunction):
         sigma_oo = sigma_0 + Mn
 
         self.logger.debug("sigma_0 = %s" % (str(sigma_0)))
+        self.logger.debug("sigma_0_stations = %g - %g " % (min(sigma_0_stations), max(sigma_0_stations)))
         self.logger.debug("Mn = %s" % (str(Mn)))
         self.logger.debug("sigma_oo = %s" % (str(sigma_oo)))
-        self.logger.debug("sigma_0_stations = %g - %g " % (min(sigma_0_stations), max(sigma_0_stations)))
+
 
         additive_potentials_DC, src_potential_scale_DC = getAdditivePotentials(self.DC_pde,
                                                         sigma = sigma_0,
@@ -315,7 +316,7 @@ class IPInversionH1(IPMisfitCostFunction):
     """
 
     def __init__(self,  domain=None, data=None, sigma_src=None, pde_tol= 1e-8,
-                    maskZeroPotential=None, stationsFMT="e%s",
+                    maskZeroPotential=None, stationsFMT="e%s", m_ref = None,
                     useLogMisfitDC=False, dataRTolDC=1e-4, useLogMisfitIP=False, dataRTolIP=1e-4,
                     weightingMisfitDC=1, sigma_0_ref=1e-4, Mn_ref = 1.e-6,
                     w1=1, theta=0., maskFixedProperty = None,
@@ -348,6 +349,7 @@ class IPInversionH1(IPMisfitCostFunction):
 
         self.logclip = logclip
         self.m_epsilon = m_epsilon
+        self.m_ref = m_ref
         # its is assumed that sigma_ref and Mn_ref on the faces is not updated!!!
         if maskFixedProperty is None:
             x = self.DC_pde.getDomain().getX()
@@ -369,15 +371,12 @@ class IPInversionH1(IPMisfitCostFunction):
         self.logger.debug(f'Tolerance for solving regularization PDE is set to {reg_tol}')
         self.setW1andTheta(w1, theta)
 
-
-
     def setW1andTheta(self, w1, theta):
         self.w1=w1
         self.theta = theta
         self.Hpde.setValue(A=(self.w1+self.theta) * kronecker(3))
         self.logger.debug(f'w1 = {self.w1:g}')
         self.logger.debug(f'theta = {self.theta:g}')
-
 
     def updateSigma0Ref(self, sigma_0_ref):
         """
@@ -392,6 +391,7 @@ class IPInversionH1(IPMisfitCostFunction):
         self.Mn_ref=Mn_ref
         self.logger.info("Reference normalised chargeability Mn_ref = %s" % (str(self.Mn_ref)))
 
+    # =====
     def getSigma0(self, m, applyInterploation=False):
         if hasattr(m, "getShape") and not m.getShape() == ():
             m=m[0]
@@ -419,37 +419,40 @@ class IPInversionH1(IPMisfitCostFunction):
 
     def getDMnDm(self, Mn, m):
         return Mn
+    # =====
 
-    def getArguments(self, m):
+
+    def getArguments(self, dm):
         """
         precalculated parameters:
         """
+        m = self.extractPropertyFunction(dm)
         im = interpolate(m, Function(self.domain))
         im_stations = self.grabValuesAtStations(m)
         self.logger.debug("m = %s" % ( str(im)))
 
         isigma_0 = self.getSigma0(im[0])
         isigma_0_stations =  self.getSigma0(im_stations[:,0])
-        iMn = self.getSigma0(im[1])
+        iMn = self.getMn(im[1])
         
         args2 = self.getIPModelAndResponse(isigma_0, isigma_0_stations, iMn)
         return im, isigma_0, isigma_0_stations, iMn, args2
 
-    def getValue(self, m, im, isigma_0, isigma_0_stations, iMn, args2):
+    def getValue(self, dm, im, isigma_0, isigma_0_stations, iMn, args2):
         """
         return the value of the cost function
         """
         misfit_DC, misfit_IP = self.getMisfit(*args2)
 
-        gm=grad(m, where=im.getFunctionSpace())
-        R = self.w1 / 2 * integrate(length(gm) ** 2)
+        gdm=grad(dm, where=im.getFunctionSpace())
+        R = self.w1 / 2 * integrate(length(gdm) ** 2)
 
         if self.theta>0:
-            gm0 = gm[0]
-            gm1 = gm[1]
-            lgm0_2 = length(gm0)**2 + self.m_epsilon**2
-            lgm1_2 = length(gm1)**2 + self.m_epsilon**2
-            MX = integrate(self.theta * ((lgm0_2 * lgm1_2) - inner(gm0, gm1) ** 2) * (1 / lgm0_2 + 1 / lgm1_2))/2.
+            gdm0 = gdm[0]
+            gdm1 = gdm[1]
+            lgdm0_2 = length(gdm0)**2 + self.m_epsilon**2
+            ldgm1_2 = length(gdm1)**2 + self.m_epsilon**2
+            MX = integrate(self.theta * ((lgdm0_2 * lgdm1_2) - inner(gdm0, gdm1) ** 2) * (1 / lgdm0_2 + 1 / lgdm1_2))/2.
         else:
             MX=0
         V = MX + R + misfit_DC + misfit_IP
@@ -459,12 +462,12 @@ class IPInversionH1(IPMisfitCostFunction):
                 f'ratios ERT, IP; reg ; Xgrad [%] \t=  {misfit_DC/V*100:g}, {misfit_IP/V*100:g};  {R/V*100:g}; {MX/V*100:g}')
         return V
 
-    def getGradient(self, m,  im, isigma_0, isigma_0_stations, iMn, args2):
+    def getGradient(self, dm,  im, isigma_0, isigma_0_stations, iMn, args2):
         """
         returns the gradient of the cost function. Overwrites `getGradient` of `MeteredCostFunction`
         """
-        gm=grad(m, where=im.getFunctionSpace())
-        X = self.w1 * gm
+        gdm=grad(dm, where=im.getFunctionSpace())
+        X = self.w1 * gdm
         DMisfitDsigma_0, DMisfitDMn  = self.getDMisfit(isigma_0, iMn,*args2)
 
         Dsigma_0Dm0 = self.getDsigma0Dm(isigma_0, im[0])
@@ -474,42 +477,42 @@ class IPInversionH1(IPMisfitCostFunction):
         Y[1] = DMisfitDMn * DMnDm1
 
         if self.theta>0:
-            gm0 = gm[0]
-            gm1 = gm[1]
-            lgm0_2 = length(gm0)**2 + self.m_epsilon**2
-            lgm1_2 = length(gm1)**2 + self.m_epsilon**2
+            gdm0 = gdm[0]
+            gdm1 = gdm[1]
+            lgdm0_2 = length(gdm0)**2 + self.m_epsilon**2
+            lgdm1_2 = length(gdm1)**2 + self.m_epsilon**2
 
-            X01 = inner(gm0, gm1)
-            f = X01 * (1 / lgm0_2   + 1 / lgm1_2 )
-            X[0, :] += self.theta * ((1 + X01 ** 2 / lgm0_2 ** 2) * gm0 - f * gm1)
-            X[1, :] += self.theta * ((1 + X01 ** 2 / lgm1_2 ** 2) * gm1 - f * gm0)
+            X01 = inner(gdm0, gdm1)
+            f = X01 * (1 / lgdm0_2   + 1 / lgdm1_2 )
+            X[0, :] += self.theta * ((1 + X01 ** 2 / lgdm0_2 ** 2) * gdm0 - f * gdm1)
+            X[1, :] += self.theta * ((1 + X01 ** 2 / lgdm1_2 ** 2) * gdm1 - f * gdm0)
 
         return ArithmeticTuple(Y, X)
 
-    def getInverseHessianApproximation(self, r, m,  isigma_0,isigma_0_stations,
+    def getInverseHessianApproximation(self, r, dm,  isigma_0,isigma_0_stations,
                                        iMn, *args2, initializeHessian=False):
         """
         returns an approximation of inverse of the Hessian. Overwrites `getInverseHessianApproximation` of `MeteredCostFunction`
         """
         if initializeHessian and self.theta> 0:
             # as restart is disabaled this will not be called:
-            gm = grad(m)
+            gdm = grad(dm)
             A = self.Hpde.createCoefficient('A')
-            gm = args[1]
-            gm0 = gm[0]
-            gm1 = gm[1]
-            lgm0 = length(gm0) + self.m_epsilon
-            lgm1 = length(gm1) + self.m_epsilon
-            d01 = inner(gm0, gm1)
-            f = 1 / lgm0 ** 2 + 1 / lgm1 ** 2
-            A[0, :, 0, :] = (self.w1 + self.theta * (1 + d01 ** 2 / lgm0 ** 4)) * kronecker(3) + \
-                    self.theta * (2 * d01 / lgm0 ** 4 * (outer(gm0, gm1) + outer(gm1, gm0)) -\
-                        4 * d01 ** 2 / lgm0 ** 6 * outer(gm0, gm0) - f * outer(gm1,gm1))
+            gdm = args[1]
+            gdm0 = gdm[0]
+            gdm1 = gdm[1]
+            lgdm0 = length(gdm0) + self.m_epsilon
+            lgdm1 = length(gm1) + self.m_epsilon
+            d01 = inner(gdm0, gdm1)
+            f = 1 / lgdm0 ** 2 + 1 / lgdm1 ** 2
+            A[0, :, 0, :] = (self.w1 + self.theta * (1 + d01 ** 2 / lgdm0 ** 4)) * kronecker(3) + \
+                    self.theta * (2 * d01 / lgdm0 ** 4 * (outer(gdm0, gdm1) + outer(gdm1, gdm0)) -\
+                        4 * d01 ** 2 / lgdm0 ** 6 * outer(gdm0, gdm0) - f * outer(gdm1,gdm1))
             A[1, :, 1, :] = ((self.w1 + self.theta * (1 + d01 ** 2 / lgm1 ** 4)) * kronecker(3) +\
-                        self.theta * (2 * d01 / lgm1 ** 4 * (outer(gm0, gm1) + outer(gm1, gm0)) -\
-                                      4 * d01 ** 2 / lgm1 ** 6 * outer(gm1, gm1) - f * outer(gm0,gm0)))
-            H01 = self.theta * (2 * d01 * (1 / lgm0 ** 4 * outer(gm0, gm0) + 1 / lgm1 ** 4 * outer(gm1, gm1)) -\
-                                f * (d01 * kronecker(3) + outer(gm1, gm0)))
+                        self.theta * (2 * d01 / lgdm1 ** 4 * (outer(gdm0, gdm1) + outer(gdm1, gdm0)) -\
+                                      4 * d01 ** 2 / lgdm1 ** 6 * outer(gdm1, gdm1) - f * outer(gdm0,gdm0)))
+            H01 = self.theta * (2 * d01 * (1 / lgdm0 ** 4 * outer(gdm0, gdm0) + 1 / lgdm1 ** 4 * outer(gdm1, gdm1)) -\
+                                f * (d01 * kronecker(3) + outer(gdm1, gdm0)))
             A[0, :, 1, :] = H01
             A[1, :, 0, :] = transpose(H01)
             self.Hpde.setValue(A=A)
@@ -521,11 +524,11 @@ class IPInversionH1(IPMisfitCostFunction):
             self.logger.debug(f"search direction component {i} = {str(dm[i])}.")
         return dm
 
-    def getDualProduct(self, m, r):
+    def getDualProduct(self, dm, r):
         """
         dual product of gradient `r` with increment `m`. Overwrites `getDualProduct` of `MeteredCostFunction`
         """
-        return integrate(inner(r[0], m) + inner(r[1], grad(m)))
+        return integrate(inner(r[0], dm) + inner(r[1], grad(dm)))
 
     def getNorm(self, m):
         """

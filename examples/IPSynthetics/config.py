@@ -59,10 +59,11 @@ truncation=20
 restart=60
 pde_tol=1e-10
 regularization_w1=1e-2
+regularization_theta = 0.
 #regularization_w1=1e-4
-use_L1Norm=False
-epsilon_L1Norm=0.01
 use_log_misfit_DC = False
+use_log_misfit_IP = False
+regularization_weighting_DC_misfit =  1
 regularization_order = 'H1' # in ['H1', 'H2']
 regularization_length_scale = 3
 # Output handeling:
