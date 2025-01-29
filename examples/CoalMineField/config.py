@@ -9,7 +9,7 @@ project='Coal Mine'
 meshfile = 'mesh.fly'
 faces_tags = ['Faces']
 surface_tags = []
-core_tags = ['Seam', 'Goaf', 'Mass', 'Base']
+core_tags = ['Seam', 'Goaf', 'Core', 'Base']
 padding_tags = ['Padding']
 #
 #  file of the location of stations/electrodes. 
@@ -31,7 +31,7 @@ data_rtol = 1e-4
 #
 #  This section of the file defines the inversion
 #
-sigma0_ref=0.1
+sigma0_ref= 0.085 # 0.0275 # 0.03 # 0.0275
 Mn_ref=0.01*sigma0_ref
 true_properties=None
 use_robin_condition_in_model = False
@@ -56,14 +56,28 @@ pde_tol=1e-10
 use_L1Norm=False
 epsilon_L1Norm=0.01
 use_log_misfit_DC = False
-regularization_order = 'Gauss' # in ['H1', 'H2', 'Gauss', DGauss']
 
-# Good H2
+
+regularization_order = 'Gauss' # in ['H1', 'H2', 'H1_0', 'H2_0', 'Gauss', DGauss']
+
+# H2 & H2_0
 regularization_w1=1e-3
-# GAuss
-regularization_w1=1e-8
-regularization_length_scale = 5
+# H1_0
+regularization_w1=4e-5
+# H1
+regularization_w1=3e-5
+# Gauss
+regularization_w1=5e-8
+regularization_length_scale = 7
 regularization_penalty_factor = 10
+
+regularization_w1=1e-9
+regularization_length_scale = 50
+
+
+regularization_order = 'H2_0'
+regularization_w1=1e-3
+
 # Output handeling:
 #
 outfile='sigma'

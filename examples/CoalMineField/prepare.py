@@ -6,8 +6,8 @@ from esys.escript import makeTagMap, ReducedFunction
 from fingal import readElectrodeLocations
 import numpy as np
 
-DATA1 = 'Data/230911hf1.txt', 100
-DATA2 = 'Data/230911ys1.txt', 200
+DATA1 = 'Data/230911hf1.txt', 200
+DATA2 = 'Data/230911ys1.txt', 100
 
 GEOFILE = "mine3D.geo"
 MSHFILE = "mine.msh"

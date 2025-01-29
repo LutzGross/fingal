@@ -76,7 +76,7 @@ if 'GAUSS' in config.regularization_order.upper():
     logger.info(f"Regularization_length_scale = {config.regularization_length_scale}.")
 
 # initialize cost function:
-if config.regularization_order == "H1":
+if config.regularization_order in [ "H1", "H1_0" ]:
     if config.use_robin_condition_in_model:
         assert m_ref is None, "ERTInversionH1WithRobinCondition does not support a reference property function yet."
         logger.info(f"Robin boundary conditions are applied in Forward model.")
@@ -88,20 +88,20 @@ if config.regularization_order == "H1":
                              useLogMisfitDC= config.use_log_misfit_DC, logger=logger.getChild("ERT-H1-Robin"))
     else:
         costf=ERTInversionH1(domain, data=survey,
-                             sigma_0_ref=config.sigma0_ref, fixTop=config.fix_top,
+                             sigma_0_ref=config.sigma0_ref, fixTop=config.fix_top, zero_mean_m = config.regularization_order == "H1_0",
                          w1=config.regularization_w1, useL1Norm=config.use_L1Norm, epsilonL1Norm=config.epsilon_L1Norm,
                          maskFixedProperty=fixedm, maskZeroPotential= mask_face, dataRTolDC= config.data_rtol, m_ref=m_ref,
                          pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
-                         useLogMisfitDC= config.use_log_misfit_DC, logger=logger.getChild("ERT-H1"))
+                         useLogMisfitDC= config.use_log_misfit_DC,logger=logger.getChild(f"ERT-{config.regularization_order}"))
     dM_init = Scalar(0.0, Solution(domain))
 
-elif config.regularization_order == "H2":
+elif config.regularization_order in [ "H2" , "H2_0" ] :
     assert not config.use_robin_condition_in_model, "H2 Regularization does not support robin_condition in the model."
     costf=ERTInversionH2(domain, data=survey, save_memory = args.savememory,
-                         sigma_0_ref=config.sigma0_ref, reg_tol=None, fixTop=config.fix_top,
+                         sigma_0_ref=config.sigma0_ref, reg_tol=None, fixTop=config.fix_top,  zero_mean_m = config.regularization_order == "H2_0",
                          w1=config.regularization_w1, maskZeroPotential= mask_face, dataRTolDC= config.data_rtol,  m_ref=m_ref,
                          pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
-                         useLogMisfitDC= config.use_log_misfit_DC, logger=logger.getChild("ERT-H2"))
+                         useLogMisfitDC= config.use_log_misfit_DC, logger=logger.getChild(f"ERT-{config.regularization_order}"))
     dM_init = Vector(0.0, Solution(domain))
 elif config.regularization_order == "Gauss":
     assert not config.use_robin_condition_in_model, "Gauss Regularization does not support robin_condition in the model."
@@ -176,8 +176,10 @@ else:
 if args.xyz:
     sigmas=interpolate(sigma, ReducedFunction(domain))
     X=sigmas.getFunctionSpace().getX()
-    if isinstance(config.core, list):
-        saveDataCSV(config.outfile+".csv", pos0=X[0], pos1=X[1], pos2=X[2], sigma =sigmas, mask=m)
+    if isinstance(config.core_tags, list):
+        d = Scalar(0., sigmas.getFunctionSpace())
+        for t in config.core_tags: d.setTaggedValue(t, 1.)
+        saveDataCSV(config.outfile+".csv", pos0=X[0], pos1=X[1], pos2=X[2], sigma =sigmas, mask=d)
         logger.info(f"Result written to {config.outfile}.csv. Core region is {config.core}.")
         del X, sigmas, m
     else:

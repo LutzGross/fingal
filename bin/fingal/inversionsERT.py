@@ -6,7 +6,7 @@ by l.gross@uq.edu.au, 2021, 2028
 
 from esys.escript import *
 from esys.escript.minimizer import CostFunction, MinimizerException
-
+from .tools import PoissonEquationZeroMean
 from .tools import setupERTPDE, getSourcePotentials, makeMaskForOuterSurface, getAdditivePotentials, DataMisfitQuad, DataMisfitLog, setupPDESystem
 import logging
 import numpy as np
@@ -239,7 +239,7 @@ class ERTInversionH1(ERTMisfitCostFunction):
 
     def __init__(self, domain=None, data=None,
                  sigma_0_ref=1e-4, m_ref = None, sigma_src=None, w1=1., useL1Norm=False, epsilonL1Norm=1e-4,
-                 maskFixedProperty = None, maskZeroPotential = None, fixTop=False,
+                 maskFixedProperty = None, maskZeroPotential = None, fixTop=False, zero_mean_m = False,
                  pde_tol=1.e-8, reg_tol=None, stationsFMT="e%s", logclip=5, dataRTolDC=1e-4,
                  useLogMisfitDC=False, logger=None, EPSILON=1e-15, **kargs):
         """
@@ -268,29 +268,47 @@ class ERTInversionH1(ERTMisfitCostFunction):
                          dataRTolDC=dataRTolDC, **kargs)
         self.logclip = logclip
         self.m_ref = m_ref
-        # its is assumed that sigma_ref on the faces is not updated!!!
-        if maskFixedProperty is None:
-            x = self.forward_pde.getDomain().getX()
-            qx = whereZero(x[0] - inf(x[0])) + whereZero(x[0] - sup(x[0]))
-            qy = whereZero(x[1] - inf(x[1])) + whereZero(x[1] - sup(x[1]))
-            qz = whereZero(x[2] - inf(x[2]))
-            if fixTop:
-                qz += whereZero(x[2] - sup(x[2]))
-            self.mask_fixed_property  =  qx + qy + qz
+        self.zero_mean_m = zero_mean_m
+        if self.zero_mean_m:
+            self.logger.info(f'Property function with zero mean.')
         else:
-            self.mask_fixed_property = wherePositive(maskFixedProperty)
+            if fixTop:
+                self.logger.info(f'Property function zero on all boundaries.')
+            else:
+                self.logger.info(f'Property function free on top and zero on all other boundaries.')
+        # its is assumed that sigma_ref on the faces is not updated!!!
+        if self.zero_mean_m:
+            self.mask_fixed_property = None
+        else:
+            if maskFixedProperty is None:
+                x = self.forward_pde.getDomain().getX()
+                qx = whereZero(x[0] - inf(x[0])) + whereZero(x[0] - sup(x[0]))
+                qy = whereZero(x[1] - inf(x[1])) + whereZero(x[1] - sup(x[1]))
+                qz = whereZero(x[2] - inf(x[2]))
+                if fixTop:
+                    qz += whereZero(x[2] - sup(x[2]))
+                self.mask_fixed_property  =  qx + qy + qz
+            else:
+                self.mask_fixed_property = wherePositive(maskFixedProperty)
         self.useL1Norm = useL1Norm
         self.epsilonL1Norm = epsilonL1Norm
         assert not self.useL1Norm, "L1-regularization is not fully implemented yet."
         # regularization
 
-        self.factor2D=1
-        self.Hpde = setupERTPDE(self.domain)
-        self.Hpde.setValue(q=self.mask_fixed_property)
         if not reg_tol:
-            reg_tol=min(sqrt(pde_tol), 1e-3)
+            reg_tol = min(sqrt(pde_tol), 1e-3)
         self.logger.debug(f'Tolerance for solving regularization PDE is set to {reg_tol}')
-        self.Hpde.getSolverOptions().setTolerance(reg_tol)
+        self.factor2D = 1
+        if self.zero_mean_m:
+            K=kronecker(3)
+            K[1,1]*=self.factor2D
+            self.Hpde = PoissonEquationZeroMean(self.domain, A=K).setSecondaryCondition(Yh=1)
+            self.Hpde.pde.getSolverOptions().setTolerance(reg_tol)
+        else:
+            self.Hpde = setupERTPDE(self.domain)
+            self.Hpde.setValue(q=self.mask_fixed_property)
+            self.Hpde.getSolverOptions().setTolerance(reg_tol)
+
         self.setW1(w1)
 
         #  reference conductivity:
@@ -298,9 +316,10 @@ class ERTInversionH1(ERTMisfitCostFunction):
 
     def setW1(self, w1=1):
         self.w1 = w1
-        K=kronecker(3)
-        K[1,1]*=self.factor2D
-        self.Hpde.setValue(A=self.w1 * K)
+        if not self.zero_mean_m:
+            K=kronecker(3)
+            K[1,1]*=self.factor2D
+            self.Hpde.setValue(A=self.w1 * K)
         self.logger.debug(f'w1 = {self.w1:g}')
 
     def updateSigma0Ref(self, sigma_0_ref):
@@ -324,7 +343,7 @@ class ERTInversionH1(ERTMisfitCostFunction):
         return sigma_0
 
 
-    def extractPropertyFunction(self, m):
+    def extractPropertyFunction(self, dm):
         if self.m_ref:
             m = dm + self.m_ref
         else:
@@ -387,18 +406,20 @@ class ERTInversionH1(ERTMisfitCostFunction):
         """
         returns an approximation of inverse of the Hessian. Overwrites `getInverseHessianApproximation` of `MeteredCostFunction`
         """
-        clip_property_function=10
-        if self.useL1Norm:
-            if self.HpdeUpdateCount > 1:
-                gdm=grad(dm)
-                lgdm2 = gdm[0] ** 2 + self.factor2D * gdm[1] ** 2 + gdm[2] ** 2
-                L = sqrt(lgdm2 + self.epsilonL1Norm ** 2)
-                self.Hpde.setValue(A=self.w1 * ( 1/L  * kronecker(3) - 1/L**3 * outer(gdm, gdm)) )
-                self.HpdeUpdateCount+=1
-                print("TO DO")
+        if self.zero_mean_m:
+            p = self.Hpde.getSolution(X=r[1], Y=r[0] )/self.w1
+        else:
+            if self.useL1Norm:
+                if self.HpdeUpdateCount > 1:
+                    gdm=grad(dm)
+                    lgdm2 = gdm[0] ** 2 + self.factor2D * gdm[1] ** 2 + gdm[2] ** 2
+                    L = sqrt(lgdm2 + self.epsilonL1Norm ** 2)
+                    self.Hpde.setValue(A=self.w1 * ( 1/L  * kronecker(3) - 1/L**3 * outer(gdm, gdm)) )
+                    self.HpdeUpdateCount+=1
+                    print("TO DO")
 
-        self.Hpde.setValue(X=r[1], Y=r[0])
-        p = self.Hpde.getSolution()
+            self.Hpde.setValue(X=r[1], Y=r[0])
+            p = self.Hpde.getSolution()
         self.logger.debug(f"search direction component = {str(p)}.")
         return p
     def getDualProduct(self, dm, r):
@@ -430,7 +451,7 @@ class ERTInversionH2(ERTMisfitCostFunction):
     """
 
     def __init__(self, domain=None, data=None,
-                 sigma_0_ref=1e-4, sigma_src=None, w1=1., m_ref=None,
+                 sigma_0_ref=1e-4, sigma_src=None, w1=1., m_ref=None, zero_mean_m = False,
                  maskZeroPotential = None, fixTop=False, save_memory = False,
                  pde_tol=1.e-8, reg_tol=None, stationsFMT="e%s", logclip=5, dataRTolDC=1e-4,
                  useLogMisfitDC=False, logger=None, EPSILON=1e-15, **kargs):
@@ -456,8 +477,11 @@ class ERTInversionH2(ERTMisfitCostFunction):
                          stationsFMT=stationsFMT, logger=logger, useLogMisfitDC=useLogMisfitDC, **kargs)
         self.logclip = logclip
         self.m_ref = m_ref
+        self.zero_mean_m = zero_mean_m
         self.sigma_0_ref = sigma_0_ref
         self.logger.info("Reference conductivity sigma_0_ref = %s" % (str(self.sigma_0_ref)))
+
+        # its is assumed that sigma_ref on the faces is not updated!!!
         # masks for surfaces:
         x=self.forward_pde.getDomain().getX()
         qx = whereZero(x[0] - inf(x[0])) + whereZero(x[0] - sup(x[0]))
@@ -466,11 +490,22 @@ class ERTInversionH2(ERTMisfitCostFunction):
         if fixTop:
             qz += whereZero(x[2] - sup(x[2]))
 
+        if self.zero_mean_m:
+            self.logger.info(f'Property function with zero mean.')
+        else:
+            if fixTop:
+                self.logger.info(f'Property function zero on all boundaries.')
+            else:
+                self.logger.info(f'Property function free on top and zero on all other boundaries.')
 
         # recovery of propery function from M:
-        self.mpde = setupERTPDE(self.domain)
-        self.mpde.getSolverOptions().setTolerance(pde_tol)
-        self.mpde.setValue(A=kronecker(3), q= qx + qy + qz )
+        self.zero_mean_m = zero_mean_m
+        if self.zero_mean_m:
+            self.mpde = PoissonEquationZeroMean(self.domain).setSecondaryCondition(Yh=1)
+        else:
+            self.mpde = setupERTPDE(self.domain)
+            self.mpde.getSolverOptions().setTolerance(pde_tol)
+            self.mpde.setValue(A=kronecker(3), q= qx + qy + qz )
         # regularization
         if not reg_tol:
             reg_tol=min(sqrt(pde_tol), 1e-3)
@@ -519,8 +554,11 @@ class ERTInversionH2(ERTMisfitCostFunction):
         return sigma_0
 
     def extractPropertyFunction(self, dM):
-        self.mpde.setValue(X=interpolate(dM, Function(dM.getDomain())), Y=Data(), y=Data())
-        dm=self.mpde.getSolution()
+        if self.zero_mean_m:
+            dm=self.mpde.getSolution(X=interpolate(dM, Function(dM.getDomain())))
+        else:
+            self.mpde.setValue(X=interpolate(dM, Function(dM.getDomain())), Y=Data(), y=Data())
+            dm=self.mpde.getSolution()
         if self.m_ref:
             m=dm+self.m_ref
         else:
@@ -565,8 +603,12 @@ class ERTInversionH2(ERTMisfitCostFunction):
         DMisfitDsigma_0 = self.getDMisfit(isigma_0, isigma_0_stations, *args2)
         Dsigma_0Dm = self.getDsigma0Dm(isigma_0, im)
         Ystar+= DMisfitDsigma_0 * Dsigma_0Dm
-        self.mpde.setValue(X=Data(), Y = Ystar)
-        Y=grad(self.mpde.getSolution(), where=X.getFunctionSpace())
+        if self.zero_mean_m:
+            dmstar = self.mpde.getSolution( Y = Ystar )
+        else:
+            self.mpde.setValue(X=Data(), Y = Ystar)
+            dmstar=self.mpde.getSolution()
+        Y=grad(dmstar, where=X.getFunctionSpace())
         return ArithmeticTuple(Y, X)
 
     def getInverseHessianApproximation(self, r, dM, m, im, isigma_0, isigma_0_stations, args2, initializeHessian=False):

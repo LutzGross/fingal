@@ -4,9 +4,9 @@ GalleryHeight = 5;
 SeamHeight = 13;
 CoreHeight = 100;
 BaseDepth = 100;
-PaddingX=500;
-PaddingY=500;
-PaddingZ=500;
+PaddingX=1500;
+PaddingY=1500;
+PaddingZ=1500;
 //... center coordinates in original IGES data
 OriginalCenterX = 496192.29259967303;
 OriginalCenterY = 890424.0922468755;

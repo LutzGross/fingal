@@ -58,18 +58,18 @@ data logarithm (`set use_log_misfit_ERT` = True).
 
 Various regularization approaches can be used: 
 
-   - Gradient of property funtion: 'H1'
-   - Laplacian of property funtion: 'H2'
-   - Gaussian Kernel with additional spatial correlation length scale: 'Gauss'
-   - Gaussian Kernel by FOSLS : 'PseudoGauss'
-   - Gaussian Kernel by FOSLS and decoupled approximative Hessian:'D-PseudoGauss'
+   - Gradient of property function with fixed conductivity `sigma_ref` on some boundaries: `H1`
+   - Laplacian of property function with fixed conductivity `sigma_ref` on some boundaries: `H2` 
+   - Gradient of property function preserving conductivity mean `sigma_ref`: `H1_0`
+   - Laplacian of property function conductivity preserving mean `sigma_ref`: `H2_0`
+   - Gaussian Kernel with additional spatial correlation length scale: `Gauss` 
+   - Gaussian Kernel with additional spatial correlation length scale with decoupled approximative Hessian: `DGauss`
 
 For Gaussian regularization requires an addition regularization parameter
 'regularization_length_scale' to be set. A good choice is typically the distance of 
-electrodes. Option `Gauss` is a straight forward implementation but typically requires
-many iterations and tends to be unstable. 'PseudoGauss' uses a FOSLS approach to resolve 
-the second derivative. The approach is typically very robust and used lessnumber 
+electrodes. Option `Gauss` uses a FOSLS approach to resolve 
+the second derivative. The approach is typically very robust and used less number 
 of iterations but is computationally more expensive. To reduce memory requirements
-'D-PseudoGauss' can be used but it comes at the cost of more iteration steps.
+'DGauss' can be used but it comes at the cost of more iteration steps.
 
 by @LutzGross

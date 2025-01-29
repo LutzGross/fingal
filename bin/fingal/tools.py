@@ -5,7 +5,7 @@ by l.gross@uq.edu.au, Dec 2020.
 """
 
 from esys.escript import Scalar, getMPIRankWorld, integrate, hasFeature, Function, kronecker, Data, DiracDeltaFunctions, \
-    inner, length, Lsup, FunctionOnBoundary, inf, sup, whereZero, wherePositive, grad
+    inner, length, Lsup, FunctionOnBoundary, inf, sup, whereZero, wherePositive, grad, Solution
 from esys.escript.linearPDEs import LinearSinglePDE, SolverOptions, LinearPDE
 import numpy as np
 
@@ -588,3 +588,137 @@ def createBackgroundTemperature(domain, T=20., mask_fixed_temperature=None, grad
     pde.setValue(A=kronecker(3), y=Q, r=T, q=mask_fixed_temperature)
     Tnew=pde.getSolution()
     return Tnew
+
+from esys.escript.pdetools import Locator
+from esys.escript import interpolate
+
+class PoissonEquationZeroMean(object):
+    """
+    solves the Poisson equation for with a secondary normalization condition (h linear):
+            -u_,ii = -div(X) + Y
+            n_i*u_,i = y
+            h(u) = 0
+
+    In weak form (with Lagrange Multiplier) Find u and t with: for all v:
+
+        a(v, u) + t * h(v) = f(v)
+        h(u)=hu
+
+    with: a(v, u) = Int( A_ij v_,i u_,i)
+        f(v) = Int( X_i * v_,i  + Y * v ) + int(y * v)
+        h(v) = Int( Xh_i * v_,i  + Yh * v ) + int(yh * v)
+
+    Int = Volume integral, int = surface integral
+
+    Solution method:
+        pick point X_0.
+        assume for a FEM basis function phi_0 we can write: v = v0 + v(X0) * phi0 with  v0(X0)=0
+        We have a(v+c, u) = a(u,, v+c ) =0 for any constant c
+
+        solve uf(X0)=0, for all v0 with  v0(X0)=0: a(v0, uf) =  f(v0)
+        solve uh(X0)=0, for all v0 with  v0(X0)=0: a(v0, uh) =  h(v0)
+
+        then set:
+
+                u = uf - t * uh + c
+
+        Then by construction of u0 and uh: for all v0 with v0(X_0)=0
+                a(v0, u) + t * h(v0)  =  a(v0, uf - t * uh) + t * h(v0) = f(v0)
+        also
+                a(phi0, u) + t * h(phi0)  =  a(phi0, uf) - t * a(phi_0, uh) + t * h(phi0) = f(phi0)
+        if we set:
+            t = (f(phi0)-a(phi0, uf))/(h(phi0)-a(phi0, uh)) = f1/h1
+
+        we have h(u) = hu if we set
+
+            c = (hu -h(uf - t * uh) ) /h1
+
+        Notes:  h1 = h(1) = Int(Yh) + int(yh)
+                h(phi0)-a(phi0, uh) = h(1) = h1 (as phi0 = 1 - v0 with v0(X_0)=0)
+                f(phi0)-a(phi0, uf) = f(1) = f1 (again as phi0 = 1 - v0 with v0(X_0)=0)
+
+    """
+    def __init__(self, domain, X0=None, A = None, rtol = 1e-8, isComplex = False):
+        self.domain=domain
+        numDim = domain.getDim()
+        self.pde = LinearSinglePDE(domain, isComplex=isComplex)
+        self.pde.setSymmetryOn()
+        optionsG = self.pde.getSolverOptions()
+        optionsG.setSolverMethod(SolverOptions.PCG)
+        optionsG.setTolerance(rtol)
+        # optionsG.setSolverMethod(SolverOptions.DIRECT)
+        if hasFeature('trilinos'):
+            optionsG.setPackage(SolverOptions.TRILINOS)
+            optionsG.setPreconditioner(SolverOptions.AMG)
+            if numDim == 3:
+                optionsG.setTrilinosParameter("problem:type", "Poisson-3D")
+            else:
+                optionsG.setTrilinosParameter("problem:type", "Poisson-2D")
+            optionsG.setTrilinosParameter("verbosity", "none")
+            optionsG.setTrilinosParameter("number of equations", 1)
+            optionsG.setTrilinosParameter("problem: symmetric", True)
+        x = Solution(domain).getX()
+        if not X0:
+            X0 = tuple( [ inf(x[i]) for i in range(numDim) ] )
+        self.X0  = Locator(Solution(domain),  X0).getX()
+        q=whereZero(length(x-self.X0))
+        if A is None :
+            self.pde.setValue(A = kronecker(numDim), q=q)
+        else:
+            self.pde.setValue(A=A, q=q)
+
+    def getX0(self):
+        """
+        return the used location of X0
+        """
+        return self.__loc.getX()
+    def getPDE(self):
+        """
+        return the PDE to be solved
+        """
+        return self.pde
+
+    def setSecondaryCondition(self, Yh=None, Xh=None, yh=None ):
+
+        self.h1 = 0
+        if Yh is None:
+            self.Yh = Scalar(1, Function(self.domain))
+        else:
+            self.Yh = interpolate(Yh, Function(self.domain))
+        self.h1+= integrate(self.Yh)
+        if Xh is None:
+            self.Xh = Data()
+        else:
+            self.Xh = interpolate(Xh, Function(self.domain))
+        if yh is None:
+            self.yh = Data()
+        else:
+            self.yh = interpolate(yh, FunctionOnBoundary(self.domain))
+            self.h1+= integrate(self.yh)
+        assert abs(self.h1) > 0 , "h1=h(1) must be non-zero."
+        # ... recover uh
+        self.pde.setValue(X=self.Xh, Y=self.Yh, y=self.yh)
+        self.uh=self.pde.getSolution()
+        return self
+
+    def getSolution(self, X=Data(), Y=Data(), y=Data(), hu=0):
+        # ... recover uh
+        self.pde.setValue(X=X, Y=Y, y=y)
+        uf = self.pde.getSolution()
+        f1=0
+        if not Y.isEmpty():
+            f1+=integrate(self.pde.getCoefficient("Y"))
+        if not y.isEmpty():
+            f1 += integrate(self.pde.getCoefficient("y"))
+        t = f1/self.h1
+        u = uf - t * self.uh
+        hu1=0
+        if not self.Xh.isEmpty():
+            hu1+=integrate(inner(self.Xh, grad(u, self.Xh.getFunctionSpace() )))
+        if not self.Yh.isEmpty():
+            hu1+=integrate(self.Yh * u )
+        if not self.yh.isEmpty():
+            hu1+=integrate(self.yh * u )
+        c = (hu - hu1)/self.h1
+        u+=c
+        return u
