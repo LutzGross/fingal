@@ -193,7 +193,7 @@ if not args.topo:
     open(GEOFN2,'w').write(out)
     print("3D geometry has been written to %s"%GEOFN2)
     if not args.mshno:
-        rp=subprocess.run(["gmsh", "-3",  "-algo", "auto", "-o", MSHN3, GEOFN2])
+        rp=subprocess.run(["gmsh", "-3",  "-optimize_netgen", "-algo", "auto", "-o", MSHN3, GEOFN2])
         rp.check_returncode()
         print(">> GMSH mesh file %s was generated."%MSHN3)
 else:
@@ -314,7 +314,7 @@ else:
     fout.close()
     print("topography added to file %s and written to file %s."%(MSHN1, MSHN2))
     # now we are ready to generate the 3D mesh:  
-    rp=subprocess.run(["gmsh", "-3",  "-algo", "frontal", "-o", MSHN3, GEOFN2])
+    rp=subprocess.run(["gmsh", "-3",  "-optimize_netgen", "-algo", "frontal", "-o", MSHN3, GEOFN2])
     rp.check_returncode()
     print(">> GMSH mesh file %s generated."%MSHN3)
 

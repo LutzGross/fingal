@@ -16,7 +16,7 @@ Run
 to generate the mesh for the synthetic data generation. 
 To make the station and schedule file (names are set in [`config.py`](./config.py)) run
 
-    python3 mkIt.py
+    python3 ./mkIt.py
 
 The script inspects the `with_anomaly.geo` file grab the number of electrodes, nuber of lines
 and their spacings. The schedule is following a Wenner set-up for each line. 

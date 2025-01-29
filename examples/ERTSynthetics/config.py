@@ -40,7 +40,7 @@ def true_properties(domain):
     sigma0_true.setTaggedValue('anomaly_right', sigma0_ref / 100)
     Mn_true=Scalar(Mn_ref, Function(domain))
     Mn_true.setTaggedValue('anomaly_left', Mn_ref * 100 * 0.25)
-    Mn_true.setTaggedValue('anomaly_right', Mn_ref * 0.25)
+    Mn_true.setTaggedValue('anomaly_right', Mn_ref / 100 * 0.25)
     return sigma0_true, Mn_true
 
 #

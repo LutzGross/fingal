@@ -50,7 +50,7 @@ class IPSynthetic(object):
         self.elementlocators = Locator(ReducedFunction(domain), station_locations)
         self.stationlocators = Locator(Function(domain), station_locations)
 
-        self.source_potential = getSourcePotentials(domain, sigma_src, self.schedule, maskOuterFaces=self.mask_faces,
+        self.source_potential = getSourcePotentials(domain, sigma_src, self.schedule, maskZeroPotential=self.mask_faces,
                                                     stationsFMT=self.stationsFMT)
 
         self.source_field = {}
@@ -88,14 +88,14 @@ class IPSynthetic(object):
         pde = setupERTPDE(self.domain)
         if sigma_0_at_stations is None:
              sigma_0_at_stations = self.stationlocators(sigma_0)
-        self.potential_0 = getAdditivePotentials(pde,
+        self.potential_0, src_potential_scale_0 = getAdditivePotentials(pde,
                                                   sigma = sigma_0,
                                                   schedule = self.schedule,
                                                   sigma_stations = sigma_0_at_stations,
                                                   source_potential = self.source_potential,
-                                                  sigma_src = self.sigma_src,
-                                                  mask_faces = self.mask_faces)
-
+                                                  sigma_src = self.sigma_src)
+        for iA in self.potential_0:
+            self.potential_0[iA]+=self.source_potential[iA]*src_potential_scale_0[iA]
         self.potential_0_at_stations = { iA: self.nodelocators(self.potential_0[iA])  for iA in self.potential_0 }
         if self.createFieldData:
             self.field_0 = { iA: -grad(self.potential_0[A], ReducedFunction(self.domain)) for iA in self.potential_0 }
@@ -119,14 +119,14 @@ class IPSynthetic(object):
                 print("sigma_oo = ", str(sigma_oo))
                 print("M_n = ", str(M_n))
 
-            self.potential_oo = getAdditivePotentials(pde,
+            self.potential_oo, src_potential_scale_oo = getAdditivePotentials(pde,
                                                        sigma = sigma_oo,
                                                        schedule = self.schedule,
                                                        sigma_stations = sigma_oo_at_stations,
                                                        source_potential = self.source_potential,
-                                                       sigma_src = self.sigma_src,
-                                                       mask_faces = self.mask_faces)
-
+                                                       sigma_src = self.sigma_src)
+            for iA in self.potential_oo:
+                self.potential_oo[iA] += self.source_potential[iA] * src_potential_scale_oo[iA]
             self.potential_oo_at_stations = {iA: self.nodelocators(self.potential_oo[iA]) for iA in self.potential_oo}
             if self.createFieldData:
                 self.field_oo = {iA: -grad(self.potential_oo[A], ReducedFunction(self.domain)) for iA in self.potential_oo}
@@ -157,11 +157,9 @@ class IPSynthetic(object):
             else:
                 print(f"assumed relative error {rel_error} (not added).")
 
-        dV_src = self.schedule.makeResistencePrediction(values=self.source_potential_at_station, valuesKeysAreStationKeys = False)
         dV_0 = self.schedule.makeResistencePrediction(values=self.potential_0_at_stations, valuesKeysAreStationKeys = False)
         dV_oo = self.schedule.makeResistencePrediction(values=self.potential_oo_at_stations, valuesKeysAreStationKeys = False)
         if self.createFieldData:
-            dE_src = self.schedule.makeResistencePrediction(values=self.source_field_at_station, valuesKeysAreStationKeys = False)
             dE_0 = self.schedule.makeResistencePrediction(values=self.field_0_at_stations, valuesKeysAreStationKeys = False)
             dE_oo = self.schedule.makeResistencePrediction(values=self.field_oo_at_station, valuesKeysAreStationKeys = False)
 
@@ -210,7 +208,7 @@ class IPSynthetic(object):
                     pert = np.random.uniform(low = -rel_error, high = rel_error)
                 else:
                     pert = 0
-                V_0  = ( dV_0[t] + dV_src[t]) * (1 + pert)  # ERT potential
+                V_0  = dV_0[t]  * (1 + pert)  # ERT potential
                 V_2  = (dV_0[t] - dV_oo[t]) * (1 + pert)  # over-voltage potential
                 #V_oo = V_0 - V_2
                 ETA   = V_2 / V_0
@@ -218,7 +216,7 @@ class IPSynthetic(object):
 
                 if self.createFieldData:
                     raise ValueError("CHECK E FIELD DATA")
-                    E_0 = ( dE_0[t] + dE_src[t]) * (1 + pert)
+                    E_0 = dE_0[t] * (1 + pert)
                     E_2 = ( dE_0[t] - dE_oo[t])  * (1 + pert)
                     E_oo = E_0 - E_2
 

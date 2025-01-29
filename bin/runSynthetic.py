@@ -93,7 +93,7 @@ if args.silofile:
 mask_face = MaskFromBoundaryTag(domain, *config.faces_tags)
 # -----------------------------------------------------------------------------------
 runner=IPSynthetic(domain, schedule,  sigma_src=config.sigma0_ref,
-                    maskZeroPotential= mask_face,
+                    mask_faces = mask_face,
                     stationsFMT=config.stationsFMT,
                     createSecondaryData=True,
                     createFieldData=args.fullwaver,  printInfo = True)
