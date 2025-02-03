@@ -15,16 +15,15 @@ class IPSynthetic(object):
     This creates synthetic data files for ERT and IP for know conductivity and normalized chargeability
     distributions sigma_0 and M_n.  
     """
-    def __init__(self, domain, schedule, sigma_src=1,  mask_faces=None, stationsFMT="e%s",
+    def __init__(self, domain, schedule, sigma_src=1,  maskZeroPotential=None, stationsFMT="e%s",
                  createSecondaryData=True, createFieldData=False, printInfo = True):
         """
         :param domain: physical domain
         :type domain: `AbstractDomain`
         :param schedule: schedule of the survey 'ABMN' (or AMN, etc)
         :type schedule: `SurveyData`
-        :param mask_faces: mask of the faces with electric radiation condition. If None, the front, back, left, right and
-                            bottom faces are used.
-        :type mask_faces: `Data` of `FunctionOnBoundary` or None
+        :param maskZeroPotential: mask where potentials are set to zero.
+        :type maskZeroPotential: `Data` of `Solution` or None
         :param createSecondaryData: runs the synthetic survey for secondary voltages needed for
                                     chargeability data. set to false if these data are not created to save compute time
         :param createFieldData: runs the synthetic survey for fulL waver field data set to false if these data
@@ -41,7 +40,7 @@ class IPSynthetic(object):
         self.schedule = schedule
         self.sigma_src=sigma_src
         self.stationsFMT=stationsFMT
-        self.mask_faces=mask_faces
+        self.maskZeroPotential=maskZeroPotential
 
         # 
         station_locations = [ schedule.getStationLocationByKey(S) for S in schedule.getStationNumeration() ]
@@ -50,7 +49,7 @@ class IPSynthetic(object):
         self.elementlocators = Locator(ReducedFunction(domain), station_locations)
         self.stationlocators = Locator(Function(domain), station_locations)
 
-        self.source_potential = getSourcePotentials(domain, sigma_src, self.schedule, maskZeroPotential=self.mask_faces,
+        self.source_potential = getSourcePotentials(domain, sigma_src, self.schedule, maskZeroPotential=self.maskZeroPotential,
                                                     stationsFMT=self.stationsFMT)
 
         self.source_field = {}
@@ -65,7 +64,7 @@ class IPSynthetic(object):
 
 
         if self.printinfo:
-            print("source potential = %s"%str(self.sigma_src))
+            print("source conductivity = %s"%str(self.sigma_src))
             print("%s electrode locations found" % (len(self.source_potential_at_station)))
             print(str(len(station_locations)) + " station locators calculated.")
             print(str(len(self.source_field)) + " source fields calculated.")
@@ -86,6 +85,7 @@ class IPSynthetic(object):
         # secondary potential -div(sigma_0 grad(V_0) = -div( (sigma_src/alpha_A - sigma_0) grad(U_A*alpha_A))
         #  DC potenential V_0 = W_A + U_A*alpha_A)
         pde = setupERTPDE(self.domain)
+        pde.setValue(q=self.maskZeroPotential)
         if sigma_0_at_stations is None:
              sigma_0_at_stations = self.stationlocators(sigma_0)
         self.potential_0, src_potential_scale_0 = getAdditivePotentials(pde,

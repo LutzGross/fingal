@@ -90,10 +90,10 @@ if args.silofile:
     saveSilo(args.silofile , **kwargs)
     print(f'values {kwargs.keys()} written to file {args.silofile}.')
 
-mask_face = MaskFromBoundaryTag(domain, *config.faces_tags)
+maskZeroPotential = MaskFromBoundaryTag(domain, *config.faces_tags)
 # -----------------------------------------------------------------------------------
 runner=IPSynthetic(domain, schedule,  sigma_src=config.sigma0_ref,
-                    mask_faces = mask_face,
+                    maskZeroPotential = maskZeroPotential,
                     stationsFMT=config.stationsFMT,
                     createSecondaryData=True,
                     createFieldData=args.fullwaver,  printInfo = True)
