@@ -57,6 +57,7 @@ print("y range = ", ymin, ymax)
 
 ebox=max(xmax-xmin, ymax-ymin)
 assert ebox > 0., "area of electrodes is zero."
+
 fx=((xmax-xmin)*args.inner)/100.
 fy=((ymax-ymin)*args.inner)/100.
 

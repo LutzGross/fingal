@@ -37,7 +37,7 @@ A 3D mesh is generated from `domain.geo` using gmsh with the mesh written to `sy
 Notice the the cubic anomlies are tagged with "Anomaly1", "Anomaly2" and "Anomaly3". The core region excluding the anomalies is tagged "InnerBox"
 while the padding is the tagged "OuterBox". The mesh will have about 135000 nodes. The resolution can be changed by editing `domain.geo`.
 
-The gmsh file ' synth.msh' is converted into an [esys-escript](https://github.com/esys-escript/esys-escript.github.io) mesh file mainly for reasons of performance when reading the mesh under MPI: 
+The gmsh file 'synth.msh' is converted into an [esys-escript](https://github.com/esys-escript/esys-escript.github.io) mesh file mainly for reasons of performance when reading the mesh under MPI: 
 
     gmsh2fly.py --silo mesh synth.msh config
 
@@ -49,7 +49,7 @@ Notice that the the converter includes the stations and electrodes into the `fly
 
 Now we can create synthetic survey data:
 
-    runSynthetic.py -n 5 config
+    runSynthetic.py -n 5 synth.msh config
 
 In this case the columns electric field intensity 'E' and modified chargeability 'GAMMA' as secified by the `datacolumns` variable in the 
 configuration file are calculatated for the survey defined by 'synth_schedule.csv'. A new file 'synth_data.csv' is created. It defines the input for the inversion.
