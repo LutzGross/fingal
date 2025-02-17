@@ -22,7 +22,7 @@ parser.add_argument('--mesh_size_core', '-S',  dest='mesh_size_core', type=float
 parser.add_argument('--rel_mesh_size_electrodes', '-E',  dest='rel_mesh_size_electrodes', type=float, default=0.1, help="reduction factor of element size near electrodes relative to core mesh size.")
 parser.add_argument('--topo', '-t',  dest='topofile', type=str, default=None, help="file name of the topography interpolation file.")
 #parser.add_argument('--format', '-f', dest='topoformat', type=str, default = None, help = 'format of topography file ["npgrid", "npcloud" ]')
-parser.add_argument('--plot', '-p',  dest='plot', type=str, default=None, help="file name to plot topography and electrodes.")
+parser.add_argument('--plot', '-p',  dest='plot', type=str, default=None, help="file name to plot topography and stations in survey coordinate system.")
 parser.add_argument('--recenter', '-R',  dest='recenter', action='store_true', default=False, help="recenter geometry to center of electrodes.")
 parser.add_argument('--basename', '-B',  dest='basename', metavar="BASENAME", type=str, default="tmp", help="file names for intermediate files")
 parser.add_argument('--1', '-1',  dest='step1', action='store_true', default=False, help="make flat surface geometry file BASENAME + _2D_flat.geo; then stop.")
@@ -31,8 +31,9 @@ parser.add_argument('--3', '-3',  dest='step3', action='store_true', default=Fal
 parser.add_argument('--4', '-4',  dest='step4', action='store_true', default=False, help="generate 3D geometry with topography BASENAME + .geo; then stop.")
 parser.add_argument('--5', '-5',  dest='step5', action='store_true', default=False, help="generate 3D mesh file BASENAME + .msh; then stop.")
 parser.add_argument('--6', '-6',  dest='step6', action='store_true', default=False, help="generate fly file FLYFILE.")
-parser.add_argument('--fly', '-f',  dest='flyfile', metavar="FLYFILE", type=str, default=None, help="name of the fly file to be generated.")
-parser.add_argument(dest='stationfile', metavar='stationfile', type=str, help='file of of electrodes of for "name, x,y,z" or "name, x, y"')
+parser.add_argument('--fly', '-f',  dest='flyfile', metavar="FLYFILE", type=str, default=None, help="name of the fly file to be generated in coordinate system of the survey.")
+parser.add_argument('--new_station_file', '-F',  dest='new_station_file', metavar="NEW_STATION_FILE", type=str, default=None, help="name of the new electrode file in coordinate system of the survey ('id, x,y, z').")
+parser.add_argument(dest='stationfile', metavar='STATION_FILE', type=str, help='file of of electrodes with "id, x, y, z" or "id, x, y"')
 
 
 args = parser.parse_args()
@@ -102,7 +103,8 @@ else:
         generator.generate3DMesh()
     if (args.step6 or run_all) and args.flyfile:
         generator.toFlyFile(flyfile=args.flyfile)
-
+if args.new_station_file:
+    generator.writeStations(args.new_station_file, delimiter = DELIMITER)
 print("All done - Have a nice day!")
 
 

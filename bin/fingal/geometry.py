@@ -22,23 +22,18 @@ class MeshWithTopgraphy(object):
         self.mesh_size_core = mesh_size_core
         self.rel_mesh_size_electrodes = rel_mesh_size_electrodes
         
-        self.positions = np.array([[electrodes[s][0], electrodes[s][1] ]  for s in electrodes])
-
-        self.xmin = self.positions[:, 0].min()
-        self.xmax = self.positions[:, 0].max()
-        self.ymin = self.positions[:, 1].min()
-        self.ymax = self.positions[:, 1].max()
-        if self.recenter:
-            self.offset = np.array( [ (self.xmax + self.xmin)/2, (self.ymax + self.ymin)/2 ])
+        self.positions_global = ( np.array([electrodes[s][0]  for s in electrodes]),
+                                    np.array([electrodes[s][1]  for s in electrodes]) )
+        if recenter:
+            self.X0, self.rot_a = self.findSurveyCoordinateSystem(self.positions_global[0], self.positions_global[1], EPS=1e-10)
         else:
-            self.offset = np.array([0., 0.])
-        print("offset = ", self.offset)
-        self.positions[:, 0]-=self.offset[0]
-        self.xmin-= self.offset[0]
-        self.xmax-= self.offset[0]
-        self.ymin-= self.offset[1]
-        self.ymax-= self.offset[1]
-        self.positions[:, 1]-=self.offset[1]
+            self.X0, self.rot_a = np.zeros((2,)), 0.
+        self.positions = self.toSurveyCoordinates(self.positions_global[0], self.positions_global[1])
+
+        self.xmin = self.positions[0].min()
+        self.xmax = self.positions[0].max()
+        self.ymin = self.positions[1].min()
+        self.ymax = self.positions[1].max()
 
         self.ebox = ( (self.xmax - self.xmin)**2 + (self.ymax - self.ymin)**2 )**0.5
         assert self.ebox > 0., "area of electrodes is zero."
@@ -46,13 +41,13 @@ class MeshWithTopgraphy(object):
         print("           y range = ", self.ymin, self.ymax)
         print("          diameter = ", self.ebox )
         #================================
-        self.x_core_extra = (self.xmax - self.xmin) * (self.extra_core / 100.)
-        self.y_core_extra = (self.ymax - self.ymin) * (self.extra_core / 100.)
+        self.x_core_extra = self.ebox  * (self.extra_core / 100.)
+        self.y_core_extra = self.ebox  * (self.extra_core / 100.)
         self.zlengthCore = (self.ebox * self.core_depth) / 100.
-        if self.xmax - self.xmin < 1e-5 * self.ebox:
-            self.x_core_extra = self.y_core_extra
-        if self.ymax - self.ymin < 1e-5 * self.ebox:
-            self.y_core_extra = self.x_core_extra
+        #if self.xmax - self.xmin < 1e-5 * self.ebox:
+        #    self.x_core_extra = self.y_core_extra
+        #if self.ymax - self.ymin < 1e-5 * self.ebox:
+        #    self.y_core_extra = self.x_core_extra
 
 
         print("extra core space X  = ", self.x_core_extra)
@@ -75,8 +70,8 @@ class MeshWithTopgraphy(object):
         n = 0
         d_mean = 0
         d_min=self.ebox
-        for i in range(self.positions.shape[0]-1):
-            d = np.linalg.norm(self.positions[i]-self.positions[i+1:], axis=1)
+        for i in range(self.positions[0].shape[0]-1):
+            d = abs(self.positions[0][i]-self.positions[0][i+1:])+abs(self.positions[1][i]-self.positions[1][i+1:])
             d_mean+=1./d.min()
             d_min = min( d_min, d.min())
             n+=1
@@ -103,7 +98,8 @@ class MeshWithTopgraphy(object):
 
         """
         if self.interp:
-            return self.interp((x, y))
+            xg, yg = self.toGlobalCoordinates(x, y)
+            return self.interp((xg, yg))
         else:
             if isinstance(x, np.nparray):
                 return self.zlevel * np.ones(x.shape)
@@ -112,7 +108,7 @@ class MeshWithTopgraphy(object):
     def setTopgraphyFromGrid(self, x=[], y=[], elevation=[], method="nearest"):
         """
         sets the interplation table for elevation over a rectangular grid with grid lines
-        at x and y : elevation[i,j] at (x[i], y[j]).
+        at x and y : elevation[i,j] at (x[i], y[j]) in global coordinates.
 
         locations of electrodes need to be within interval [ x[0], x[-1] ] and [y[0], y[-1]].
         locations outside this region (e.g. in the extra_padding area) are extrapolated.
@@ -123,14 +119,13 @@ class MeshWithTopgraphy(object):
         :param method: method of interpolation passed on to scipy.interpolate.RegularGridInterpolator
         """
         from scipy.interpolate import RegularGridInterpolator
-        x=x-self.offset[0]
-        y=y-self.offset[1]
-        if self.xmin < x[0] or x[-1] < self.xmax:
-            raise ValueError("electrodes outside x-interpolation range")
-        if y[0] > self.ymin or y[-1] < self.ymax:
-            raise ValueError("electrodes outside y-interpolation range")
+        #if self.xmin < x[0] or x[-1] < self.xmax:
+        #    raise ValueError("electrodes outside x-interpolation range")
+        #if y[0] > self.ymin or y[-1] < self.ymax:
+        #    raise ValueError("electrodes outside y-interpolation range")
         self.interp = RegularGridInterpolator((x, y), elevation, fill_value=None, bounds_error=False, method=method)
-        self.positions_z=self.interp((self.positions[:, 0], self.positions[:, 1]))
+        self.positions_z=self.interp((self.positions_global[0], self.positions_global[1]))
+        print(self.positions_z)
         self.zlevel = np.mean(self.positions_z)
         self.zmin = self.positions_z.min()
         self.__updateGeometry()
@@ -268,7 +263,7 @@ class MeshWithTopgraphy(object):
         out += "k=newp;\n"
         for i, s in enumerate(self.__electrodes.keys()):
             out += "Point(k+%s)={ %s, %s, %s, meshSizeElectrodes};\n" % (
-                i + 1, self.positions[i, 0], self.positions[i, 1], self.getFlatZPosition( self.positions[i, 0], self.positions[i, 1]) )
+                i + 1, self.positions[0][i], self.positions[1][i], self.getFlatZPosition( self.positions[0][i], self.positions[1][i],) )
             out += "Point{k+%s} In Surface{11};\n" % (i + 1)
             out += 'Physical Point("s%s")  = { k+%s } ;\n' % (s, i + 1)
         out += 'Physical Surface("faces") = { 1, 2, 3, 4,5 ,6,7,8,9,10, 11,12};\n'
@@ -402,7 +397,7 @@ class MeshWithTopgraphy(object):
                 dts.append(self.stationsFMT % s)
             else:
                 dts.append(s)
-            x, y = self.positions[i, 0], self.positions[i, 1]
+            x, y = self.positions[0][i], self.positions[1][i],
             z = float(self.getElevation(x, y))
             dps.append([x, y, z])
         domain = ReadGmsh(self.mshfile_3D, 3, diracPoints=dps, diracTags=dts, optimize=True)
@@ -428,6 +423,90 @@ class MeshWithTopgraphy(object):
         plt.figure()
         plt.pcolormesh(X, Y, Z[:, :])
         plt.colorbar()  # Color Bar
-        plt.scatter(self.positions[:, 0], self.positions[:, 1], s=4, c='r')
+        plt.scatter(self.positions[0], self.positions[1], s=4, c='r')
+        plt.axis('scaled')
         plt.savefig(plotfile)
-        print("topography pic written to %s" % plotfile)
+        print("Topography pic written to %s." % plotfile)
+
+    def findSurveyCoordinateSystem(self, xg, yg, EPS=1e-10):
+        """
+        find a transformation X = R * (Xg-Xg0) from the global coordinate system to an appropriate local survey coordinate system
+
+        R = [ [cos(a), -sin(a) ], [sin(a), cos(a) ] ] where X0 is the mean of the station coordinates
+
+        :param xg: global x coordinates of electrodes
+        :type xg: `numpy.ndarray`
+        :param yg: global y coordinates of electrodes
+        :type yg: `numpy.ndarray`
+        :return: offset Xg0, rotation angle a (in rad)
+        :rtype: `tuple`, `float`
+        """
+        from math import atan, degrees, sin, cos
+        xg0 = np.mean(xg)
+        yg0 = np.mean(yg)
+        print(f"survey center = {xg0}, {xg0}")
+
+        x = xg - xg0
+        y = yg - yg0
+
+        m_xy = np.mean(x * y)
+        m_x2 = np.mean(x ** 2)
+        m_y2 = np.mean(y ** 2)
+        print(f"m_xy = {m_xy}, m_x2={m_x2}, my_y2={m_y2}")
+        if not max(m_x2, m_y2) > 0:
+            a = 0.
+        else:
+            if abs(m_x2 - m_y2) < EPS * max(m_x2, m_y2):
+                # divison by zero:
+                if abs(m_xy) < EPS * max(m_x2, m_y2):
+                    if m_x2 < m_y2:
+                        a1 = 0.
+                        a2 = np.pi / 2
+                    else:
+                        a1 = 0.
+                        a2 = np.pi / 2
+                else:
+                    if (m_x2 - m_y2) * m_xy < 0:
+                        a1 = - np.pi / 4
+                        a2 = - np.pi / 4 + np.pi / 2
+                    else:
+                        a1 = np.pi / 4
+                        a2 = np.pi / 4 + np.pi / 2
+            else:
+                a0 = atan(2 * m_xy / (m_x2 - m_y2)) / 2
+                a1 = a0
+                a2 = a0 + np.pi / 2
+            if a1 > np.pi / 2:
+                a1 = a1 - np.pi
+            if a2 > np.pi / 2:
+                a2 = a2 - np.pi
+            print(f"rotation angle candidates are {degrees(a1)} and {degrees(a2)}")
+            d1 = np.linalg.norm(x * cos(a1) + y * sin(a1))
+            d2 = np.linalg.norm(x * cos(a2) + y * sin(a2))
+            if d1 < d2:
+                a = a2
+            else:
+                a = a1
+        print("rotation angle = ", degrees(a))
+        return np.array([xg0, yg0]), a
+    def toSurveyCoordinates(self, xg, yg):
+        rot_r = -self.rot_a
+        x = np.cos(rot_r) * (xg - self.X0[0]) - np.sin(rot_r) * (yg - self.X0[1])
+        y = np.sin(rot_r) * (xg - self.X0[0]) + np.cos(rot_r) * (yg - self.X0[1])
+        return x, y
+    def toGlobalCoordinates(self, x, y):
+        rot_r = self.rot_a
+        xg = np.cos(rot_r) * x - np.sin(rot_r) * y + self.X0[0]
+        yg = np.sin(rot_r) * x + np.cos(rot_r) * y + self.X0[1]
+        return xg, yg
+
+    def writeStations(self, station_file, delimiter=','):
+        """
+        write station locations in survey coordinates including topograpy
+        """
+        f=open(station_file, 'w')
+        for i, s in enumerate(self.__electrodes.keys()):
+            x, y = self.positions[0][i], self.positions[1][i]
+            z = float(self.getElevation(x, y))
+            f.write(f"{s}{delimiter} {x}{delimiter} {y}{delimiter} {z}{delimiter}\n")
+        print("New electrodes were written to %s." % station_file)
