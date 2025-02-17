@@ -113,8 +113,8 @@ class MeshWithTopgraphy(object):
         locations of electrodes need to be within interval [ x[0], x[-1] ] and [y[0], y[-1]].
         locations outside this region (e.g. in the extra_padding area) are extrapolated.
 
-        :param x: array of x coordinates of grid line
-        :param y: array of y coordinates of grid line
+        :param x: array of x coordinates of grid line in global coordinates
+        :param y: array of y coordinates of grid line in global coordinates
         :param elevation: values of elevation at grid nodes.
         :param method: method of interpolation passed on to scipy.interpolate.RegularGridInterpolator
         """
@@ -125,7 +125,35 @@ class MeshWithTopgraphy(object):
         #    raise ValueError("electrodes outside y-interpolation range")
         self.interp = RegularGridInterpolator((x, y), elevation, fill_value=None, bounds_error=False, method=method)
         self.positions_z=self.interp((self.positions_global[0], self.positions_global[1]))
-        print(self.positions_z)
+        self.zlevel = np.mean(self.positions_z)
+        self.zmin = self.positions_z.min()
+        self.__updateGeometry()
+
+    def setTopgraphyFromCloud(self, x=[], y=[], elevation=[], method="linear"):
+        """
+        sets the interplation table for elevation over point cloud: elevation[i] at (x[i], y[j]) in global coordinates.
+
+        :param x: array of x coordinates of grid line in global coordinates
+        :param y: array of y coordinates of grid line in global cordinates
+        :param elevation: values of elevation at  points.
+        :param method: method of interpolation
+        """
+        from scipy.interpolate import NearestNDInterpolator, LinearNDInterpolator
+        zmean = np.mean(elevation)
+        extraX = []
+        extraZ = []
+        for xx in [self.xminOuterBox, self.xmaxOuterBox]:
+            for yy in [self.yminOuterBox, self.ymaxOuterBox]:
+                extraX.append(self.toGlobalCoordinates(xx,yy))
+                extraZ.append(zmean)
+        xg = np.concat((x, np.array([x for x,y in extraX]) ))
+        yg = np.concat((y, np.array([y for x, y in extraX]) ))
+        eleg=np.concat((elevation, np.array(extraZ)))
+        if method == "linear":
+            self.interp = LinearNDInterpolator((xg, yg), eleg)
+        else:
+            self.interp = NearestNDInterpolator((xg, yg), eleg)
+        self.positions_z=self.interp((self.positions_global[0], self.positions_global[1]))
         self.zlevel = np.mean(self.positions_z)
         self.zmin = self.positions_z.min()
         self.__updateGeometry()
@@ -412,11 +440,15 @@ class MeshWithTopgraphy(object):
         self.generate3DGeometry()
         self.generate3DMesh()
         return self.toFlyFile(flyfile)
-    def plotting(self, plotfile, numPoints=200):
+    def plotting(self, plotfile, all_domain = False, numPoints=200):
         import matplotlib.pyplot as plt
+        if all_domain:
+            X = np.linspace(self.xminOuterBox, self.xmaxOuterBox, num=numPoints)
+            Y = np.linspace(self.yminOuterBox, self.ymaxOuterBox, num=numPoints)
+        else:
+            X = np.linspace(self.xmin - self.x_core_extra, self.xmax + self.x_core_extra, num=numPoints)
+            Y = np.linspace(self.ymin - self.y_core_extra, self.ymax + self.y_core_extra, num=numPoints)
 
-        X = np.linspace(self.xmin - self.x_core_extra, self.xmax + self.x_core_extra, num=numPoints)
-        Y = np.linspace(self.ymin - self.y_core_extra, self.ymax + self.y_core_extra, num=numPoints)
         X, Y = np.meshgrid(X, Y)
         Z = self.getElevation(X, Y)
 

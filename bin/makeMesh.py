@@ -74,7 +74,10 @@ generator = MeshWithTopgraphy(electrodes=electrodes, recenter=args.recenter,
 if args.topofile:
     toptable= np.load(args.topofile)
     if 'x' in toptable.keys() and  'y' in toptable.keys()  and  'elevation' in toptable.keys():
-        generator.setTopgraphyFromGrid(x= toptable['x'], y= toptable['y'], elevation= toptable['elevation'] , method="nearest")
+        if toptable['elevation'].ndim == 2:
+            generator.setTopgraphyFromGrid(x= toptable['x'], y= toptable['y'], elevation= toptable['elevation'] , method="nearest")
+        elif toptable['elevation'].ndim == 1:
+            generator.setTopgraphyFromCloud(x= toptable['x'], y= toptable['y'], elevation= toptable['elevation'] , method="nearest")
 else:
     if args.zlevel:
         generator.setFlatTopography( zlevel = args.zlevel)

@@ -19,7 +19,12 @@ Elevation is given via a grid where `elev[j,i]` is the elevation value at positi
 Extrapolation via nearest neighbour values is used if values outside the interpolation region is requested.
 
 #### Via a cloud
-TBA
+Elevations can also be given as cloud data
+where `elev[i]` is the elevation value at position `(x[i], y[i])` as
+
+    X, Y= np.meshgrid(x,y, indexing='ij')
+    np.savez("elevation_cloud", x=X.flat, y=Y.flat, elevation=elev.flat)
+
 
 ## Plotting
 
