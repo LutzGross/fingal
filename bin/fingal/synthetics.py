@@ -87,7 +87,7 @@ class IPSynthetic(object):
         pde = setupERTPDE(self.domain)
         pde.setValue(q=self.maskZeroPotential)
         if sigma_0_at_stations is None:
-             sigma_0_at_stations = self.stationlocators(sigma_0)
+                sigma_0_at_stations = self.stationlocators(sigma_0)
         self.potential_0, src_potential_scale_0 = getAdditivePotentials(pde,
                                                   sigma = sigma_0,
                                                   schedule = self.schedule,

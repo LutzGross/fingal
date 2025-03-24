@@ -4,7 +4,8 @@ from esys.finley import ReadGmsh
 class MeshWithTopgraphy(object):
     def __init__(self, electrodes={}, recenter=False, basename = "tmp",
                  core_depth=40., extra_core=40., extra_padding=300.,
-                 num_elements_outer_edge=10, mesh_size_core=None, rel_mesh_size_electrodes=0.1, stationsFMT="s%s"):
+                 num_elements_outer_edge=10, mesh_size_core=None, rel_mesh_size_electrodes=0.1,
+                 stationsFMT="s%s", GEOTOL=1e-8):
         """
         :param core_depth: depth of core relative to diameter of survey area in %
         :param extra_core: additional width of core region relative  to respective survey edge length in %
@@ -13,6 +14,7 @@ class MeshWithTopgraphy(object):
         :param
         """
         self.__electrodes=electrodes
+        self.GEOTOL=GEOTOL
         self.stationsFMT = stationsFMT
         self.recenter = recenter
         self.core_depth=core_depth
@@ -66,6 +68,22 @@ class MeshWithTopgraphy(object):
         self.ymaxOuterBox = self.ymax + self.y_core_extra + self.ylengthextraOuterBox
         self.outer_mesh_size = max(self.xmaxOuterBox - self.xminOuterBox,
                                    self.ymaxOuterBox - self.yminOuterBox) / self.num_elements_outer_edge
+        # ----------- make bounding box ---------------------------------------
+        self.fr=1.1
+        l = self.xmin - self.x_core_extra *  self.fr
+        r = self.xmax + self.x_core_extra *  self.fr
+        b = self.ymin - self.y_core_extra *  self.fr
+        t = self.ymax + self.y_core_extra *  self.fr
+        self.GlobalBoundingBox_Xmin, self.GlobalBoundingBox_Ymin = self.toGlobalCoordinates(l,b)
+        self.GlobalBoundingBox_Xmax, self.GlobalBoundingBox_Ymax = self.GlobalBoundingBox_Xmin, self.GlobalBoundingBox_Ymin
+        for x in [l ,r]:
+            for y in [b,t]:
+                XX=  self.toGlobalCoordinates(x,y)
+                self.GlobalBoundingBox_Xmin = min(self.GlobalBoundingBox_Xmin, XX[0])
+                self.GlobalBoundingBox_Xmax = max(self.GlobalBoundingBox_Xmax, XX[0])
+                self.GlobalBoundingBox_Ymin = min(self.GlobalBoundingBox_Ymin, XX[1])
+                self.GlobalBoundingBox_Ymax = max(self.GlobalBoundingBox_Ymax, XX[1])
+        print(f"Global bounding box core = {self.GlobalBoundingBox_Xmin} - { self.GlobalBoundingBox_Xmax} X {self.GlobalBoundingBox_Ymin}-{self.GlobalBoundingBox_Ymax}")
         #===========================
         n = 0
         d_mean = 0
@@ -93,6 +111,9 @@ class MeshWithTopgraphy(object):
         self.mshfile_3D = basename + '.msh'
         # interpolation operator (x,y)->elevation
         self.interp = None
+
+
+
     def getElevation(self, x, y ):
         """
 
@@ -139,6 +160,10 @@ class MeshWithTopgraphy(object):
         :param method: method of interpolation
         """
         from scipy.interpolate import NearestNDInterpolator, LinearNDInterpolator
+        idxX = np.logical_and(self.GlobalBoundingBox_Xmin <= x, x<=self.GlobalBoundingBox_Xmax)
+        idxY = np.logical_and(self.GlobalBoundingBox_Ymin <= y, y <= self.GlobalBoundingBox_Ymax)
+        idx= np.logical_and(idxX,idxY)
+
         zmean = np.mean(elevation)
         extraX = []
         extraZ = []
@@ -146,9 +171,9 @@ class MeshWithTopgraphy(object):
             for yy in [self.yminOuterBox, self.ymaxOuterBox]:
                 extraX.append(self.toGlobalCoordinates(xx,yy))
                 extraZ.append(zmean)
-        xg = np.concat((x, np.array([x for x,y in extraX]) ))
-        yg = np.concat((y, np.array([y for x, y in extraX]) ))
-        eleg=np.concat((elevation, np.array(extraZ)))
+        xg = np.concatenate((x[idx], np.array([x for x,y in extraX]) ))
+        yg = np.concatenate((y[idx], np.array([y for x, y in extraX]) ))
+        eleg=np.concatenate((elevation[idx], np.array(extraZ)))
         if method == "linear":
             self.interp = LinearNDInterpolator((xg, yg), eleg)
         else:
@@ -294,8 +319,8 @@ class MeshWithTopgraphy(object):
                 i + 1, self.positions[0][i], self.positions[1][i], self.getFlatZPosition( self.positions[0][i], self.positions[1][i],) )
             out += "Point{k+%s} In Surface{11};\n" % (i + 1)
             out += 'Physical Point("s%s")  = { k+%s } ;\n' % (s, i + 1)
-        out += 'Physical Surface("faces") = { 1, 2, 3, 4,5 ,6,7,8,9,10, 11,12};\n'
-
+        out += 'Physical Surface("faces") = { 1, 2, 3, 4,5 ,6,7,8,9,10};\n'
+        out += 'Physical Surface("surfaces") = { 11,12};\n'
         open(self.geofile_2D_flat, 'w').write(out)
         print(">> flat surface geometry was written to %s" % self.geofile_2D_flat)
         return self.geofile_2D_flat
@@ -338,9 +363,11 @@ class MeshWithTopgraphy(object):
                     line = fin.readline()
                     i, x, y, z = line.split(" ")
                     level = self.fit[0]
-                    if float(z) > self.zminCore:
-                        znew = (self.getElevation(float(x), float(y)) - self.zminCore) * (float(z) - self.zminCore) / (
-                                    level - self.zminCore) + self.zminCore
+                    zbase = self.zminOuterBox
+                    #zbase = self.zminCore
+                    if float(z) > zbase:
+                        znew = (self.getElevation(float(x), float(y)) - zbase) * (float(z) - zbase) / (
+                                    level - zbase) + zbase
                     else:
                         znew = float(z)
                     fout.write("%s %g %g %g\n" % (i, float(x), float(y), znew))
@@ -383,7 +410,7 @@ class MeshWithTopgraphy(object):
         out += "Volume(1) = {-1};\n"
         out += "Surface Loop(2) = {6, 8, 9, 7, 10, 2, 1, 12, 5, 4, 3};\n"
         out += "Volume(2) = {2};\n"
-        out += 'Physical Volume("extra_padding")  = { 2 } ;\n'
+        out += 'Physical Volume("padding")  = { 2 } ;\n'
         out += 'Physical Volume("core")  = { 1 } ;\n'
         out += "\n"
         out += "Field[1] = Box;\n"
@@ -446,18 +473,25 @@ class MeshWithTopgraphy(object):
             X = np.linspace(self.xminOuterBox, self.xmaxOuterBox, num=numPoints)
             Y = np.linspace(self.yminOuterBox, self.ymaxOuterBox, num=numPoints)
         else:
-            X = np.linspace(self.xmin - self.x_core_extra, self.xmax + self.x_core_extra, num=numPoints)
-            Y = np.linspace(self.ymin - self.y_core_extra, self.ymax + self.y_core_extra, num=numPoints)
+            X = np.linspace(self.xmin - self.x_core_extra * self.fr, self.xmax + self.x_core_extra * self.fr, num=numPoints)
+            Y = np.linspace(self.ymin - self.y_core_extra * self.fr, self.ymax + self.y_core_extra * self.fr, num=numPoints)
 
         X, Y = np.meshgrid(X, Y)
         Z = self.getElevation(X, Y)
 
         plt.figure()
         plt.pcolormesh(X, Y, Z[:, :])
-        plt.colorbar()  # Color Bar
         plt.scatter(self.positions[0], self.positions[1], s=4, c='r')
         plt.axis('scaled')
+        plt.grid(visible=True, which='major', axis='both', color='k', linestyle='dotted', linewidth=0.5)
+        plt.title("Electrodes + Elevation [m]")
+        plt.xlabel("easting")
+        plt.ylabel("northing")
+        plt.minorticks_on()
+
+        plt.colorbar()
         plt.savefig(plotfile)
+
         print("Topography pic written to %s." % plotfile)
 
     def findSurveyCoordinateSystem(self, xg, yg, EPS=1e-10):
@@ -540,5 +574,12 @@ class MeshWithTopgraphy(object):
         for i, s in enumerate(self.__electrodes.keys()):
             x, y = self.positions[0][i], self.positions[1][i]
             z = float(self.getElevation(x, y))
-            f.write(f"{s}{delimiter} {x}{delimiter} {y}{delimiter} {z}{delimiter}\n")
+            if abs(x) < self.ebox * self.GEOTOL:
+                x=0
+            if abs(y) < self.ebox * self.GEOTOL:
+                y=0
+            if abs(z) < self.ebox * self.GEOTOL:
+                z=0
+
+            f.write(f"{s}{delimiter} {x}{delimiter} {y}{delimiter} {z}\n")
         print("New electrodes were written to %s." % station_file)

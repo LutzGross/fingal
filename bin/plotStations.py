@@ -29,10 +29,13 @@ elocations=readElectrodeLocations(config.stationfile, delimiter=config.stationde
 print("%s electrode locations read from %s."%(len(elocations), config.stationfile))
 
 fn=None
-if args.inspectschedule and config.schedulefile and os.path.isfile(config.schedulefile):
-    fn=config.schedulefile
+if not os.path.isfile(config.datafile) and ( config.schedulefile and os.path.isfile(config.schedulefile)):
+    fn = config.schedulefile
 else:
-    fn=config.datafile
+    if args.inspectschedule and config.schedulefile and os.path.isfile(config.schedulefile):
+        fn=config.schedulefile
+    else:
+        fn=config.datafile
  
 
 survey=readSurveyData(fn, stations=elocations, usesStationCoordinates=config.usesStationCoordinates, columns=[], dipoleInjections=config.dipoleInjections , dipoleMeasurements=config.dipoleMeasurements ,  delimiter=config.datadelimiter)

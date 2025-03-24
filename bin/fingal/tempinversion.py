@@ -1,7 +1,7 @@
 #
 #
 #
-from .inversion import IPMisfitCostFunction
+from .inversionsIP import IPMisfitCostFunction
 class IPConductivityModelTemplate(object):
     """
     this a template for class for providing an electric conductivity model for IP inversion
@@ -118,7 +118,7 @@ class TemperatureBasedIPInversion(IPMisfitCostFunction):
         """
         super().__init__(domain=domain, data=data, weighting_misfit_ERT=weighting_misfit_ERT,
                          sigma_background=sigma_background, useLogMisfitERT=useLogMisfitERT,
-                         useLogMisfitERT=useLogMisfitIP,
+                         useLogMisfitIPu=seLogMisfitERT,
                          pde_tol=pde_tol, stationsFMT=stationsFMT, logger=logger, **kargs)
         #==================TODO
         self.logclip = logclip

@@ -17,7 +17,7 @@ parser.add_argument('--zlevel', '-z',  dest='zlevel', type=float, default=None, 
 parser.add_argument('--core_depth', '-D',  dest='core_depth', type=float, default=40., help="core depth [%%] relative survey diameter.")
 parser.add_argument('--extra_core', '-C',  dest='extra_core', type=float, default=40., help="extra core length [%%] relative to survey edge length.")
 parser.add_argument('--extra_padding', '-P',  dest='extra_padding', type=float, default=300., help="extra padding length [%%] relative to core edge length.")
-parser.add_argument('--num_elements_outer_edge', '-O',  dest='num_elements_outer_edge', type=int, default=10, help="numer of elements on outer edges.")
+parser.add_argument('--num_elements_outer_edge', '-O',  dest='num_elements_outer_edge', type=int, default=15, help="numer of elements on outer edges.")
 parser.add_argument('--mesh_size_core', '-S',  dest='mesh_size_core', type=float, default=None, help="element size in core region. If not given mean of distance to nearest electrode is used.")
 parser.add_argument('--rel_mesh_size_electrodes', '-E',  dest='rel_mesh_size_electrodes', type=float, default=0.1, help="reduction factor of element size near electrodes relative to core mesh size.")
 parser.add_argument('--topo', '-t',  dest='topofile', type=str, default=None, help="file name of the topography interpolation file.")
