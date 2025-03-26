@@ -1,4 +1,3 @@
-#!/usr/bin/python3
 from esys.escript import *
 import importlib, sys, os
 sys.path.append(os.getcwd())
@@ -12,11 +11,11 @@ from esys.escript.pdetools import Locator, MaskFromTag
 
 class IPSynthetic(object):
     """
-    This creates synthetic data files for ERT and IP for know conductivity and normalized chargeability
-    distributions sigma_0 and M_n.  
+    This calculates the sensitivity map for an ERT survey.
     """
-    def __init__(self, domain, schedule, sigma_src=1,  maskZeroPotential=None, stationsFMT="e%s",
-                 createSecondaryData=True, createFieldData=False, printInfo = True):
+
+    def __init__(self, domain, schedule, sigma_src=1, maskZeroPotential=None, stationsFMT="e%s",
+                 createSecondaryData=True, createFieldData=False, printInfo=True):
         """
         :param domain: physical domain
         :type domain: `AbstractDomain`
@@ -36,11 +35,11 @@ class IPSynthetic(object):
         self.domain = domain
         self.printinfo = printInfo
         self.createFieldData = createFieldData
-        self.createSecondaryData =createSecondaryData
+        self.createSecondaryData = createSecondaryData
         self.schedule = schedule
-        self.sigma_src=sigma_src
-        self.stationsFMT=stationsFMT
-        self.maskZeroPotential=maskZeroPotential
+        self.sigma_src = sigma_src
+        self.stationsFMT = stationsFMT
+        self.maskZeroPotential = maskZeroPotential
 
         # 
         station_locations = [ schedule.getStationLocationByKey(S) for S in schedule.getStationNumeration() ]

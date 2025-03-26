@@ -72,4 +72,27 @@ the second derivative. The approach is typically very robust and used less numbe
 of iterations but is computationally more expensive. To reduce memory requirements
 'DGauss' can be used but it comes at the cost of more iteration steps.
 
+## Sensitivity and Resolution
+
+Files of a sensitivity density and resolution loss map can be created by
+
+    runSensitivityERT.py --file sensitivity --obs 1001,1032,1008,1024 config
+
+where `--file`  is the file name for the _silo_ output file (use option `--vtk`
+for VTK file format. The sensitivity density for a specific experiment
+The mesh is read from the mesh file given in the configuration file.
+Alternatively use the `--mesh` option (in `msh` or `fly` format). It is
+assumed that the conductivity is constant. When `--truesigma` is set using 
+the function `true_properties` in the configuration file if set.
+
+For the sensitivity density _S_ at a point and a change _dsigma_ 
+to conductivity volume covering a volume _V_ 
+the mean apparent conductivity over the survey is changing by 
+_S * V * dsigma_ . The value of the resolution loss at a point 
+specifies the edge length of a conductivity around that point that 
+would create the same change to the mean apparent conductivity 
+as at the location of highest sensitivity density, typically ot/near 
+the electrodes. 
+
+
 by @LutzGross

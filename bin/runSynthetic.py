@@ -50,7 +50,7 @@ schedule = readSurveyData(config.schedulefile, stations=elocations, usesStationC
                         dipoleMeasurements=config.dipoleMeasurements,
                         delimiter=config.datadelimiter,
                         commend='#', printInfo=True)
-
+print(f"survey schedule read from {config.schedulefile}.")
 # -------------- simple setup of anomalies: -----------------------------------------
 stationlocations = np.array( [ elocations[s].tolist() for s in elocations])
 x_min, x_max=min(stationlocations[:,0]), max(stationlocations[:,0])

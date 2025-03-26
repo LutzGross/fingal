@@ -1836,3 +1836,9 @@ Physical Volume("Seam", 454) = {1};
 Physical Volume("Core", 455) = {4};
 Physical Volume("Base", 456) = {3};
 Physical Volume("Padding", 457) = {5};
+//+
+Hide "*";
+//+
+Show {
+  Surface{190}; Surface{191}; Surface{192}; Surface{193}; Surface{194}; Surface{195}; Volume{1}; Volume{2}; Volume{3}; Volume{4}; Volume{5}; 
+}
