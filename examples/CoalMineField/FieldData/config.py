@@ -6,7 +6,7 @@ project='Coal Mine'
 # 
 #   name of the mesh file
 # 
-meshfile = 'mine.fly'
+meshfile = './mesh.fly'
 faces_tags = ['Faces']
 surface_tags = []
 core_tags = ['Seam', 'Goaf', 'Core', 'Base']
@@ -58,7 +58,7 @@ epsilon_L1Norm=0.01
 use_log_misfit_DC = False
 
 
-regularization_order = 'Gauss' # in ['H1', 'H2', 'H1_0', 'H2_0', 'Gauss', DGauss']
+regularization_order = 'H2' # in ['H1', 'H2', 'H1_0', 'H2_0', 'Gauss', DGauss']
 
 # H2 & H2_0
 regularization_w1=1e-3

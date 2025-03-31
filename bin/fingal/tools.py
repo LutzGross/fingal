@@ -76,7 +76,7 @@ def getSourcePotentials(domain, sigma, survey, maskZeroPotential, stationsFMT=No
     source_potential = {}
     pde = setupERTPDE(domain)
     pde.setValue(A=sigma * kronecker(3), y_dirac=Data(), X=Data(), Y=Data(), q=maskZeroPotential)
-    for A in survey.getListOfInjectionStations():
+    for A in survey.getStationNumeration() : # getListOfInjectionStations():
         iA=survey.getStationNumber(A)
         pde.setValue(y_dirac=makePointSource(A, pde.getDomain(),stationsFMT=stationsFMT))
         source_potential[iA] = pde.getSolution()

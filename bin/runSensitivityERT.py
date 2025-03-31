@@ -84,9 +84,9 @@ if args.obs:
     out[kw] = abs(obsS)
 
 sensitivity=runner.getTotalSensitivity()
-resolution = (Lsup(sensitivity)/sensitivity)**(1./3)
+resolutionloss = (Lsup(sensitivity)/sensitivity)**(1./3)
 out['Sensitivity'] = sensitivity
-out['ResolutionLoss'] = resolution
+out['ResolutionLoss'] = resolutionloss
 
 if args.usevtk:
     saveVTK(args.outfile , **out)
