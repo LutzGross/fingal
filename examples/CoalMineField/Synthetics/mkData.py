@@ -112,7 +112,7 @@ rho_stations +=  whereNegative(grab_values_stations.getFunctionSpace().getX()[1]
 rho_stations = rho_stations * (1 + interpolate(m, grab_values_stations.getFunctionSpace()) * (RAISE_FACTOR_DAMAGED_RESISTIVITY - 1))
 
 rho_src=RHO_COAL
-1/0
+
 #m3, np.array(grab_values_stations(m))
 saveSilo("setup", sigma=1/rho, tag=makeTagMap(Function(domain)))
 
