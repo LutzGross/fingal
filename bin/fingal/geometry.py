@@ -319,8 +319,9 @@ class MeshWithTopgraphy(object):
                 i + 1, self.positions[0][i], self.positions[1][i], self.getFlatZPosition( self.positions[0][i], self.positions[1][i],) )
             out += "Point{k+%s} In Surface{11};\n" % (i + 1)
             out += 'Physical Point("s%s")  = { k+%s } ;\n' % (s, i + 1)
-        out += 'Physical Surface("faces") = { 1, 2, 3, 4,5 ,6,7,8,9,10};\n'
-        out += 'Physical Surface("surfaces") = { 11,12};\n'
+        out += 'Physical Surface("innerfaces") = { 1, 2, 3, 4,5};\n'
+        out += 'Physical Surface("faces") = { 6,7,8,9,10};\n'
+        out += 'Physical Surface("surface") = { 11,12};\n'
         open(self.geofile_2D_flat, 'w').write(out)
         print(">> flat surface geometry was written to %s" % self.geofile_2D_flat)
         return self.geofile_2D_flat
@@ -397,7 +398,6 @@ class MeshWithTopgraphy(object):
         out += "yminCore = %s;\n" % (self.ymin - self.y_core_extra)
         out += "ymaxCore = %s;\n" % (self.ymax + self.y_core_extra)
         out += "zminCore = %s;\n" % self.zminCore
-        out += "// element sizes\n"
         out += "// element sizes\n"
         out += "meshSizeCore = %s;\n" % self.mesh_size_core
         out += "meshSizeOuterBox = %s;\n" % self.outer_mesh_size
