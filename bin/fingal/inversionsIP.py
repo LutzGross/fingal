@@ -47,7 +47,7 @@ class IPMisfitCostFunction(CostFunction):
         """
         super().__init__(**kargs)
         if logger is None:
-            self.logger = logging.getLogger('fingal')
+            self.logger = logging.getLogger('fingal.IPInversion')
         else:
             self.logger = logger
         if not maskZeroPotential or not Lsup(maskZeroPotential) > 0:
@@ -312,44 +312,64 @@ class IPMisfitCostFunction(CostFunction):
 
 class IPInversionH1(IPMisfitCostFunction):
     """
-    Base class to run a IP inversion for conductivity (sigma_0, DC) and normalized chargeabilty (Mn=sigma_oo-sigma_0)
-    """
+   Class to run a IP inversion for conductivity (sigma_0, DC) and normalized chargeabilty (Mn=sigma_oo-sigma_0)
+   using H1-regularization on m-m_ref with m=[m[0], m[1]]:
 
-    def __init__(self,  domain=None, data=None, sigma_src=None, pde_tol= 1e-8,
-                    maskZeroPotential=None, stationsFMT="e%s", m_ref = None,
+            m[0]=log(sigma/sigma_ref), m[1]=log(Mn/Mn_ref)
+
+   cross-gradient is added to cost function with weighting factor theta (=0 by default)
+   """
+
+    def __init__(self, domain, data, maskZeroPotential, sigma_src=None, pde_tol= 1e-8,
+                    stationsFMT="e%s", m_ref = None,
                     useLogMisfitDC=False, dataRTolDC=1e-4, useLogMisfitIP=False, dataRTolIP=1e-4,
                     weightingMisfitDC=1, sigma_0_ref=1e-4, Mn_ref = 1.e-6,
                     w1=1, theta=0., maskFixedProperty = None,
                     logclip=5, m_epsilon = 1e-18, reg_tol=None,
                     logger=None, **kargs):
         """       
-        :domain: pde domain
-        :data: survey data, is `fingal.SurveyData`
-        :maskFixedProperty: mask of region where Mn and sigma_0 are fixed (set to reference values).
-            If not set the bottom of the domain is used.
-        :sigma_background: background conductivity, used to calculate the injection potentials
-        :sigma_0_ref: reference DC conductivity
-        :Mn_ref: reference normalized chargeability (must be positive)
-        :param w1: weighting H1 regularization  int grad(m)^2
-        :param theta: weighting cross-gradient term
-        :weightingMisfitDC: weighting factor for ERT part cost function, use 0.5
-        :adjVs_ootStationLocationsToElementCenter: moves the station locations to match element centers.
-        :stationsFMT: format Vs_ooed to map station keys k to mesh tags stationsFMT%k or None
-        :logclip: cliping for p to avoid overflow in conductivity calculation
-        :EPSILON: absolute tolerance for zero values.
+        :param domain: PDE & inversion domain
+        :param data: survey data, is `fingal.SurveyData`. Resistence and secondary potential data are required.
+        :param maskZeroPotential: mask of locations where electric potential is set to zero.
+
+        :param sigma_src: background conductivity, used to calculate the source potentials. If not set sigma_0_ref
+        is used.
+        :param pde_tol: tolerance for solving the forward PDE
+        :param stationsFMT: format string to convert station id to mesh label
+        :param m_ref: reference property function
+        :param useLogMisfitDC: if set logarithm of DC data is used in misfit.
+        :param useLogMisfitIP: if set logarithm of secondary potential (IP) data is used in misfit.
+        :param dataRTolDC: relative tolerance for damping small DC data on misfit
+        :param dataRTolIP: relative tolerance for damping small secondary potential data in misfit
+        :param weightingMisfitDC: weighting factor for DC data in misfit. weighting factor for IP data is one.
+        :param sigma_0_ref: reference DC conductivity
+        :param Mn_ref: reference Mn conductivity
+        :param w1: regularization weighting factor(s) (scalar or numpy.ndarray)
+        :param theta: weigthing factor x-grad term
+        :param maskFixedProperty: mask of regions where m[0]-m_ref[0] and m[1]-m_ref[1] are fixed.
+                                    if not set left, right, front, back and bottom are fixed.
+        :param logclip: value of m are clipped to stay between -logclip and +logclip
+        :param m_epsilon: threshold for small m, grad(m) values.
+        :param reg_tol: tolerance for PDE solve for regularization.
+        :param logger: the logger, if not set, 'fingal.IPInversion.H1' is used.
         """
         if sigma_src == None:
             sigma_src = sigma_0_ref
+        if logger is None:
+            self.logger = logging.getLogger('fingal.IPInversion.H1')
+        else:
+            self.logger = logger
         super().__init__(domain=domain, data=data, sigma_src=sigma_src, pde_tol= pde_tol,
                             maskZeroPotential=maskZeroPotential, stationsFMT=stationsFMT,
                             useLogMisfitDC=useLogMisfitDC, dataRTolDC=dataRTolDC,
                             useLogMisfitIP=useLogMisfitIP, dataRTolIP=dataRTolIP,
                             weightingMisfitDC=weightingMisfitDC,
-                            logger=logger, **kargs)
+                            logger=self.logger, **kargs)
 
         self.logclip = logclip
         self.m_epsilon = m_epsilon
         self.m_ref = m_ref
+
         # its is assumed that sigma_ref and Mn_ref on the faces is not updated!!!
         if maskFixedProperty is None:
             x = self.DC_pde.getDomain().getX()
@@ -362,20 +382,20 @@ class IPInversionH1(IPMisfitCostFunction):
         self.updateSigma0Ref(sigma_0_ref)
         self.updateMnRef(Mn_ref)
         # regularization
-
         if reg_tol is None:
             reg_tol=min(sqrt(pde_tol), 1e-3)
         self.Hpde = setupERTPDE(self.domain)
-        self.Hpde.setValue(q=self.mask_fixed_property)
+        self.Hpde.setValue(A=kronecker(3), q=self.mask_fixed_property)
         self.Hpde.getSolverOptions().setTolerance(reg_tol)
         self.logger.debug(f'Tolerance for solving regularization PDE is set to {reg_tol}')
         self.setW1andTheta(w1, theta)
 
     def setW1andTheta(self, w1, theta):
-        self.w1=w1
+        self.w1=w1 * np.ones((2,))
         self.theta = theta
-        self.Hpde.setValue(A=(self.w1+self.theta) * kronecker(3))
-        self.logger.debug(f'w1 = {self.w1:g}')
+        print(self.w1)
+        self.logger.debug(f'w1[0] = {self.w1[0]:g}')
+        self.logger.debug(f'w1[1] = {self.w1[1]:g}')
         self.logger.debug(f'theta = {self.theta:g}')
 
     def updateSigma0Ref(self, sigma_0_ref):
@@ -391,7 +411,6 @@ class IPInversionH1(IPMisfitCostFunction):
         self.Mn_ref=Mn_ref
         self.logger.info("Reference normalised chargeability Mn_ref = %s" % (str(self.Mn_ref)))
 
-    # =====
     def getSigma0(self, m, applyInterploation=False):
         if hasattr(m, "getShape") and not m.getShape() == ():
             m=m[0]
@@ -419,12 +438,17 @@ class IPInversionH1(IPMisfitCostFunction):
 
     def getDMnDm(self, Mn, m):
         return Mn
-    # =====
 
+    def extractPropertyFunction(self, dm):
+        if self.m_ref:
+            m = dm + self.m_ref
+        else:
+            m = dm
+        return m
 
     def getArguments(self, dm):
         """
-        precalculated parameters:
+        precalculation
         """
         m = self.extractPropertyFunction(dm)
         im = interpolate(m, Function(self.domain))
@@ -445,13 +469,13 @@ class IPInversionH1(IPMisfitCostFunction):
         misfit_DC, misfit_IP = self.getMisfit(*args2)
 
         gdm=grad(dm, where=im.getFunctionSpace())
-        R = self.w1 / 2 * integrate(length(gdm) ** 2)
+        R = 1. / 2 * integrate(self.w1[0] * length(gdm[0]) ** 2 + self.w1[1] * length(gdm[1]) ** 2)
 
         if self.theta>0:
             gdm0 = gdm[0]
             gdm1 = gdm[1]
             lgdm0_2 = length(gdm0)**2 + self.m_epsilon**2
-            ldgm1_2 = length(gdm1)**2 + self.m_epsilon**2
+            lgdm1_2 = length(gdm1)**2 + self.m_epsilon**2
             MX = integrate(self.theta * ((lgdm0_2 * lgdm1_2) - inner(gdm0, gdm1) ** 2) * (1 / lgdm0_2 + 1 / lgdm1_2))/2.
         else:
             MX=0
@@ -467,7 +491,9 @@ class IPInversionH1(IPMisfitCostFunction):
         returns the gradient of the cost function. Overwrites `getGradient` of `MeteredCostFunction`
         """
         gdm=grad(dm, where=im.getFunctionSpace())
-        X = self.w1 * gdm
+        X = Data(0., (2,3), gdm.getFunctionSpace() )
+        X[0] = self.w1[0] * gdm[0]
+        X[1] = self.w1[1] * gdm[1]
         DMisfitDsigma_0, DMisfitDMn  = self.getDMisfit(isigma_0, iMn,*args2)
 
         Dsigma_0Dm0 = self.getDsigma0Dm(isigma_0, im[0])
@@ -494,7 +520,7 @@ class IPInversionH1(IPMisfitCostFunction):
         """
         returns an approximation of inverse of the Hessian. Overwrites `getInverseHessianApproximation` of `MeteredCostFunction`
         """
-        if initializeHessian and self.theta> 0:
+        if False and initializeHessian and self.theta> 0:
             # as restart is disabaled this will not be called:
             gdm = grad(dm)
             A = self.Hpde.createCoefficient('A')
@@ -519,8 +545,8 @@ class IPInversionH1(IPMisfitCostFunction):
 
         dm=Data(0., (2,), Solution(self.domain))
         for i in [0,1]:
-            self.Hpde.setValue(X=r[1][i], Y=r[0][i], y=r[2][i])
-            dm[i] = self.Hpde.getSolution()
+            self.Hpde.setValue(X=r[1][i], Y=r[0][i])
+            dm[i] = self.Hpde.getSolution()/(self.w1[i] + self.theta)
             self.logger.debug(f"search direction component {i} = {str(dm[i])}.")
         return dm
 
@@ -530,11 +556,11 @@ class IPInversionH1(IPMisfitCostFunction):
         """
         return integrate(inner(r[0], dm) + inner(r[1], grad(dm)))
 
-    def getNorm(self, m):
+    def getNorm(self, dm):
         """
         returns the norm of property function `m`. Overwrites `getNorm` of `MeteredCostFunction`
         """
-        return Lsup(m)
+        return Lsup(dm)
 
     def getSqueezeFactor(self, dm, p):
         if self.m_ref:
@@ -546,4 +572,314 @@ class IPInversionH1(IPMisfitCostFunction):
         if a > 0:
             return a
         else:
+            return None
+
+
+class IPInversionH2(IPMisfitCostFunction):
+    """
+   Class to run a IP inversion for conductivity (sigma_0, DC) and normalized chargeabilty (Mn=sigma_oo-sigma_0)
+   using H2-regularization on M = grad(m-m_ref) (as 6 components) with m=[m[0], m[1]]:
+
+            m[0]=log(sigma/sigma_ref), m[1]=log(Mn/Mn_ref)
+
+   To recover m from we solve
+
+            (grad(v), grad(m[i]) = (grad(v), M[i*3:(i+1)*3])
+
+   cross-gradient over V is added to cost function with weighting factor theta (=0 by default)
+   """
+
+    def __init__(self, domain, data, maskZeroPotential, sigma_src=None, pde_tol=1e-8,
+                 stationsFMT="e%s", m_ref=None,
+                 useLogMisfitDC=False, dataRTolDC=1e-4, useLogMisfitIP=False, dataRTolIP=1e-4,
+                 weightingMisfitDC=1, sigma_0_ref=1e-4, Mn_ref=1.e-6,
+                 w1=1, theta=0., fixTop=False,
+                 logclip=5, m_epsilon=1e-18, reg_tol=None, save_memory=False,
+                 logger=None, **kargs):
+        """
+        :param domain: PDE & inversion domain
+        :param data: survey data, is `fingal.SurveyData`. Resistence and secondary potential data are required.
+        :param maskZeroPotential: mask of locations where electric potential is set to zero.
+
+        :param sigma_src: background conductivity, used to calculate the source potentials. If not set sigma_0_ref
+        is used.
+        :param pde_tol: tolerance for solving the forward PDEs and recovering m from M.
+        :param stationsFMT: format string to convert station id to mesh label
+        :param m_ref: reference property function
+        :param useLogMisfitDC: if set logarithm of DC data is used in misfit.
+        :param useLogMisfitIP: if set logarithm of secondary potential (IP) data is used in misfit.
+        :param dataRTolDC: relative tolerance for damping small DC data on misfit
+        :param dataRTolIP: relative tolerance for damping small secondary potential data in misfit
+        :param weightingMisfitDC: weighting factor for DC data in misfit. weighting factor for IP data is one.
+        :param sigma_0_ref: reference DC conductivity
+        :param Mn_ref: reference Mn conductivity
+        :param w1: regularization weighting factor(s) (scalar or numpy.ndarray)
+        :param theta: weigthing factor x-grad term
+        :param fixTop: if set m[0]-m_ref[0] and m[1]-m_ref[1] are fixed at the top of the domain
+                        rather than just on the left, right, front, back and bottom face.
+        :param logclip: value of m are clipped to stay between -logclip and +logclip
+        :param m_epsilon: threshold for small m, grad(m) values.
+        :param reg_tol: tolerance for PDE solve for regularization.
+        :param save_memory: if not set, the three PDEs for the three conponents of the inversion unknwon
+                            with the different boundary conditions are held. Otherwise, boundary conditions
+                            are updated for each component which requires refactorization which obviously
+                            requires more time.
+        :param logger: the logger, if not set, 'fingal.IPInversion.H2' is used.
+        """
+        if sigma_src == None:
+            sigma_src = sigma_0_ref
+        if logger is None:
+            self.logger = logging.getLogger('fingal.IPInversion.H2')
+        else:
+            self.logger = logger
+        super().__init__(domain=domain, data=data, sigma_src=sigma_src, pde_tol=pde_tol,
+                         maskZeroPotential=maskZeroPotential, stationsFMT=stationsFMT,
+                         useLogMisfitDC=useLogMisfitDC, dataRTolDC=dataRTolDC,
+                         useLogMisfitIP=useLogMisfitIP, dataRTolIP=dataRTolIP,
+                         weightingMisfitDC=weightingMisfitDC,
+                         logger=logger, **kargs)
+
+        self.logclip = logclip
+        self.m_epsilon = m_epsilon
+        self.m_ref = m_ref
+        # its is assumed that sigma_ref and Mn_ref on the faces is not updated!!!
+        x=self.forward_pde.getDomain().getX()
+        qx = whereZero(x[0] - inf(x[0])) + whereZero(x[0] - sup(x[0]))
+        qy = whereZero(x[1] - inf(x[1])) + whereZero(x[1] - sup(x[1]))
+        qz = whereZero(x[2] - inf(x[2]))
+        if fixTop:
+            qz += whereZero(x[2] - sup(x[2]))
+
+        self.updateSigma0Ref(sigma_0_ref)
+        self.updateMnRef(Mn_ref)
+        # regularization
+        if self.zero_mean_m:
+            self.logger.info(f'Property function with zero mean.')
+        else:
+            if fixTop:
+                self.logger.info(f'Property function zero on all boundaries.')
+            else:
+                self.logger.info(f'Property function free on top and zero on all other boundaries.')
+
+        # recovery of propery function from M:
+        if self.zero_mean_m:
+            self.mpde = PoissonEquationZeroMean(self.domain).setSecondaryCondition(Yh=1)
+        else:
+            self.mpde = setupERTPDE(self.domain)
+            self.mpde.getSolverOptions().setTolerance(pde_tol)
+            self.mpde.setValue(A=kronecker(3), q= qx + qy + qz )
+
+        # regularization
+        if not reg_tol:
+            reg_tol=min(sqrt(pde_tol), 1e-3)
+
+        self.logger.debug(f'Tolerance for solving regularization PDE is set to {reg_tol}')
+        self.save_memory = save_memory
+        if self.save_memory:
+            self.Hpde = setupERTPDE(self.domain)
+            self.Hpde.getSolverOptions().setTolerance(reg_tol)
+            self.Hpde_qs = [ qy + qz, qx + qz,  qx + qy ]
+        else:
+            self.Hpdes = []
+            for k, q in enumerate( [ qy + qz, qx + qz,  qx + qy ]):
+                pde =  setupERTPDE(self.domain)
+                pde.getSolverOptions().setTolerance(reg_tol)
+                pde.setValue(q=q)
+                self.Hpdes.append(pde)
+
+
+        self.setW1andTheta(w1, theta)
+
+    def setW1andTheta(self, w1, theta):
+        self.w1 = w1 * np.ones((2,))
+        self.theta = theta
+        self.logger.debug(f'w1 = {self.w1:g}')
+        self.logger.debug(f'theta = {self.theta:g}')
+
+    def updateSigma0Ref(self, sigma_0_ref):
+        """
+        set a new reference conductivity
+        """
+        self.sigma_0_ref = sigma_0_ref
+        self.logger.info("Reference conductivity sigma_0_ref is set to %s" % (str(self.sigma_0_ref)))
+
+    def updateMnRef(self, Mn_ref):
+        """
+        set a new reference conductivity
+        """
+        self.Mn_ref = Mn_ref
+        self.logger.info("Reference normalised chargeability Mn_ref = %s" % (str(self.Mn_ref)))
+
+    def getSigma0(self, m, applyInterploation=False):
+        if hasattr(m, "getShape") and not m.getShape() == ():
+            m = m[0]
+        if applyInterploation:
+            im = interpolate(m, Function(self.domain))
+        else:
+            im = m
+        im = clip(im, minval=-self.logclip, maxval=self.logclip)
+        sigma_0 = self.sigma_0_ref * exp(im)
+        return sigma_0
+
+    def getDsigma0Dm(self, sigma_0, m):
+        return sigma_0
+
+    def getMn(self, m, applyInterploation=False):
+        if hasattr(m, "getShape") and not m.getShape() == ():
+            m = m[1]
+        if applyInterploation:
+            im = interpolate(m, Function(self.domain))
+        else:
+            im = m
+        im = clip(im, minval=-self.logclip, maxval=self.logclip)
+        Mn = self.Mn_ref * exp(im)
+        return Mn
+
+    def getDMnDm(self, Mn, m):
+        return Mn
+
+    def extractPropertyFunction(self, dM):
+        dm = Scalar(0., Solution(self.domain))
+
+        if self.zero_mean_m:
+            dm[0] = self.mpde.getSolution(X=interpolate(dM[0], Function(dM.getDomain())))
+            dm[1] = self.mpde.getSolution(X=interpolate(dM[1], Function(dM.getDomain())))
+        else:
+            self.mpde.setValue(X=interpolate(dM[0], Function(dM.getDomain())), Y=Data(), y=Data())
+            dm[0]=self.mpde.getSolution()
+            self.mpde.setValue(X=interpolate(dM[1], Function(dM.getDomain())), Y=Data(), y=Data())
+            dm[1] = self.mpde.getSolution()
+        if self.m_ref:
+            m=dm+self.m_ref
+        else:
+            m=dm
+        return m
+
+    def getArguments(self, dM):
+        """
+        precalculation
+        """
+        m = self.extractPropertyFunction(dM)
+        im = interpolate(m, Function(self.domain))
+        im_stations = self.grabValuesAtStations(m)
+        self.logger.debug("m = %s" % (str(im)))
+
+        isigma_0 = self.getSigma0(im[0])
+        isigma_0_stations = self.getSigma0(im_stations[:, 0])
+        iMn = self.getMn(im[1])
+
+        args2 = self.getIPModelAndResponse(isigma_0, isigma_0_stations, iMn)
+        return im, isigma_0, isigma_0_stations, iMn, args2
+
+    def getValue(self, dM, im, isigma_0, isigma_0_stations, iMn, args2):
+        """
+        return the value of the cost function
+        """
+        misfit_DC, misfit_IP = self.getMisfit(*args2)
+
+        gdm = grad(dm, where=im.getFunctionSpace())
+        R = 1. / 2 * integrate(self.w1[0] * length(gdm[0:3]) ** 2 + self.w1[1] * length(gdm[3:]) ** 2)
+
+        if self.theta > 0:
+            gdm0 = dM[0:3]
+            gdm1 = dM[3:]
+            lgdm0_2 = length(gdm0) ** 2 + self.m_epsilon ** 2
+            lgdm1_2 = length(gdm1) ** 2 + self.m_epsilon ** 2
+            MX = integrate(
+                self.theta * ((lgdm0_2 * lgdm1_2) - inner(gdm0, gdm1) ** 2) * (1 / lgdm0_2 + 1 / lgdm1_2)) / 2.
+        else:
+            MX = 0
+        V = MX + R + misfit_DC + misfit_IP
+        if self.theta > 0:
+            self.logger.debug(
+                f'misfit ERT, IP; reg ; Xgrad, total \t=  {misfit_DC:e}, {misfit_IP:e};  {R:e}; {MX:e} = {V:e}')
+            self.logger.debug(
+                f'ratios ERT, IP; reg ; Xgrad [%] \t=  {misfit_DC / V * 100:g}, {misfit_IP / V * 100:g};  {R / V * 100:g}; {MX / V * 100:g}')
+        else:
+            self.logger.debug(
+                f'misfit ERT, IP; reg, total \t=  {misfit_DC:e}, {misfit_IP:e};  {MX:e} = {V:e}')
+            self.logger.debug(
+                f'ratios ERT, IP; reg \t=  {misfit_DC / V * 100:g}, {misfit_IP / V * 100:g};  {MX / V * 100:g}')
+
+        return V
+
+    def getGradient(self, dM, im, isigma_0, isigma_0_stations, iMn, args2):
+        """
+        returns the gradient of the cost function. Overwrites `getGradient` of `MeteredCostFunction`
+        """
+
+        gdm = grad(dM, where=im.getFunctionSpace())
+        X = Data(0., (6, 3), gdm.getFunctionSpace())
+        X[0:3] = self.w1[0] * gdm[0:3]
+        X[3:] = self.w1[1] * gdm[3:]
+        DMisfitDsigma_0, DMisfitDMn = self.getDMisfit(isigma_0, iMn, *args2)
+
+        Dsigma_0Dm0 = self.getDsigma0Dm(isigma_0, im[0])
+        DMnDm1 = self.getDMnDm(iMn, im[1])
+
+        Y = Data(0., (6,), im.getFunctionSpace())
+        Y[0:3] = DMisfitDsigma_0 * Dsigma_0Dm0
+        Y[3:] = DMisfitDMn * DMnDm1
+
+        if self.theta > 0:
+            gdm0 = V[0:3]
+            gdm1 = V[3:]
+            lgdm0_2 = length(gdm0) ** 2 + self.m_epsilon ** 2
+            lgdm1_2 = length(gdm1) ** 2 + self.m_epsilon ** 2
+
+            X01 = inner(gdm0, gdm1)
+            f = X01 * (1 / lgdm0_2 + 1 / lgdm1_2)
+            X[0, :] += self.theta * ((1 + X01 ** 2 / lgdm0_2 ** 2) * gdm0 - f * gdm1)
+            X[1, :] += self.theta * ((1 + X01 ** 2 / lgdm1_2 ** 2) * gdm1 - f * gdm0)
+
+        return ArithmeticTuple(Y, X)
+
+    def getInverseHessianApproximation(self, r, dM, isigma_0, isigma_0_stations,
+                                       iMn, *args2, initializeHessian=False):
+        """
+        returns an approximation of inverse of the Hessian. Overwrites `getInverseHessianApproximation` of `MeteredCostFunction`
+        """
+        if False and initializeHessian and self.theta > 0:
+            # as restart is disabaled this will not be called:
+            gdm = grad(dm)
+            A = self.Hpde.createCoefficient('A')
+            gdm = args[1]
+            gdm0 = gdm[0]
+            gdm1 = gdm[1]
+            lgdm0 = length(gdm0) + self.m_epsilon
+            lgdm1 = length(gm1) + self.m_epsilon
+            d01 = inner(gdm0, gdm1)
+            f = 1 / lgdm0 ** 2 + 1 / lgdm1 ** 2
+            A[0, :, 0, :] = (self.w1 + self.theta * (1 + d01 ** 2 / lgdm0 ** 4)) * kronecker(3) + \
+                            self.theta * (2 * d01 / lgdm0 ** 4 * (outer(gdm0, gdm1) + outer(gdm1, gdm0)) - \
+                                          4 * d01 ** 2 / lgdm0 ** 6 * outer(gdm0, gdm0) - f * outer(gdm1, gdm1))
+            A[1, :, 1, :] = ((self.w1 + self.theta * (1 + d01 ** 2 / lgm1 ** 4)) * kronecker(3) + \
+                             self.theta * (2 * d01 / lgdm1 ** 4 * (outer(gdm0, gdm1) + outer(gdm1, gdm0)) - \
+                                           4 * d01 ** 2 / lgdm1 ** 6 * outer(gdm1, gdm1) - f * outer(gdm0, gdm0)))
+            H01 = self.theta * (2 * d01 * (1 / lgdm0 ** 4 * outer(gdm0, gdm0) + 1 / lgdm1 ** 4 * outer(gdm1, gdm1)) - \
+                                f * (d01 * kronecker(3) + outer(gdm1, gdm0)))
+            A[0, :, 1, :] = H01
+            A[1, :, 0, :] = transpose(H01)
+            self.Hpde.setValue(A=A)
+
+        P = Data(0., (6,), Solution(self.domain))
+        for i in [0, 1]:
+            self.Hpde.setValue(X=r[0:3][i], Y=r[3:][i])
+            P[i*3:] = self.Hpde.getSolution() / (self.w1[i] + self.theta)
+            self.logger.debug(f"search direction component {i} = {str(P[i*3:(i+1)*3])}.")
+        return P
+
+    def getDualProduct(self, dM, r):
+        """
+        dual product of gradient `r` with increment `V`. Overwrites `getDualProduct` of `MeteredCostFunction`
+        """
+        return integrate(inner(r[0], dM) + inner(r[1], grad(dM)))
+
+    def getNorm(self, dM):
+        """
+        returns the norm of property function `m`. Overwrites `getNorm` of `MeteredCostFunction`
+        """
+        return Lsup(dM)
+
+    def getSqueezeFactor(self, dM, p):
             return None

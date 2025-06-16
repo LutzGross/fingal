@@ -4,8 +4,9 @@ Fingal - some tools
 by l.gross@uq.edu.au, Dec 2020.
 """
 
-from esys.escript import Scalar, getMPIRankWorld, integrate, hasFeature, Function, kronecker, Data, DiracDeltaFunctions, \
-    inner, length, Lsup, FunctionOnBoundary, inf, sup, whereZero, wherePositive, grad, Solution
+from esys.escript import Scalar
+from esys.escript import getMPIRankWorld, integrate, hasFeature, Function, kronecker, Data, DiracDeltaFunctions
+from esys.escript import inner, length, Lsup, FunctionOnBoundary, inf, sup, whereZero, wherePositive, grad, Solution
 from esys.escript.linearPDEs import LinearSinglePDE, SolverOptions, LinearPDE
 import numpy as np
 

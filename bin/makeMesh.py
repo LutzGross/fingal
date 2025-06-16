@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 """
 fingal - Creates a mesh fly file using the stations and - if available - a topography
-
 """
 import argparse
 import importlib, sys, os

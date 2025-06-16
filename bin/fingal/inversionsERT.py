@@ -499,7 +499,6 @@ class ERTInversionH2(ERTMisfitCostFunction):
                 self.logger.info(f'Property function free on top and zero on all other boundaries.')
 
         # recovery of propery function from M:
-        self.zero_mean_m = zero_mean_m
         if self.zero_mean_m:
             self.mpde = PoissonEquationZeroMean(self.domain).setSecondaryCondition(Yh=1)
         else:

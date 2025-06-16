@@ -42,9 +42,57 @@ costf=IPInversionH1(domain, data=survey,
                          useLogMisfitDC= config.use_log_misfit_DC, logger=logger)
 
 tabfile=open(TABFN, 'w')
-#for w1, with_misfit in [(0.,True ), (1., False), (1.e4, True)]:
-for w1, theta, with_ERTmisfit, with_IPmisfit  in [(0., 0., True, False), (0., 0., False, True), (1., 0., False, False), (0., 1., False, False) ]:
-#for w1, theta, with_ERTmisfit, with_IPmisfit in [(0., 0., False, True)]:
+# test the regularization first:
+for w10, w11, theta in [(1., 0., 0), (0., 1., 0), (0., 0., 1), (1., 1., 0.5)]:
+    costf.setW1andTheta([w10, w11], theta)
+    costf.ignoreERTMisfit(True)
+    costf.ignoreIPMisfit(True)
+    x = domain.getX()[0]
+    y = domain.getX()[1]
+    z = domain.getX()[2]
+    # make sure that boundary conditions for m are met:
+    pp=(x - inf(x))*(x - sup(x)) * (y - inf(y))* (y - sup(y))*(z - inf(z))
+    #pp = (z - inf(z))
+    pp/=sup(abs(pp))
+    #====
+    r= length(domain.getX())
+    M=RandomData((2,), ContinuousFunction(domain))*pp
+    #print(abs(inner(grad(M[0]), grad(M[1])) / (length(grad(M[0]))*length(grad(M[1])))))
+    #1/0
+    ddm=(x+y+0.5*z)/Lsup(r)/3*10*pp/10000
+    ddm = (x + y + 0.5 * z) / Lsup(r) * pp / 6
+    for d in [ [1, 0] , [0, 1] , [1, -1.] ] :
+        tabfile.write(
+            f".. w1 , = {[w10, w11]}, theta = {theta}, with_ERTmisfit= {False}, with_IPmisfit= {False} d={d}  .............\n")
+        dM=ddm * d
+        args=costf.getArgumentsAndCount(M)
+        G=costf.getGradientAndCount(M, *args)
+        Dex = costf.getDualProductAndCount(dM, G)
+        J0=costf.getValueAndCount(M,  *args)
+        print("J(m)=%e"%J0)
+        print("gradient = %s"%str(G))
+        b=[]
+        x=[]
+        please_fit = True
+        tabfile.write("log(a)     J(m)        J(m+a*p)       grad        num. grad     error O(a)   O(1)\n")
+        for k in range(4, 13):
+            a=0.5**k
+            J=costf.getValueAndCount(M+a*dM)
+            D=(J-J0)/a
+            if abs(D-Dex) > 0:
+                b.append(log(abs(D-Dex)))
+                x.append(log(a))
+            else:
+                please_fit = False
+            tabfile.write("%d      %e %e %e %e %e %e\n"%(k,J0, J,Dex,  D, D-Dex, (D-Dex)/a) )
+        if please_fit :
+            m, c = np.linalg.lstsq(np.vstack([np.array(x), np.ones(len(x))]).T, b, rcond=-1)[0]
+            if m < 0.999:
+                tabfile.write(f"WARNING: Poor convergence rate = {m}.\n")
+            else:
+                tabfile.write(f"Convergence rate = {m}.\n")
+
+for w1, theta, with_ERTmisfit, with_IPmisfit  in [(0., 0., True, False), (0., 0., False, True), (0., 0., True, True) ]:
     print("w1 = ", w1)
 
     costf.setW1andTheta(w1, theta)
