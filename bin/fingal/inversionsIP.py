@@ -396,6 +396,7 @@ class IPInversionH1(IPMisfitCostFunction):
         print(self.w1)
         self.logger.debug(f'w1[0] = {self.w1[0]:g}')
         self.logger.debug(f'w1[1] = {self.w1[1]:g}')
+        # ....
         self.logger.debug(f'theta = {self.theta:g}')
 
     def updateSigma0Ref(self, sigma_0_ref):
