@@ -434,7 +434,9 @@ class SurveyData(object):
             out.sort()
             self.injectionStations=out
         return self.injectionStations
-    
+    def getListofInjectionStationByIndex(self):
+        return [ self.getInjectionStationIndex(A) for A in self.getListOfInjectionStations() ]
+
     def getInjectionStationIndex(self, A):
         """
         returns the index of the injection station A in self.getListOfInjectionStations()

@@ -11,13 +11,13 @@ from esys.escript.pdetools import MaskFromBoundaryTag
 import numpy as np
 
 
-CONFIG="config-ERT-H2"
-TABFN="ERT-H2.log"
+CONFIG="config-ERT-H2_0"
+TABFN="ERT-H2_0.log"
 
 import logging
 from datetime import datetime
 
-logger=logging.getLogger('ERT-H2')
+logger=logging.getLogger('ERT-H2_0')
 logger.setLevel(logging.DEBUG)
 config = importlib.import_module(CONFIG)
 
@@ -37,7 +37,7 @@ assert survey.getNumObservations()>0, "no data found."
 mask_face=MaskFromBoundaryTag(domain, *config.faces_tags)
 
 costf = ERTInversionH2(domain, data=survey,
-                       sigma_0_ref=config.sigma0_ref, reg_tol=None, zero_mean_m = False,
+                       sigma_0_ref=config.sigma0_ref, reg_tol=None, zero_mean_m = True,
                        w1=config.regularization_w1, maskZeroPotential=mask_face, dataRTolDC=config.data_rtol,
                        pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
                        useLogMisfitDC=config.use_log_misfit_DC, logger=logger)

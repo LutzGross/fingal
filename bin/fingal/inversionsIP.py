@@ -6,7 +6,7 @@ by l.gross@uq.edu.au, 2021, 2028
 
 from esys.escript import *
 from esys.escript.minimizer import CostFunction, MinimizerException
-
+from .tools import PoissonEquationZeroMean
 
 from .tools import setupERTPDE, getSourcePotentials, makeMaskForOuterSurface, getAdditivePotentials, getSecondaryPotentials, DataMisfitQuad, DataMisfitLog
 import logging
@@ -393,7 +393,6 @@ class IPInversionH1(IPMisfitCostFunction):
     def setW1andTheta(self, w1, theta):
         self.w1=w1 * np.ones((2,))
         self.theta = theta
-        print(self.w1)
         self.logger.debug(f'w1[0] = {self.w1[0]:g}')
         self.logger.debug(f'w1[1] = {self.w1[1]:g}')
         # ....
@@ -594,7 +593,7 @@ class IPInversionH2(IPMisfitCostFunction):
                  stationsFMT="e%s", m_ref=None,
                  useLogMisfitDC=False, dataRTolDC=1e-4, useLogMisfitIP=False, dataRTolIP=1e-4,
                  weightingMisfitDC=1, sigma_0_ref=1e-4, Mn_ref=1.e-6,
-                 w1=1, theta=0., fixTop=False,
+                 w1=1, theta=0., fixTop=False,  zero_mean_m = True,
                  logclip=5, m_epsilon=1e-18, reg_tol=None, save_memory=False,
                  logger=None, **kargs):
         """
@@ -607,6 +606,7 @@ class IPInversionH2(IPMisfitCostFunction):
         :param pde_tol: tolerance for solving the forward PDEs and recovering m from M.
         :param stationsFMT: format string to convert station id to mesh label
         :param m_ref: reference property function
+        :param zero_mean_m: constrain m by zero mean.
         :param useLogMisfitDC: if set logarithm of DC data is used in misfit.
         :param useLogMisfitIP: if set logarithm of secondary potential (IP) data is used in misfit.
         :param dataRTolDC: relative tolerance for damping small DC data on misfit
@@ -643,8 +643,9 @@ class IPInversionH2(IPMisfitCostFunction):
         self.logclip = logclip
         self.m_epsilon = m_epsilon
         self.m_ref = m_ref
+        self.zero_mean_m =  zero_mean_m
         # its is assumed that sigma_ref and Mn_ref on the faces is not updated!!!
-        x=self.forward_pde.getDomain().getX()
+        x=self.domain.getX()
         qx = whereZero(x[0] - inf(x[0])) + whereZero(x[0] - sup(x[0]))
         qy = whereZero(x[1] - inf(x[1])) + whereZero(x[1] - sup(x[1]))
         qz = whereZero(x[2] - inf(x[2]))
@@ -694,7 +695,8 @@ class IPInversionH2(IPMisfitCostFunction):
     def setW1andTheta(self, w1, theta):
         self.w1 = w1 * np.ones((2,))
         self.theta = theta
-        self.logger.debug(f'w1 = {self.w1:g}')
+        self.logger.debug(f'w1[0] = {self.w1[0]:g}')
+        self.logger.debug(f'w1[1] = {self.w1[1]:g}')
         self.logger.debug(f'theta = {self.theta:g}')
 
     def updateSigma0Ref(self, sigma_0_ref):
@@ -740,15 +742,15 @@ class IPInversionH2(IPMisfitCostFunction):
         return Mn
 
     def extractPropertyFunction(self, dM):
-        dm = Scalar(0., Solution(self.domain))
+        dm = Data(0.,(2,), Solution(self.domain))
 
         if self.zero_mean_m:
-            dm[0] = self.mpde.getSolution(X=interpolate(dM[0], Function(dM.getDomain())))
-            dm[1] = self.mpde.getSolution(X=interpolate(dM[1], Function(dM.getDomain())))
+            dm[0] = self.mpde.getSolution(X=interpolate(dM[0:3], Function(dM.getDomain())))
+            dm[1] = self.mpde.getSolution(X=interpolate(dM[3:], Function(dM.getDomain())))
         else:
-            self.mpde.setValue(X=interpolate(dM[0], Function(dM.getDomain())), Y=Data(), y=Data())
+            self.mpde.setValue(X=interpolate(dM[0:3], Function(dM.getDomain())), Y=Data(), y=Data())
             dm[0]=self.mpde.getSolution()
-            self.mpde.setValue(X=interpolate(dM[1], Function(dM.getDomain())), Y=Data(), y=Data())
+            self.mpde.setValue(X=interpolate(dM[3:6], Function(dM.getDomain())), Y=Data(), y=Data())
             dm[1] = self.mpde.getSolution()
         if self.m_ref:
             m=dm+self.m_ref
@@ -778,12 +780,12 @@ class IPInversionH2(IPMisfitCostFunction):
         """
         misfit_DC, misfit_IP = self.getMisfit(*args2)
 
-        gdm = grad(dm, where=im.getFunctionSpace())
-        R = 1. / 2 * integrate(self.w1[0] * length(gdm[0:3]) ** 2 + self.w1[1] * length(gdm[3:]) ** 2)
+        gdM = grad(dM, where=im.getFunctionSpace())
+        R = 1. / 2 * integrate(self.w1[0] * length(gdM[0:3]) ** 2 + self.w1[1] * length(gdM[3:]) ** 2)
 
         if self.theta > 0:
-            gdm0 = dM[0:3]
-            gdm1 = dM[3:]
+            gdm0 = interpolate(dM[0:3], Function(self.domain))
+            gdm1 = interpolate(dM[3:], Function(self.domain))
             lgdm0_2 = length(gdm0) ** 2 + self.m_epsilon ** 2
             lgdm1_2 = length(gdm1) ** 2 + self.m_epsilon ** 2
             MX = integrate(
@@ -808,30 +810,46 @@ class IPInversionH2(IPMisfitCostFunction):
         """
         returns the gradient of the cost function. Overwrites `getGradient` of `MeteredCostFunction`
         """
+        gdM = grad(dM, where=im.getFunctionSpace())
 
-        gdm = grad(dM, where=im.getFunctionSpace())
-        X = Data(0., (6, 3), gdm.getFunctionSpace())
-        X[0:3] = self.w1[0] * gdm[0:3]
-        X[3:] = self.w1[1] * gdm[3:]
+        X = Data(0., (6, 3), gdM.getFunctionSpace())
+        X[0:3] = self.w1[0] * gdM[0:3]
+        X[3:] = self.w1[1] * gdM[3:]
+
         DMisfitDsigma_0, DMisfitDMn = self.getDMisfit(isigma_0, iMn, *args2)
-
         Dsigma_0Dm0 = self.getDsigma0Dm(isigma_0, im[0])
         DMnDm1 = self.getDMnDm(iMn, im[1])
+        Ystar0= DMisfitDsigma_0 * Dsigma_0Dm0
+        Ystar1= DMisfitDMn * DMnDm1
 
+        print("Ystar0, Ystar1 =", Ystar0, Ystar1)
+        print(" DMisfitDMn, DMnDm1 =", DMisfitDMn, DMnDm1)
+        print(" DMisfitDsigma_0, Dsigma_0Dm0 =", DMisfitDsigma_0, Dsigma_0Dm0)
+        if self.zero_mean_m:
+            dmstar0 = self.mpde.getSolution( Y = Ystar0 )
+            dmstar1 = self.mpde.getSolution( Y = Ystar1 )
+        else:
+            self.mpde.setValue(X=Data(), Y = Ystar0)
+            dmstar0=self.mpde.getSolution()
+            self.mpde.setValue(X=Data(), Y = Ystar1)
+            dmstar1=self.mpde.getSolution()
         Y = Data(0., (6,), im.getFunctionSpace())
-        Y[0:3] = DMisfitDsigma_0 * Dsigma_0Dm0
-        Y[3:] = DMisfitDMn * DMnDm1
+        Y[0:3] = grad(dmstar0, where=X.getFunctionSpace())
+        Y[3:] = grad(dmstar1, where=X.getFunctionSpace())
 
         if self.theta > 0:
-            gdm0 = V[0:3]
-            gdm1 = V[3:]
+            gdm0 = interpolate(dM[0:3], Function(self.domain))
+            gdm1 = interpolate(dM[3:], Function(self.domain))
             lgdm0_2 = length(gdm0) ** 2 + self.m_epsilon ** 2
             lgdm1_2 = length(gdm1) ** 2 + self.m_epsilon ** 2
 
             X01 = inner(gdm0, gdm1)
             f = X01 * (1 / lgdm0_2 + 1 / lgdm1_2)
-            X[0, :] += self.theta * ((1 + X01 ** 2 / lgdm0_2 ** 2) * gdm0 - f * gdm1)
-            X[1, :] += self.theta * ((1 + X01 ** 2 / lgdm1_2 ** 2) * gdm1 - f * gdm0)
+            #X[0, :] += self.theta * ((1 + X01 ** 2 / lgdm0_2 ** 2) * gdm0 - f * gdm1)
+            #X[1, :] += self.theta * ((1 + X01 ** 2 / lgdm1_2 ** 2) * gdm1 - f * gdm0)
+
+            Y[0:3] += self.theta * ((1 + X01 ** 2 / lgdm0_2 ** 2) * gdm0 - f * gdm1)
+            Y[3:] += self.theta * ((1 + X01 ** 2 / lgdm1_2 ** 2) * gdm1 - f * gdm0)
 
         return ArithmeticTuple(Y, X)
 

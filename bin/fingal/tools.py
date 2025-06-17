@@ -154,11 +154,10 @@ def getAdditivePotentials(pde, sigma, schedule, sigma_stations=None, source_pote
     for iA in source_potential:
         if sigma_stations is None:
             alpha_A = 1.
-        elif isinstance(sigma_src_stations, dict):
+        elif isinstance(sigma_src_stations, dict) or isinstance(sigma_src_stations, list):
             alpha_A = sigma_src_stations[iA] / sigma_stations[iA]
         else:
             alpha_A = sigma_src_stations / sigma_stations[iA]
-
         pde.setValue(X=(sigma_src - sigma * alpha_A) * grad(source_potential[iA]))
         potential[iA] = pde.getSolution()
         src_potential_scale[iA] = alpha_A

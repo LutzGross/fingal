@@ -57,7 +57,8 @@ class ERTMisfitCostFunction(CostFunction):
         self.__grab_values_stations = Locator(DiracDeltaFunctions(domain), station_locations)  # Dirac?
         self.sigma_src = sigma_src # needs to be a constant.
         self.setSourcePotentials()  # S_s is in the notes
-        self.have_all_adjoints = set(self.data.getObservationStations()).issubset(self.data.getInjectionStations())
+        #self.have_all_adjoints = set(self.data.getObservationStations()).issubset(self.data.getInjectionStations())
+        self.have_all_adjoints = set(self.data.getListofInjectionStationByIndex()).issubset(self.source_potential.keys())
         if self.have_all_adjoints:
             self.logger.info("Have all adjoint potentials.")
 

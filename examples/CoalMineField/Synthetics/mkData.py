@@ -4,7 +4,7 @@ from esys.finley import ReadMesh
 from esys.weipa import saveSilo
 from esys.escript import *
 from esys.escript.pdetools import Locator
-from fingal import readElectrodeLocations, readSurveyData, setupERTPDE
+from fingal import readElectrodeLocations, readSurveyData, setupERTPDE, getSourcePotentials, getAdditivePotentials
 import numpy as np
 import os
 
@@ -55,13 +55,19 @@ rho.expand()
 ## .... set damage ............................
 ## all in meter
 # offset of the Damaged zone from the SeamEnd
-DamageZoneOffset  = 100
-DamageHeight = 80
+DamageZoneOffset  = 140 #  220
+
+DamageHeight = 60
 DamageGeometryExponent = 0.5
-DamageBaseDepth = 40;
-FringeWidth = 10;
-ResetDamagedZoneSouth = 3 * FringeWidth
-ResetDamagedZoneNorth = 3* FringeWidth
+DamageBaseDepth = 20;
+
+FringeWidth = 5;
+ResetDamagedZoneSouth = 2 * FringeWidth
+ResetDamagedZoneNorth = 2* FringeWidth
+FringeWidth = 1;
+ResetDamagedZoneSouth = 0 * FringeWidth
+ResetDamagedZoneNorth = 0* FringeWidth
+#ResetDamagedZoneSouth = 100
 # ========
 SeamHeight = 13
 SeamStart = -115.23432427900843 # Point 1199
@@ -107,47 +113,45 @@ m3.setTaggedValue('Padding', 0)
 rho = rho * (1 + m3 * (RAISE_FACTOR_DAMAGED_RESISTIVITY - 1))
 
 
-rho_stations = Scalar(RHO_COAL, grab_values_stations.getFunctionSpace())
-rho_stations +=  whereNegative(grab_values_stations.getFunctionSpace().getX()[1]-(SeamSouth-1))  * (RHO_MINE-rho_stations)
-rho_stations = rho_stations * (1 + interpolate(m, grab_values_stations.getFunctionSpace()) * (RAISE_FACTOR_DAMAGED_RESISTIVITY - 1))
-
+rho_src_stations = Scalar(RHO_COAL, grab_values_stations.getFunctionSpace())
+rho_src_stations +=  whereNegative(grab_values_stations.getFunctionSpace().getX()[1]-(SeamSouth-1))  * (RHO_MINE-rho_src_stations)
+rho_stations = rho_src_stations * (1 + interpolate(m, grab_values_stations.getFunctionSpace()) * (RAISE_FACTOR_DAMAGED_RESISTIVITY - 1))
 rho_src=RHO_COAL
 
 #m3, np.array(grab_values_stations(m))
-saveSilo("setup", sigma=1/rho, tag=makeTagMap(Function(domain)))
+
 
 #saveSilo("X", rho=rho, m3=m)
-1/0
-
+x=domain.getX()
+q=Scalar(0., x.getFunctionSpace())
+for i in range(3):
+    q+=whereZero(x[i]-inf(x[i]))+whereZero(x[i]-sup(x[i]))
 
 src_potentials = getSourcePotentials(domain,
                                      sigma=1/rho_src,
                                      survey=schedule,
                                      maskZeroPotential=q,
                                      stationsFMT='s%d')
+print(f"{len(src_potentials)} source potentials calculated.")
+
 pde = setupERTPDE(domain, tolerance=1e-10)
-pde.setValue(A=sigma * kronecker(3), q=q)
-potential, src_potential_scale = getAdditivePotentials(pde, sigma=1/rho,
+pde.setValue(A=1/rho * kronecker(3), q=q)
+potential2, src_potential_scale = getAdditivePotentials(pde, sigma=1/rho,
                                                         schedule=schedule,
-                                                        sigma_stations=1/rho_stations,
-                                                        src_potentials=src_potentials,
-                                                        sigma_src=1/rho_src)
-#==============================
-1/0
-rho, damage, damage_at_stations = applyDamage2(rho, minegeo, rho_raise_factor_damage = rho_raise_factor_damage, grab_values_stations=grab_values_stations)
-sigma_at_stations = 1/(RHO_COAL *  (1 + damage_at_stations * (rho_raise_factor_damage-1) ) )
+                                                        sigma_stations=grab_values_stations(1/rho_stations),
+                                                        source_potential=src_potentials,
+                                                        sigma_src=1/rho_src,
+                                                        sigma_src_stations=grab_values_stations(1/rho_src_stations))
 
+print(f"{len(potential2)} secondary potentials calculated.")
 
-primary_potentials = makePrimaryPotentials(domain, minegeo, schedule=schedule, sigma_at_stations=sigma_at_stations)
-
-secondary_potentials = makeSecondaryPotentials(domain, minegeo, sigma = 1/rho, sigma_faces = 1/RHO_REF,\
-                                               primary_potentials=primary_potentials, schedule=schedule,  sigma_at_stations=sigma_at_stations)
 
 potentials_at_stations = {}
-for iA in primary_potentials:
-    u1 = np.array(grab_values_stations( primary_potentials[iA]))
-    u2 = np.array(grab_values_stations(secondary_potentials[iA]))
-    potentials_at_stations[iA] = u1 + u2
+for iA in src_potentials:
+    u1 = np.array(grab_values_stations( src_potentials[iA]))
+    u2 = np.array(grab_values_stations(potential2[iA]))
+    a = src_potential_scale[iA]
+    potentials_at_stations[iA] = a * u1 + u2
 
 f=open(config.datafile,'w')
 for A,B,M,N in schedule.tokenIterator():
@@ -162,9 +166,14 @@ for A,B,M,N in schedule.tokenIterator():
     u=(potentials_at_stations[iA][iM]-potentials_at_stations[iB][iM]-potentials_at_stations[iA][iN]+potentials_at_stations[iB][iN]) * (1+pert)
     f.write(f"{A:d}, {B:d}, {M:d}, {N:d}, {u:g}\n")
 f.close()
-u101=primary_potentials[schedule.getStationNumber(101)]+secondary_potentials[schedule.getStationNumber(101)]
-u146=primary_potentials[schedule.getStationNumber(146)]+secondary_potentials[schedule.getStationNumber(146)]
-u123=primary_potentials[schedule.getStationNumber(123)]+secondary_potentials[schedule.getStationNumber(123)]
-saveSilo("setup", sigma=1/rho, u=u101-u146, u101=u101, u146=u146, u123=u123, damage=damage, tag=makeTagMap(Function(domain)))
+print(f"data saved to file {config.datafile}.")
+
+kargs = { 'sigma' : 1/rho,   'damage' : m3, 'tag' : makeTagMap(Function(domain)) }
+for p in [] : # [101, 140, 220] :
+    kargs[f'u{p}'] =   src_potentials[schedule.getStationNumber(p)]
+#                    * src_potential_scale[schedule.getStationNumber(p)] + \
+#                      potential2[schedule.getStationNumber(p)]
+    print(f"potential u{p} added to output. ")
+saveSilo("setup", **kargs)
 
 

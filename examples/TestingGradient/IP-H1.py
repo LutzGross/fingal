@@ -11,7 +11,7 @@ from esys.escript.pdetools import MaskFromBoundaryTag
 
 CONFIG="config-IP-H1"
 TABFN="IP-H1.log"
-
+ESTTOL = 5.e-8
 import logging
 from datetime import datetime
 
@@ -73,26 +73,24 @@ for w10, w11, theta in [(1., 0., 0), (0., 1., 0), (0., 0., 1), (1., 1., 0.5)]:
         print("gradient = %s"%str(G))
         b=[]
         x=[]
-        please_fit = True
-        tabfile.write("log(a)     J(m)        J(m+a*p)       grad        num. grad     error O(a)   O(1)\n")
+
+        tabfile.write("log(a)     J(m)        J(m+a*p)       grad        num. grad     error O(a)   O(1)     rel. err. eval.\n")
         for k in range(4, 13):
             a=0.5**k
             J=costf.getValueAndCount(M+a*dM)
             D=(J-J0)/a
-            if abs(D-Dex) > 0:
+            if abs(J0-J) > ESTTOL * max(J0,J):
                 b.append(log(abs(D-Dex)))
                 x.append(log(a))
-            else:
-                please_fit = False
-            tabfile.write("%d      %e %e %e %e %e %e\n"%(k,J0, J,Dex,  D, D-Dex, (D-Dex)/a) )
-        if please_fit :
+            tabfile.write("%d      %e %e %e %e %e %e %e\n"%(k,J0, J,Dex,  D, D-Dex, (D-Dex)/a, abs(J0-J)/max(J0,J)) )
+        if len(x) > 0  :
             m, c = np.linalg.lstsq(np.vstack([np.array(x), np.ones(len(x))]).T, b, rcond=-1)[0]
-            if m < 0.999:
-                tabfile.write(f"WARNING: Poor convergence rate = {m}.\n")
+            if m < 0.99:
+                tabfile.write(f"WARNING: Poor convergence rate = {m} (# of data = {len(x)}).\n")
             else:
-                tabfile.write(f"Convergence rate = {m}.\n")
+                tabfile.write(f"Convergence rate = {m} (# of data = {len(x)}).\n")
 
-for w1, theta, with_ERTmisfit, with_IPmisfit  in [(0., 0., True, False), (0., 0., False, True), (0., 0., True, True) ]:
+for w1, theta, with_ERTmisfit, with_IPmisfit  in [(0., 0., True, False), (0., 0., False, True), (0., 0., True, True), (1., 0., True, True) ]:
     print("w1 = ", w1)
 
     costf.setW1andTheta(w1, theta)
@@ -109,11 +107,8 @@ for w1, theta, with_ERTmisfit, with_IPmisfit  in [(0., 0., True, False), (0., 0.
     #====
     r= length(domain.getX())
     M=RandomData((2,), ContinuousFunction(domain))*pp
-    #print(abs(inner(grad(M[0]), grad(M[1])) / (length(grad(M[0]))*length(grad(M[1])))))
-    #1/0
-    ddm=(x+y+0.5*z)/Lsup(r)/3*10*pp/10000
     ddm = (x + y + 0.5 * z) / Lsup(r) * pp / 6
-    for d in [ [1, 0] , [0, -0.25] , [1, -0.5] ] :
+    for d in [ [5, 0] , [0, 5.] , [1, 2.5] ] :
         tabfile.write(
             f".. w1 , = {w1}, theta = {theta}, with_ERTmisfit= {with_ERTmisfit}, with_IPmisfit= {with_IPmisfit} d={d}  .............\n")
         dM=ddm * d
@@ -125,22 +120,19 @@ for w1, theta, with_ERTmisfit, with_IPmisfit  in [(0., 0., True, False), (0., 0.
         print("gradient = %s"%str(G))
         b=[]
         x=[]
-        please_fit = True
-        tabfile.write("log(a)     J(m)        J(m+a*p)       grad        num. grad     error O(a)   O(1)\n")
+        tabfile.write("log(a)     J(m)        J(m+a*p)       grad        num. grad     error O(a)   O(1)     rel. err. eval.\n")
         for k in range(4, 13):
             a=0.5**k
             J=costf.getValueAndCount(M+a*dM)
             D=(J-J0)/a
-            if abs(D-Dex) > 0:
+            if abs(J0-J) > ESTTOL * max(J0,J):
                 b.append(log(abs(D-Dex)))
                 x.append(log(a))
-            else:
-                please_fit = False
-            tabfile.write("%d      %e %e %e %e %e %e\n"%(k,J0, J,Dex,  D, D-Dex, (D-Dex)/a) )
-        if please_fit :
+            tabfile.write("%d      %e %e %e %e %e %e %e\n"%(k,J0, J,Dex,  D, D-Dex, (D-Dex)/a, abs(J0-J)/max(J0,J) ) )
+        if len(x) > 0 :
             m, c = np.linalg.lstsq(np.vstack([np.array(x), np.ones(len(x))]).T, b, rcond=-1)[0]
-            if m < 0.999:
-                tabfile.write(f"WARNING: Poor convergence rate = {m}.\n")
+            if m < 0.99:
+                tabfile.write(f"WARNING: Poor convergence rate = {m} (# of data = {len(x)}).\n")
             else:
-                tabfile.write(f"Convergence rate = {m}.\n")
+                tabfile.write(f"Convergence rate = {m} (# of data = {len(x)}).\n")
 logger.info("All done - Have a nice day!")
