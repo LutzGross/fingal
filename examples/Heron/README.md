@@ -49,6 +49,6 @@ Run the inversion
 
     runERTinversion.py --vtk -d config  
 
-See [ERTSynthetics/README.md](../ERTSynthetics/README.md) for more details.
+See [ERTSynthetics/README.md](../SyntheticsERT/README.md) for more details.
 
 by @LutzGross

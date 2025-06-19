@@ -182,6 +182,43 @@ class IPMisfitCostFunction(CostFunction):
         self.source_potentials_stations = { iA : self.grabValuesAtStations(self.source_potential[iA])
                                                for iA in self.source_potential }
 
+    def fitSigmaRef(self):
+        """
+        finds a new sigma_ref that gives a better data fit then
+        """
+        if len(self.misfit_DC) == 0:
+            raise ValueError("No Data Available")
+        betas = []
+        for dataset in [self.useLogMisfitDC, self.useLogMisfitIP]:
+            beta = 1.
+            if dataset:
+                for iA, iB in dataset:
+                    u = self.source_potentials_stations[iA] - self.source_potentials_stations[iB]
+                    du = dataset[(iA, iB)].getDifference(u)
+                    a+= sum(  dataset[(iA, iB)].weightings * (self.dataset[(iA, iB)].data - log(abs(du)) ))
+                    b+= sum(  dataset[(iA, iB)].weightings )
+                if b>0:
+                    beta=exp(a/b)
+            else:
+                for iA, iB in dataset:
+                    u = self.source_potentials_stations[iA] - self.source_potentials_stations[iB]
+                    du = dataset[(iA, iB)].getDifference(u)
+                    a+= sum(  dataset[(iA, iB)].weightings * dataset[(iA, iB)].data * du )
+                    b+= sum(  dataset[(iA, iB)].weightings * du**2 )
+                if b > 0:
+                    beta = a/b
+            betas.append(beta)
+        print(betas)
+        assert betas[0] > 0, "conductivity correction factor must be positive."
+        assert abs(betas[1]+betas[0]) > 0, "divison by zero in chargeability."
+
+        sigma_ref = self.sigma_src/betas[0]
+        Mn_ref = -betas[1]/(betas[1]+betas[0]) * self.sigma_src
+
+        assert sigma_ref >0, f"new sigma_ref={sigma_ref} must be positive."
+        assert Mn_ref > 0, f"new Mn_ref={Mn_ref} must be positive."
+        return sigma_ref, Mn_ref
+
     def getIPModelAndResponse(self,sigma_0, sigma_0_stations, Mn):
         """
         returns the IP model + its responses for given secondary conductivity sigma_0 and chargeaiBlity Mn

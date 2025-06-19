@@ -20,7 +20,7 @@ the `esys-escript` installation to `PATH`, `LD_LIBRARY_PATH` and `PYTHONPATH`.
 
 # Examples
 
-- As simple example for ERT inversion using synthetic data: [ERTSynthetics](examples/ERTSynthetics/README.md)
+- As simple example for ERT inversion using synthetic data: [ERTSynthetics](examples/SyntheticsERT/README.md)
 - ERT inversion using field data: [Heron](examples/Heron/README.md)
 - Synthetic FullWaver data inversion: [SyntheticFW](examples/SyntheticFW/README.md) (does not work)
 - Volcano with FullWaver data: [VolcanoFW](examples/VolcanoFW/README.md) (does not work)

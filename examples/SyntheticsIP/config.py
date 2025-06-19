@@ -64,8 +64,8 @@ regularization_theta = 0.
 use_log_misfit_DC = False
 use_log_misfit_IP = False
 regularization_weighting_DC_misfit =  1
-regularization_order = 'H1' # in ['H1', 'H2']
-regularization_length_scale = 3
+regularization_order = 'H1' # in ['H1', "H1_0", 'H2',  "H2_0"]
+regularization_length_scale = 3 # only used for "H2" and "H2_0" regularization
 # Output handeling:
 #
 outfile='sigma'

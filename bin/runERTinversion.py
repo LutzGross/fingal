@@ -101,6 +101,7 @@ elif config.regularization_order in [ "H2" , "H2_0" ] :
                          sigma_0_ref=config.sigma0_ref, reg_tol=None, fixTop=config.fix_top,  zero_mean_m = config.regularization_order == "H2_0",
                          w1=config.regularization_w1, maskZeroPotential= mask_face, dataRTolDC= config.data_rtol,  m_ref=m_ref,
                          pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
+                         length_scale=config.regularization_length_scale,
                          useLogMisfitDC= config.use_log_misfit_DC, logger=logger.getChild(f"ERT-{config.regularization_order}"))
     dM_init = Vector(0.0, Solution(domain))
 elif config.regularization_order == "Gauss":

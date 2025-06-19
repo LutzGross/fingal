@@ -1,4 +1,4 @@
-# Synthetic ERT Inversion Example
+# Synthetic IP Inversion Example
 
 ### Generate Data Set
 The first step is to create a synthetic data set. The [gmsh](https://gmsh.info/)  
@@ -42,9 +42,10 @@ The mesh is written to the 'config.meshfile' in the *esys.finley* `fly` format.
 
 To run the inversion based on the configuration file `config.py` use: 
 
-    runERTinversion.py --vtk -d config
+    runIPinversion.py --vtk -d config
 
-The reference conductivity `sigma_ref` set in the configuration file 
+The reference conductivity `sigma_ref` and normalised chargeability are set in
+the configuration file 
 is rescaled prior to the inversion in an attempt to reduce the initial misfit
 (use '--nooptimize' to switch off rescaling).
 `-d` switches on more output. With the switch `--vtk` the file `sigma.vtk` in 
@@ -54,22 +55,20 @@ variable set in configuration file
 but less portable). 
 
 Misfit can be squares of data residual (weighted by error) (aka as chi^2) or square of 
-data logarithm (`set use_log_misfit_ERT` = True). 
+data logarithm (set `use_log_misfit_ERT = True` and `use_log_misfit_IP = True`). 
 
 Various regularization approaches can be used: 
 
-   - Gradient of property funtion: 'H1'
-   - Laplacian of property funtion: 'H2'
-   - Gaussian Kernel with additional spatial correlation length scale: 'Gauss'
-   - Gaussian Kernel by FOSLS : 'PseudoGauss'
-   - Gaussian Kernel by FOSLS and decoupled approximative Hessian:'D-PseudoGauss'
+   - Gradient of property function: `'H1'`
+   - Gradient of property function with zero-mean constraint: `'H1_0'`
+   - Laplacian of property function: `'H2'`
+   - Gradient of property function with zero-mean constraint: `'H2_0'`
+ 
+REVISE
+For H2-regularization uses the addition regularization parameter
+`regularization_length_scale`. If set (not equal to `None`) then the value defines the 
+length scale (in a sense of the exponential variogram). If not set (=`None`)
+length scale infinity is used. 
 
-For Gaussian regularization requires an addition regularization parameter
-'regularization_length_scale' to be set. A good choice is typically the distance of 
-electrodes. Option `Gauss` is a straight forward implementation but typically requires
-many iterations and tends to be unstable. 'PseudoGauss' uses a FOSLS approach to resolve 
-the second derivative. The approach is typically very robust and used lessnumber 
-of iterations but is computationally more expensive. To reduce memory requirements
-'D-PseudoGauss' can be used but it comes at the cost of more iteration steps.
 
 by @LutzGross

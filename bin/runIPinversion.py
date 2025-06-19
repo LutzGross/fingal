@@ -75,18 +75,41 @@ logger.info(f"Regularization_w1 = {config.regularization_w1}.")
 if config.regularization_order == "H1":
     costf = IPInversionH1(domain, data=survey, sigma_0_ref=config.sigma0_ref, Mn_ref = config.Mn_ref,
                             w1 = config.regularization_w1, theta = config.regularization_theta,
-                            maskZeroPotential=mask_face, maskFixedProperty=fixedm,
+                            maskZeroPotential=mask_face, maskFixedProperty=fixedm, fix_top=config.fix_top,
                             stationsFMT=config.stationsFMT, pde_tol= config.pde_tol,
                             weightingMisfitDC=config.regularization_weighting_DC_misfit,
                             useLogMisfitIP = config.use_log_misfit_IP, useLogMisfitDC=config.use_log_misfit_DC,
                             dataRTolDC = config.data_rtol, dataRTolIP = config.data_rtol,  m_ref=m_ref,
-                            logclip=config.clip_property_function, logger =  logger=logger.getChild("IP-H1"))
+                            logclip=config.clip_property_function,
+                            logger = logger.getChild(f"IP-{config.regularization_order}")
     dM_init = Data(0.0, (2,), Solution(domain))
-elif config.regularization_order == "H2":
-    raise ValueError("H2 not implemented yet.")
+elif config.regularization_order in ["H2_0", "H2"]:
+    costf = IPInversionH2(domain,  ddata=survey,  maskZeroPotential=mask_face,
+                            Pde_tol= config.pde_tol,
+                            stationsFMT=config.stationsFMT, m_ref=m_ref,
+                            useLogMisfitDC=config.use_log_misfit_DC, dataRTolDC=config.data_rtol,
+                            useLogMisfitIP=config.use_log_misfit_IP, dataRTolIP=config.data_rtol,
+                            weightingMisfitDC=config.regularization_weighting_DC_misfit,
+                            sigma_0_ref=config.sigma0_ref, Mn_ref= config.Mn_ref,
+                            w1=config.regularization_w1, theta=config.regularization_theta,
+                            fixTop=config.fix_top,  zero_mean_m = config.regularization_order == "H2_0",
+                            logclip=config.clip_property_function, m_epsilon=1e-18,
+                            length_scale=config.regularization_length_scale,
+                            reg_tol=None, save_memory=args.savememory,
+                            logger=logger.getChild(f"IP-{config.regularization_order}") )
     dM_init = Data(0.0, (6,), Solution(domain))
 else:
     raise ValueError("Unknown regularization type " + config.regularization_order)
+
+# set up solver:
+if not args.nooptimize:
+    new_sigma_ref, new_Mn_ref =costf.fitSigmaAndMnRef()
+    logger.info(f"New value for config.sigma_ref = {new_sigma_ref}.")
+    logger.info(f"New value for config.Mn_ref = {new_Mn_ref}.")
+    costf.updateSigma0Ref(new_sigma_ref)
+    costf.updateMnRef(new_Mn_ref)
+if args.testonly:
+    exit(0)
 
 def myCallback(iterCount, m, dm, Fm, grad_Fm, norm_m, args_m, failed):
     if args.RESTARTFN and iterCount >0:
