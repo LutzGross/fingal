@@ -163,8 +163,7 @@ if args.restart:
 # run solver:
 solver.run(dM_init)
 print(costf.getStatistics())
-dM=solver.getResult()
-m=costf.extractPropertyFunction(dM)
+m=costf.extractPropertyFunction(solver.getResult())
 
 sigma=costf.getSigma0(m, applyInterploation=False)
 if args.vtk:

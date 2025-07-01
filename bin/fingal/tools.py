@@ -239,7 +239,7 @@ def getSecondaryPotentials(pde, sigma_oo, M_n, source_potential={}, src_potentia
     pde.setValue(A=sigma_oo * kronecker(3), y_dirac=Data(), X=Data(), Y=Data())
     for iA in source_potential:
         VA = src_potential_scale_DC[iA]  * source_potential[iA] + additive_potential_DC[iA]
-        pde.setValue(X=-M_n * grad(VA))
+        pde.setValue(X=M_n * grad(VA))
         potential[iA] = pde.getSolution()
     logger.info(f"{len(potential)} secondary IP potentials calculated.")
     return potential
@@ -356,6 +356,8 @@ class DataMisfitQuad(DataMisfit):
     """
     def getValue(self, u):
         res = self.data-self.getDifference(u)
+        print(self.iMs, self.iNs, " : ", res)
+
         dd = abs(res) ** 2 * self.weightings
         return 0.5 * sum(dd)
 

@@ -1,14 +1,13 @@
--#!/usr/bin/python3
+#!/usr/bin/python3
 from esys.escript import *
 import importlib, os, sys
 sys.path.append(os.getcwd())
-from fingal import IPInversionH1, readElectrodeLocations, readSurveyData
+from fingal import IPInversionH1, IPInversionH2, readElectrodeLocations, readSurveyData
 from esys.finley import ReadMesh
 import numpy as np
 from esys.weipa import saveVTK, saveSilo
 import argparse
-#from esys.downunder import MinimizerLBFGS
-from esys.escript.pdetools import MaskFromTag
+from esys.escript.pdetools import MaskFromTag, MaskFromBoundaryTag
 from esys.escript.minimizer import MinimizerLBFGS
 #from esys.escript.pdetools import Locator, ArithmeticTuple, MaskFromTag
 
@@ -22,10 +21,9 @@ parser = argparse.ArgumentParser(description='driver to invert an ERT survey', e
 parser.add_argument(dest='config', metavar='configfile', type=str, help='python setting configuration')
 parser.add_argument('--restartfile', '-R', dest='RESTARTFN', metavar='RESTARTFN', type=None, default="restart", help='reststart file name')
 parser.add_argument('--restart', '-r',  dest='restart', action='store_true', default=False, help="start from restart file. RESTARTFN need to be set and exist.")
-
-parser.add_argument('--optimize', '-o',  dest='optimize', action='store_true', default=False, help="Calibrated the value for sigma_ref before iteration starts.")
-parser.add_argument('--test', '-t',  dest='testsigma_ref', action='store_true', default=False, help="Calculates a new value for sigma_ref and then stops.")
-parser.add_argument('--query', '-q',  dest='query', type=str, default=None, help="file name (if set) for output of (A,B,M,N, observation, prediction) ")
+parser.add_argument('--savememory', '-s',  dest='savememory', action='store_true', default=False, help="try to save memory at the costs of CPU time.")
+parser.add_argument('--nooptimize', '-n',  dest='nooptimize', action='store_true', default=False, help="Don't calibrated the value for config.sigma_ref before iteration starts.")
+parser.add_argument('--test', '-t',  dest='testonly', action='store_true', default=False, help="Calculates a new value for sigma_ref and then stops.")
 parser.add_argument('--vtk', '-v',  dest='vtk', action='store_true', default=False, help="VTK format is used for output otherwise silo is used.")
 parser.add_argument('--xyz', '-x',  dest='xyz', action='store_true', default=False, help="CSV file is create where results for the core region are written only.")
 parser.add_argument('--debug', '-d',  dest='debug', action='store_true', default=False, help="shows more information.")
@@ -72,7 +70,7 @@ logger.info(f"Regularization type = {config.regularization_order}.")
 logger.info(f"Regularization_w1 = {config.regularization_w1}.")
 
 # initialize cost function:
-if config.regularization_order == "H1":
+if config.regularization_order in ["H1_0", "H1"] :
     costf = IPInversionH1(domain, data=survey, sigma_0_ref=config.sigma0_ref, Mn_ref = config.Mn_ref,
                             w1 = config.regularization_w1, theta = config.regularization_theta,
                             maskZeroPotential=mask_face, maskFixedProperty=fixedm, fix_top=config.fix_top,
@@ -81,11 +79,12 @@ if config.regularization_order == "H1":
                             useLogMisfitIP = config.use_log_misfit_IP, useLogMisfitDC=config.use_log_misfit_DC,
                             dataRTolDC = config.data_rtol, dataRTolIP = config.data_rtol,  m_ref=m_ref,
                             logclip=config.clip_property_function,
-                            logger = logger.getChild(f"IP-{config.regularization_order}")
+                            zero_mean_m=config.regularization_order == "H1_0",
+                            logger = logger.getChild(f"IP-{config.regularization_order}"))
     dM_init = Data(0.0, (2,), Solution(domain))
 elif config.regularization_order in ["H2_0", "H2"]:
-    costf = IPInversionH2(domain,  ddata=survey,  maskZeroPotential=mask_face,
-                            Pde_tol= config.pde_tol,
+    costf = IPInversionH2(domain, data=survey,  maskZeroPotential=mask_face,
+                            pde_tol= config.pde_tol,
                             stationsFMT=config.stationsFMT, m_ref=m_ref,
                             useLogMisfitDC=config.use_log_misfit_DC, dataRTolDC=config.data_rtol,
                             useLogMisfitIP=config.use_log_misfit_IP, dataRTolIP=config.data_rtol,
@@ -131,41 +130,32 @@ if args.restart and args.restart:
 
 # run solver:
 solver.run(dM_init)
-dM=solver.getResult()
+m=costf.extractPropertyFunction(solver.getResult())
 
-#===================================================================
-
-if args.query:
-    sigma, potentials, dV=costf.getArguments(m)
-    if getMPIRankWorld() == 0: 
-        f=open(args.query,'w')
-        for t in survey.tokenIterator(): # t=(A,B,M,N) (or so)
-            f.write("%s, %e, %e\n"%(str(t)[1:-1], survey.getResistenceData(t), dV[t]))
-        f.close()
-        print("Data query/result file %s written."%args.query)
-else:
-    sigma=costf.getSigma(m)
+sigma0 = costf.getSigma0(m)
+Mn = costf.getMn(m)
 
 if args.vtk:
-    saveVTK(config.outfile, sigma=sigma, tag=makeTagMap(Function(domain)))
+    saveVTK(config.outfile, sigma0=sigma0, Mn=Mn, tag=makeTagMap(Function(domain)))
     if getMPIRankWorld() == 0: 
         print("result written to %s.vtu"%config.outfile)
 else:
-    saveSilo(config.outfile, sigma=sigma, tag=makeTagMap(Function(domain)))
+    saveSilo(config.outfile, sigma0=sigma0, Mn=Mn, tag=makeTagMap(Function(domain)))
     if getMPIRankWorld() == 0: 
             print("result written to %s.silo"%config.outfile)
 
 if args.xyz:
-    sigmas=interpolate(sigma, ReducedFunction(domain))
+    sigma0s=interpolate(sigma0, ReducedFunction(domain))
+    Mns = interpolate(Mn, sigma0s.getFunctionSpace())
     X=sigmas.getFunctionSpace().getX()
     if isinstance(config.core, list):
-        m=insertTaggedValues(Scalar(0., sigmas.getFunctionSpace()), **{ t: 1 for t in config.core })
-        saveDataCSV(config.outfile+".csv", d0=X[0], d1=X[1], d2=X[2], sigma =sigmas, mask=m)
+        m=insertTaggedValues(Scalar(0., sigma0s.getFunctionSpace()),  **{ t: 1 for t in config.core })
+        saveDataCSV(config.outfile+".csv", d0=X[0], d1=X[1], d2=X[2], sigma0 =sigma0s, Mn =Mns, mask=m)
         if getMPIRankWorld() == 0: 
             print("result written to %s.csv. Core region is %s."%(config.outfile, config.core))
         del X, sigmas, m
     else:
-        saveDataCSV(config.outfile+".csv", d0=X[0], d1=X[1], d2=X[2], sigma =sigmas)
+        saveDataCSV(config.outfile+".csv", d0=X[0], d1=X[1], d2=X[2],  sigma0 =sigma0s, Mn =Mns)
         if getMPIRankWorld() == 0: 
             print("result written to %s.csv"%config.outfile)
         del X, sigmas

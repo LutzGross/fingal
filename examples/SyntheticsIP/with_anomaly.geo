@@ -9,23 +9,16 @@ distanceElectrodes = 3;
 //
 lengthLine = (numElectrodes-1) * distanceElectrodes;
 widthLines = (numLines -1) * distanceLines;
-// ....... Anomaly left ......
-anomalyLeftDepth = 1 * distanceElectrodes;
-anomalyLeftOffsetX = - 3 * distanceElectrodes;
-anomalyLeftLengthX = 2 * distanceElectrodes;
-anomalyLeftLengthY = 14 * distanceElectrodes + widthLines;
-anomalyLeftLengthZ = 2 * distanceElectrodes;
-
-// ... Anomaly Right...
-anomalyRightDepth = 1 * distanceElectrodes;
-anomalyRightOffsetX =  3 * distanceElectrodes;
-anomalyRightLengthX = 2 * distanceElectrodes;
-anomalyRightLengthY = 14 * distanceElectrodes + widthLines;
-anomalyRightLengthZ = 2 * distanceElectrodes;
+// ... Anomaly ...
+anomalyDepth = 2 * distanceElectrodes;
+anomalyOffsetX =  -6 * distanceElectrodes;
+anomalyLengthX = 16 * distanceElectrodes;
+anomalyLengthY = 12 * distanceElectrodes + widthLines;
+anomalyLengthZ = 4 * distanceElectrodes;
 
 // ... core region ....
 depthDomain  = lengthLine * 0.25;
-widthY = anomalyRightLengthY + 2 * distanceElectrodes;
+widthY = anomalyLengthY + 2 * distanceElectrodes;
 widthX = lengthLine + 8 * distanceElectrodes;
 
 // ... Padding ......
@@ -39,55 +32,16 @@ meshSizeEdges = distanceElectrodes * 0.5;
 meshSizeElectrodes = distanceElectrodes * 0.1;
 meshSizeBoundingBox = boundingBoxY/10;
 
-// .... hexahedral anomaly left ........................................................................
-Point(9) = { anomalyLeftOffsetX-anomalyLeftLengthX/2, -anomalyLeftLengthY/2, -anomalyLeftDepth, 		meshSizeEdges};
-Point(10) = { anomalyLeftOffsetX+ anomalyLeftLengthX/2, -anomalyLeftLengthY/2, -anomalyLeftDepth, meshSizeEdges};
-Point(11) = {anomalyLeftOffsetX-anomalyLeftLengthX/2,  anomalyLeftLengthY/2, -anomalyLeftDepth, 		meshSizeEdges};
-Point(12) = { anomalyLeftOffsetX+ anomalyLeftLengthX/2,  anomalyLeftLengthY/2, -anomalyLeftDepth, meshSizeEdges};
-
-Point(13) = {anomalyLeftOffsetX-anomalyLeftLengthX/2, -anomalyLeftLengthY/2, -anomalyLeftDepth-anomalyLeftLengthZ, 		meshSizeEdges};
-Point(14) = { anomalyLeftOffsetX+ anomalyLeftLengthX/2, -anomalyLeftLengthY/2, -anomalyLeftDepth-anomalyLeftLengthZ, 	meshSizeEdges};
-Point(15) = {anomalyLeftOffsetX-anomalyLeftLengthX/2,  anomalyLeftLengthY/2, -anomalyLeftDepth-anomalyLeftLengthZ, 		meshSizeEdges};
-Point(16) = { anomalyLeftOffsetX+ anomalyLeftLengthX/2,  anomalyLeftLengthY/2, -anomalyLeftDepth-anomalyLeftLengthZ, 	meshSizeEdges};
-
-Line(13) = {9, 10};
-Line(14) = {10, 12};
-Line(15) = {12, 11};
-Line(16) = {11, 9};
-Line(17) = {13, 14};
-Line(18) = {13, 14};
-Line(19) = {14, 16};
-Line(20) = {16, 15};
-Line(21) = {15, 13};
-Line(22) = {13, 9};
-Line(23) = {14, 10};
-Line(24) = {16, 12};
-Line(25) = {15, 11};
-Curve Loop(7) = {17, 23, -13, -22};
-Plane Surface(7) = {7};
-Curve Loop(8) = {19, 24, -14, -23};
-Plane Surface(8) = {8};
-Curve Loop(9) = {20, 25, -15, -24};
-Plane Surface(9) = {9};
-Curve Loop(10) = {16, 13, 14, 15};
-Plane Surface(10) = {10};
-Curve Loop(11) = {25, 16, -22, -21};
-Plane Surface(11) = {11};
-Curve Loop(12) = {17, 19, 20, 21};
-Plane Surface(12) = {12};
-Surface Loop(3) = {11, 9, 12, 7, 8, 10};
-Volume(2) = {3};
-// ........ End Anomaly Left................
 // .... hexahedral anomaly right ........................................................................
-Point(109) = { anomalyRightOffsetX-anomalyRightLengthX/2, -anomalyRightLengthY/2, -anomalyRightDepth, 		meshSizeEdges};
-Point(110) = { anomalyRightOffsetX+ anomalyRightLengthX/2, -anomalyRightLengthY/2, -anomalyRightDepth, meshSizeEdges};
-Point(111) = {anomalyRightOffsetX-anomalyRightLengthX/2,  anomalyRightLengthY/2, -anomalyRightDepth, 		meshSizeEdges};
-Point(112) = { anomalyRightOffsetX+ anomalyRightLengthX/2,  anomalyRightLengthY/2, -anomalyRightDepth, meshSizeEdges};
+Point(109) = { anomalyOffsetX-anomalyLengthX/2, -anomalyLengthY/2, -anomalyDepth, 		meshSizeEdges};
+Point(110) = { anomalyOffsetX+ anomalyLengthX/2, -anomalyLengthY/2, -anomalyDepth, meshSizeEdges};
+Point(111) = {anomalyOffsetX-anomalyLengthX/2,  anomalyLengthY/2, -anomalyDepth, 		meshSizeEdges};
+Point(112) = { anomalyOffsetX+ anomalyLengthX/2,  anomalyLengthY/2, -anomalyDepth, meshSizeEdges};
 
-Point(113) = {anomalyRightOffsetX-anomalyRightLengthX/2, -anomalyRightLengthY/2, -anomalyRightDepth-anomalyRightLengthZ, 		meshSizeEdges};
-Point(114) = { anomalyRightOffsetX+ anomalyRightLengthX/2, -anomalyRightLengthY/2, -anomalyRightDepth-anomalyRightLengthZ, 	meshSizeEdges};
-Point(115) = {anomalyRightOffsetX-anomalyRightLengthX/2,  anomalyRightLengthY/2, -anomalyRightDepth-anomalyRightLengthZ, 		meshSizeEdges};
-Point(116) = { anomalyRightOffsetX+ anomalyRightLengthX/2,  anomalyRightLengthY/2, -anomalyRightDepth-anomalyRightLengthZ, 	meshSizeEdges};
+Point(113) = {anomalyOffsetX-anomalyLengthX/2, -anomalyLengthY/2, -anomalyDepth-anomalyLengthZ, 		meshSizeEdges};
+Point(114) = { anomalyOffsetX+ anomalyLengthX/2, -anomalyLengthY/2, -anomalyDepth-anomalyLengthZ, 	meshSizeEdges};
+Point(115) = {anomalyOffsetX-anomalyLengthX/2,  anomalyLengthY/2, -anomalyDepth-anomalyLengthZ, 		meshSizeEdges};
+Point(116) = { anomalyOffsetX+ anomalyLengthX/2,  anomalyLengthY/2, -anomalyDepth-anomalyLengthZ, 	meshSizeEdges};
 
 Line(113) = {109, 110};
 Line(114) = {110, 112};
@@ -165,7 +119,7 @@ Curve Loop(6) = {5, -10, -1, 9};
 Plane Surface(6) = {6};
 // Volume:
 Surface Loop(2) = {6, 3, 4, 5, 1, 2};
-Volume(1) = {2, 3, 103};
+Volume(1) = {2, 103};
 // ... end core ............................................
 
 // ... bounding box .................................................
@@ -217,8 +171,7 @@ For l In {0:numLines-1}
     EndFor
 EndFor
 // ... set tagging ....
-Physical Volume("anomaly_left") = {2};
-Physical Volume("anomaly_right") = {102};
+Physical Volume("anomaly") = {102};
 Physical Volume("domain") = {1};
 Physical Volume("padding") = {3};
 Physical Surface("faces") = {16, 15, 18, 14};

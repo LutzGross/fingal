@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 from esys.escript import *
 from esys.finley import ReadGmsh
-from fingal import readElectrodeLocations, readSurveyData, ConductivityModelByTemperature, IPSynthetic, makeMaskForOuterSurface
+from fingal import readElectrodeLocations, readSurveyData, ConductivityModelByTemperature, IPSynthetic, makeMaskForOuterSurface, setupERTPDE
 from esys.weipa import saveVTK, saveSilo
 from esys.escript.linearPDEs import LinearSinglePDE, SolverOptions
 from esys.escript.pdetools import MaskFromTag, Locator
@@ -29,15 +29,18 @@ args = parser.parse_args()
 config = importlib.import_module(args.config)
 print("configuration "+args.config+" imported.")
 
+MSHFILE=args.geofile + ".msh"
+FLYFILE=args.geofile + ".fly"
+GEOFILE = args.geofile + ".geo"
 #=====================
 T_air=15  # air temperature in celcius!
-T_volcano=150 # temperature in volcano\
-K_top, K_base=1.,1.
-Q_bottom=config.surfacetemperature_gradient * K_top
-h_top=0.1 # convective heat transfer coefficient in  W/mK
+K = 1.
+q_bottom=config.surfacetemperature_gradient * K
+h_top=0.1 # convective heat transfer coefficient in  W/m/K
+Q_volcano = 1e-1 # heatsource of volcane W/m^3/K
 #===========================================
 
-MSHFILE=args.geofile+".msh"
+
 
 
 elocations=readElectrodeLocations(config.stationfile, delimiter=config.stationdelimiter)
@@ -124,7 +127,7 @@ if not args.noTrueMesh:
         ELECTRODES+= f"Point(k + {j+1}) = {{{elocations[e][0]}, {elocations[e][1]}, {elocations[e][2]}, meshSizeElectrodes}};\n"
         ELECTRODES+= f"Point{{k + {j+1}}} In Surface {{355}};\n"
         ELECTRODES+= f'Physical Point("{ID}")  = {{ k+{j+1} }};\n'
-    GEOFILE=args.geofile+".geo"
+
     open(GEOFILE, 'w').write(GEOTEMPLATE.replace('%ELECTRODES%', ELECTRODES).replace('%HEADER%', out))
     print("true geometry file written to "+GEOFILE)
 
@@ -132,6 +135,7 @@ if not args.noTrueMesh:
     rp=subprocess.run(["gmsh", "-3", "-optimize_netgen", "-o", MSHFILE, GEOFILE])
     #rp.check_returncode()
     print(">> GMSH mesh file %s was generated."%MSHFILE)
+
 
 
 # read mesh
@@ -144,34 +148,29 @@ for s in elocations:
         dts.append(s)
     dps.append(elocations[s])
 domain=ReadGmsh(MSHFILE, 3, diracPoints=dps, diracTags=dts, optimize=True )
+domain.write(FLYFILE)
 #---------- construct temperature --------------------------------
-pde=LinearSinglePDE(domain, isComplex=False)
-pde.setSymmetryOn()
-optionsG=pde.getSolverOptions()   
-optionsG.setTolerance(1e-10)
-
-
-
-# thermal conductivity:
-K=Scalar(K_base, Function(domain))
-K.setTaggedValue("LayerTop", K_top)
-K.setTaggedValue("LayerBottom", K_base)
+pde = setupERTPDE(domain, tolerance=1e-10, poisson=False, debug=1)
 pde.setValue(A=K*kronecker(3))
+
 # flux at top and buttom
-Q=Scalar(0., FunctionOnBoundary(domain))
-Q.setTaggedValue("SurfaceBottom", Q_bottom)
-Q.setTaggedValue("SurfaceTop", h_top*T_air)
+qs=Scalar(0., FunctionOnBoundary(domain))
+qs.setTaggedValue("SurfaceBottom", q_bottom)
+qs.setTaggedValue("SurfaceTop", h_top*T_air)
 h=Scalar(0., FunctionOnBoundary(domain))
 h.setTaggedValue("SurfaceTop", h_top)
-Q.expand()
-h.expand()
-pde.setValue(y=Q, d=h)
-q=MaskFromTag(domain, "Volcano")
-pde.setValue(q=q, r=T_volcano*q)
+pde.setValue(y=qs, d=h)
+
+Q=Scalar(0., Function(domain))
+Q.setTaggedValue("Volcano", Q_volcano)
+pde.setValue(Y=Q)
+
 T=pde.getSolution()
+
+saveSilo("temperature", T=T)
 del pde
 # save surface temperature to file:
-
+1/0
 if False:
     T_surf= 15
     T_bottom = 20

@@ -1,6 +1,6 @@
-# Synthetic Temperature Inversion
+# Synthetic Temperature-driven Inversion
 
-Edit config.py 
+Edit [sonfig.py](config.py) 
 
 Generate Wanner schedule and stations:
 
