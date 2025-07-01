@@ -58,8 +58,8 @@ useL1Norm=False
 epsilonL1Norm=1e-4
 
 w1=1
-useLogMisfitERT = True
-useLogMisfitIP = True
+useLogMisfitERT = False # True
+useLogMisfitIP = False #  True
 #
 # Output handeling:
 #

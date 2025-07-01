@@ -85,6 +85,8 @@ class IPMisfitCostFunction(CostFunction):
 
         self.misfit_IP = {}  # secondary potentials
         self.misfit_DC = {}  #
+        error_DC_max, error_IP_max = 0., 0.
+        error_DC2_invsum, error_IP2_invsum = 0., 0.
         nd_DC, nd_IP = 0,0 # counting number of data
         n_small_DC, n_small_IP= 0,0 # number of dropped observations
         for A, B in self.data.injectionIterator():
@@ -105,6 +107,10 @@ class IPMisfitCostFunction(CostFunction):
                 else:
                     error_DC = np.array([self.data.getResistenceError((A, B, M, N)) for M, N in obs_DC]) + data_atol_DC
                     self.misfit_DC[(iA, iB)] = DataMisfitQuad(iMs=iMs, data=data_DC, iNs=iNs, injections=(A, B), weightings =1./error_DC**2/n_use_DC)
+
+                error_DC_max = max( error_DC_max, max(error_DC))
+                error_DC2_invsum+= sum(abs(data_DC)**2/error_DC**2)
+                print("DC:", data_DC, error_DC, data_DC/error_DC, data.getMaximumResistence()/error_DC, error_DC_max, error_DC2_invsum)
                 nd_DC+= n_use_DC
             # ........... IP part .................................................................
             data_IP = np.array([self.data.getSecondaryResistenceData((A, B, M, N)) for M, N in obs])
@@ -121,22 +127,33 @@ class IPMisfitCostFunction(CostFunction):
                     self.misfit_IP[(iA, iB)] = DataMisfitLog(iMs=iMs, data=data_IP, iNs=iNs, injections=(A, B),
                                                              weightings=1. / error_IP ** 2 / n_use_IP)
                 else:
+                    #C = np.array([self.data.getChargeabilityData((A, B, M, N)) for M, N in obs_IP])
                     error_IP = np.array([self.data.getSecondaryResistenceError((A, B, M, N)) for M, N in obs_IP]) + data_atol_IP
                     self.misfit_IP[(iA, iB)] = DataMisfitQuad(iMs=iMs, data=data_IP, iNs=iNs, injections=(A, B),
                                                               weightings=1. / error_IP ** 2 / n_use_IP)
+                error_IP_max = max( error_IP_max, max(error_IP))
+                error_IP2_invsum+= sum(data_IP**2/error_IP**2)
+                #print("IP:", data_IP, error_IP,  data_IP/error_IP, data.getMaximumSecondaryResistence()/error_IP, error_IP_max, error_IP2_invsum)
+                #print("R:", data_IP/data_DC, C, data_IP/error_IP *  error_DC/data_DC )
                 nd_IP += len(self.misfit_IP[(iA, iB)])
+        print("f_DC = ",error_DC2_invsum/nd_DC)
+        print("f_IP = ", error_IP2_invsum/nd_IP)
+        print(1/data.getMaximumChargeability()**2, error_IP2_invsum/error_DC2_invsum
+              )
         self.logger.info(f"Data drop tolerance for resistance is {data_atol_DC:e}.")
         self.logger.info(f"{nd_DC} DC data are records used. {n_small_DC} small values found.")
         self.logger.info(f"Data drop tolerance for secondary resistance is {data_atol_IP:e}.")
         self.logger.info(f"{nd_IP} IP data are records used. {n_small_IP} small values found.")
+        #ffff2 = data.getMaximumChargeability() ** 2
+        ffff2 = 1
         if not nd_IP + nd_DC >0 :
             raise ValueError("No data for the inversion.")
         if nd_DC > 0:
             for iA, iB in self.misfit_DC:
-                self.misfit_DC[(iA, iB)].rescaleWeight(1. / (2 * nd_DC) )
+                self.misfit_DC[(iA, iB)].rescaleWeight(1. / (2 * nd_DC))
         if nd_IP > 0:
             for iA, iB in self.misfit_IP:
-                self.misfit_IP[(iA, iB)].rescaleWeight(1. / (2 * nd_IP))
+                self.misfit_IP[(iA, iB)].rescaleWeight(1. / (2 * nd_IP)  * ffff2  )
         self.ignoreERTMisfit(False)
         self.ignoreIPMisfit(False)
 
@@ -182,20 +199,21 @@ class IPMisfitCostFunction(CostFunction):
         self.source_potentials_stations = { iA : self.grabValuesAtStations(self.source_potential[iA])
                                                for iA in self.source_potential }
 
-    def fitSigmaRef(self):
+    def fitSigmaAndMnRef(self):
         """
         finds a new sigma_ref that gives a better data fit then
         """
         if len(self.misfit_DC) == 0:
             raise ValueError("No Data Available")
         betas = []
-        for dataset in [self.useLogMisfitDC, self.useLogMisfitIP]:
+        for dataset, uselog in [(self.misfit_DC, self.useLogMisfitDC), (self.misfit_IP, self.useLogMisfitIP)]:
             beta = 1.
-            if dataset:
+            a, b= 0.,0.
+            if uselog:
                 for iA, iB in dataset:
                     u = self.source_potentials_stations[iA] - self.source_potentials_stations[iB]
                     du = dataset[(iA, iB)].getDifference(u)
-                    a+= sum(  dataset[(iA, iB)].weightings * (self.dataset[(iA, iB)].data - log(abs(du)) ))
+                    a+= sum(  dataset[(iA, iB)].weightings * (dataset[(iA, iB)].data - log(abs(du)) ))
                     b+= sum(  dataset[(iA, iB)].weightings )
                 if b>0:
                     beta=exp(a/b)
@@ -210,11 +228,10 @@ class IPMisfitCostFunction(CostFunction):
             betas.append(beta)
         print(betas)
         assert betas[0] > 0, "conductivity correction factor must be positive."
-        assert abs(betas[1]+betas[0]) > 0, "divison by zero in chargeability."
+        assert abs(betas[0]-betas[1]) > 0, "divison by zero in chargeability."
 
         sigma_ref = self.sigma_src/betas[0]
-        Mn_ref = -betas[1]/(betas[1]+betas[0]) * self.sigma_src
-
+        Mn_ref = betas[1] / (betas[0] - betas[1]) * sigma_ref
         assert sigma_ref >0, f"new sigma_ref={sigma_ref} must be positive."
         assert Mn_ref > 0, f"new Mn_ref={Mn_ref} must be positive."
         return sigma_ref, Mn_ref
@@ -272,7 +289,8 @@ class IPMisfitCostFunction(CostFunction):
             misfit_DC=0
         if self.ignore_IPmisfit:
             misfit_IP=0
-
+        if misfit_DC > 0:
+            self.logger.info(f"Misfits: DC = {misfit_DC}, IP = {misfit_IP} (ratio = {misfit_IP/misfit_DC})." )
         return misfit_DC * self.weightingMisfit_DC, misfit_IP * self.weightingMisfit_IP
 
     def getDMisfit(self, sigma_0, Mn, additive_potentials_DC, src_potential_scale_DC, additive_potentials_DC_stations, secondary_potentials_IP, secondary_potentials_IP_stations, *args):
@@ -337,11 +355,11 @@ class IPMisfitCostFunction(CostFunction):
                     s.setTaggedValue(M, SOURCES_DC[iA, iM])
                 else:
                     s.setTaggedValue(self.stationsFMT % M, SOURCES_DC[iA, iM])
-            self.DC_pde.setValue(y_dirac=s, X=-Mn * grad(WA_star))
+            self.DC_pde.setValue(y_dirac=s, X= Mn * grad(WA_star))
             VA_star = self.DC_pde.getSolution()
-            UA = WA + VA
+            UA = VA - WA
             DMisfitDsigma_0 -= inner(grad(VA_star), grad(VA)) + inner(grad(WA_star), grad(WA))
-            DMisfitDMn -= inner(grad(WA_star), grad(UA))
+            DMisfitDMn += inner(grad(WA_star), grad(UA))
         # -------------------------
         self.logger.debug("%s adjoint potentials calculated." % len(additive_potentials_DC.keys()))
         return DMisfitDsigma_0,  DMisfitDMn
@@ -358,7 +376,7 @@ class IPInversionH1(IPMisfitCostFunction):
    """
 
     def __init__(self, domain, data, maskZeroPotential, sigma_src=None, pde_tol= 1e-8,
-                    stationsFMT="e%s", m_ref = None,
+                    stationsFMT="e%s", m_ref = None, fix_top = False, zero_mean_m = False,
                     useLogMisfitDC=False, dataRTolDC=1e-4, useLogMisfitIP=False, dataRTolIP=1e-4,
                     weightingMisfitDC=1, sigma_0_ref=1e-4, Mn_ref = 1.e-6,
                     w1=1, theta=0., maskFixedProperty = None,
@@ -406,13 +424,15 @@ class IPInversionH1(IPMisfitCostFunction):
         self.logclip = logclip
         self.m_epsilon = m_epsilon
         self.m_ref = m_ref
-
+        self.zero_mean_m = zero_mean_m
         # its is assumed that sigma_ref and Mn_ref on the faces is not updated!!!
         if maskFixedProperty is None:
             x = self.DC_pde.getDomain().getX()
             qx = whereZero(x[0] - inf(x[0])) + whereZero(x[0] - sup(x[0]))
             qy = whereZero(x[1] - inf(x[1])) + whereZero(x[1] - sup(x[1]))
             qz = whereZero(x[2] - inf(x[2]))
+            if fix_top:
+                qz += whereZero(x[2] - sup(x[2]))
             self.mask_fixed_property  =   qx + qy + qz
         else:
             self.mask_fixed_property = wherePositive(maskFixedProperty)
@@ -421,10 +441,15 @@ class IPInversionH1(IPMisfitCostFunction):
         # regularization
         if reg_tol is None:
             reg_tol=min(sqrt(pde_tol), 1e-3)
-        self.Hpde = setupERTPDE(self.domain)
-        self.Hpde.setValue(A=kronecker(3), q=self.mask_fixed_property)
-        self.Hpde.getSolverOptions().setTolerance(reg_tol)
         self.logger.debug(f'Tolerance for solving regularization PDE is set to {reg_tol}')
+        if self.zero_mean_m:
+            self.Hpde = PoissonEquationZeroMean(self.domain, A=kronecker(3)).setSecondaryCondition(Yh=1)
+            self.Hpde.pde.getSolverOptions().setTolerance(reg_tol)
+            self.logger.debug(f'Property function with zero mean.')
+        else:
+            self.Hpde = setupERTPDE(self.domain)
+            self.Hpde.setValue(q=self.mask_fixed_property, A=kronecker(3))
+            self.Hpde.getSolverOptions().setTolerance(reg_tol)
         self.setW1andTheta(w1, theta)
 
     def setW1andTheta(self, w1, theta):
@@ -490,7 +515,8 @@ class IPInversionH1(IPMisfitCostFunction):
         m = self.extractPropertyFunction(dm)
         im = interpolate(m, Function(self.domain))
         im_stations = self.grabValuesAtStations(m)
-        self.logger.debug("m = %s" % ( str(im)))
+        self.logger.debug("m[0] = %s" % (str(im[0])))
+        self.logger.debug("m[1] = %s" % (str(im[1])))
 
         isigma_0 = self.getSigma0(im[0])
         isigma_0_stations =  self.getSigma0(im_stations[:,0])
@@ -506,6 +532,8 @@ class IPInversionH1(IPMisfitCostFunction):
         misfit_DC, misfit_IP = self.getMisfit(*args2)
 
         gdm=grad(dm, where=im.getFunctionSpace())
+        print("grad m[0] :", str(length(gdm[0])))
+        print("grad m[1] :", str(length(gdm[1])))
         R = 1. / 2 * integrate(self.w1[0] * length(gdm[0]) ** 2 + self.w1[1] * length(gdm[1]) ** 2)
 
         if self.theta>0:
@@ -532,6 +560,8 @@ class IPInversionH1(IPMisfitCostFunction):
         X[0] = self.w1[0] * gdm[0]
         X[1] = self.w1[1] * gdm[1]
         DMisfitDsigma_0, DMisfitDMn  = self.getDMisfit(isigma_0, iMn,*args2)
+        print("DMisfitDsigma_0 ", str(DMisfitDsigma_0))
+        print("DMisfitDMn ", str(DMisfitDMn))
 
         Dsigma_0Dm0 = self.getDsigma0Dm(isigma_0, im[0])
         DMnDm1 = self.getDMnDm(iMn, im[1])
@@ -579,12 +609,16 @@ class IPInversionH1(IPMisfitCostFunction):
             A[0, :, 1, :] = H01
             A[1, :, 0, :] = transpose(H01)
             self.Hpde.setValue(A=A)
-
         dm=Data(0., (2,), Solution(self.domain))
-        for i in [0,1]:
-            self.Hpde.setValue(X=r[1][i], Y=r[0][i])
-            dm[i] = self.Hpde.getSolution()/(self.w1[i] + self.theta)
-            self.logger.debug(f"search direction component {i} = {str(dm[i])}.")
+        if self.zero_mean_m:
+            for i in [0,1]:
+                dm[i] = self.Hpde.getSolution(X=r[1][i], Y=r[0][i] )/(self.w1[i] + self.theta)
+                self.logger.debug(f"search direction component {i} = {str(dm[i])}.")
+        else:
+            for i in [0,1]:
+                self.Hpde.setValue(X=r[1][i], Y=r[0][i])
+                dm[i] = self.Hpde.getSolution()/(self.w1[i] + self.theta)
+                self.logger.debug(f"search direction component {i} = {str(dm[i])}.")
         return dm
 
     def getDualProduct(self, dm, r):
@@ -627,7 +661,7 @@ class IPInversionH2(IPMisfitCostFunction):
    """
 
     def __init__(self, domain, data, maskZeroPotential, sigma_src=None, pde_tol=1e-8,
-                 stationsFMT="e%s", m_ref=None,
+                 stationsFMT="e%s", m_ref=None, length_scale=None,
                  useLogMisfitDC=False, dataRTolDC=1e-4, useLogMisfitIP=False, dataRTolIP=1e-4,
                  weightingMisfitDC=1, sigma_0_ref=1e-4, Mn_ref=1.e-6,
                  w1=1, theta=0., fixTop=False,  zero_mean_m = True,
@@ -637,7 +671,6 @@ class IPInversionH2(IPMisfitCostFunction):
         :param domain: PDE & inversion domain
         :param data: survey data, is `fingal.SurveyData`. Resistence and secondary potential data are required.
         :param maskZeroPotential: mask of locations where electric potential is set to zero.
-
         :param sigma_src: background conductivity, used to calculate the source potentials. If not set sigma_0_ref
         is used.
         :param pde_tol: tolerance for solving the forward PDEs and recovering m from M.
@@ -652,6 +685,8 @@ class IPInversionH2(IPMisfitCostFunction):
         :param sigma_0_ref: reference DC conductivity
         :param Mn_ref: reference Mn conductivity
         :param w1: regularization weighting factor(s) (scalar or numpy.ndarray)
+        :param length_scale: length scale, w0=(1/length scale)**2 is weighting factor for |grad m|^2 = |M|^2 in
+                            the regularization term. If `None`, the term is dropped.
         :param theta: weigthing factor x-grad term
         :param fixTop: if set m[0]-m_ref[0] and m[1]-m_ref[1] are fixed at the top of the domain
                         rather than just on the left, right, front, back and bottom face.
@@ -700,9 +735,16 @@ class IPInversionH2(IPMisfitCostFunction):
             else:
                 self.logger.info(f'Property function free on top and zero on all other boundaries.')
 
+        if length_scale is None:
+            self.a = 0.
+        else:
+            self.a = ( 1./length_scale )**2
+        self.logger.info("Length scale factor is %s." % (str(length_scale)))
+
         # recovery of propery function from M:
         if self.zero_mean_m:
             self.mpde = PoissonEquationZeroMean(self.domain).setSecondaryCondition(Yh=1)
+            self.logger.debug(f'Property function with zero mean.')
         else:
             self.mpde = setupERTPDE(self.domain)
             self.mpde.getSolverOptions().setTolerance(pde_tol)
@@ -718,12 +760,13 @@ class IPInversionH2(IPMisfitCostFunction):
             self.Hpde = setupERTPDE(self.domain)
             self.Hpde.getSolverOptions().setTolerance(reg_tol)
             self.Hpde_qs = [ qy + qz, qx + qz,  qx + qy ]
+            self.Hpde.setValue(A=kronecker(3), D=self.a)
         else:
             self.Hpdes = []
             for k, q in enumerate( [ qy + qz, qx + qz,  qx + qy ]):
                 pde =  setupERTPDE(self.domain)
                 pde.getSolverOptions().setTolerance(reg_tol)
-                pde.setValue(q=q)
+                pde.setValue(q=q, A=kronecker(3), D=self.a)
                 self.Hpdes.append(pde)
 
 
@@ -802,7 +845,8 @@ class IPInversionH2(IPMisfitCostFunction):
         m = self.extractPropertyFunction(dM)
         im = interpolate(m, Function(self.domain))
         im_stations = self.grabValuesAtStations(m)
-        self.logger.debug("m = %s" % (str(im)))
+        self.logger.debug("m[0] = %s" % (str(im[0])))
+        self.logger.debug("m[1] = %s" % (str(im[1])))
 
         isigma_0 = self.getSigma0(im[0])
         isigma_0_stations = self.getSigma0(im_stations[:, 0])
@@ -818,7 +862,9 @@ class IPInversionH2(IPMisfitCostFunction):
         misfit_DC, misfit_IP = self.getMisfit(*args2)
 
         gdM = grad(dM, where=im.getFunctionSpace())
-        R = 1. / 2 * integrate(self.w1[0] * length(gdM[0:3]) ** 2 + self.w1[1] * length(gdM[3:]) ** 2)
+        idM = interpolate(dM, im.getFunctionSpace() )
+        R = 1. / 2. * integrate(self.w1[0] * ( length(gdM[0:3]) ** 2 + self.a * length(idM[0:3])**2 )
+                             + self.w1[1] * ( length(gdM[3:] ) ** 2 + self.a * length(idM[3:])**2 ) )
 
         if self.theta > 0:
             gdm0 = interpolate(dM[0:3], Function(self.domain))
@@ -837,9 +883,9 @@ class IPInversionH2(IPMisfitCostFunction):
                 f'ratios ERT, IP; reg ; Xgrad [%] \t=  {misfit_DC / V * 100:g}, {misfit_IP / V * 100:g};  {R / V * 100:g}; {MX / V * 100:g}')
         else:
             self.logger.debug(
-                f'misfit ERT, IP; reg, total \t=  {misfit_DC:e}, {misfit_IP:e};  {MX:e} = {V:e}')
+                f'misfit ERT, IP; reg, total \t=  {misfit_DC:e}, {misfit_IP:e};  {R:e} = {V:e}')
             self.logger.debug(
-                f'ratios ERT, IP; reg \t=  {misfit_DC / V * 100:g}, {misfit_IP / V * 100:g};  {MX / V * 100:g}')
+                f'ratios ERT, IP; reg \t=  {misfit_DC / V * 100:g}, {misfit_IP / V * 100:g};  {R / V * 100:g}')
 
         return V
 
@@ -848,20 +894,20 @@ class IPInversionH2(IPMisfitCostFunction):
         returns the gradient of the cost function. Overwrites `getGradient` of `MeteredCostFunction`
         """
         gdM = grad(dM, where=im.getFunctionSpace())
-
+        idM = interpolate(dM, im.getFunctionSpace() )
+        Y = Data(0., (6,), im.getFunctionSpace())
         X = Data(0., (6, 3), gdM.getFunctionSpace())
+
         X[0:3] = self.w1[0] * gdM[0:3]
-        X[3:] = self.w1[1] * gdM[3:]
+        X[3:]  = self.w1[1] * gdM[3:]
+        Y[0:3] = self.w1[0] * self.a * idM[0:3]
+        Y[3:]  = self.w1[1] * self.a * idM[3:]
 
         DMisfitDsigma_0, DMisfitDMn = self.getDMisfit(isigma_0, iMn, *args2)
         Dsigma_0Dm0 = self.getDsigma0Dm(isigma_0, im[0])
         DMnDm1 = self.getDMnDm(iMn, im[1])
         Ystar0= DMisfitDsigma_0 * Dsigma_0Dm0
         Ystar1= DMisfitDMn * DMnDm1
-
-        print("Ystar0, Ystar1 =", Ystar0, Ystar1)
-        print(" DMisfitDMn, DMnDm1 =", DMisfitDMn, DMnDm1)
-        print(" DMisfitDsigma_0, Dsigma_0Dm0 =", DMisfitDsigma_0, Dsigma_0Dm0)
         if self.zero_mean_m:
             dmstar0 = self.mpde.getSolution( Y = Ystar0 )
             dmstar1 = self.mpde.getSolution( Y = Ystar1 )
@@ -870,9 +916,9 @@ class IPInversionH2(IPMisfitCostFunction):
             dmstar0=self.mpde.getSolution()
             self.mpde.setValue(X=Data(), Y = Ystar1)
             dmstar1=self.mpde.getSolution()
-        Y = Data(0., (6,), im.getFunctionSpace())
-        Y[0:3] = grad(dmstar0, where=X.getFunctionSpace())
-        Y[3:] = grad(dmstar1, where=X.getFunctionSpace())
+
+        Y[0:3]+= grad(dmstar0, where=X.getFunctionSpace())
+        Y[3:]+= grad(dmstar1, where=X.getFunctionSpace())
 
         if self.theta > 0:
             gdm0 = interpolate(dM[0:3], Function(self.domain))
@@ -882,9 +928,6 @@ class IPInversionH2(IPMisfitCostFunction):
 
             X01 = inner(gdm0, gdm1)
             f = X01 * (1 / lgdm0_2 + 1 / lgdm1_2)
-            #X[0, :] += self.theta * ((1 + X01 ** 2 / lgdm0_2 ** 2) * gdm0 - f * gdm1)
-            #X[1, :] += self.theta * ((1 + X01 ** 2 / lgdm1_2 ** 2) * gdm1 - f * gdm0)
-
             Y[0:3] += self.theta * ((1 + X01 ** 2 / lgdm0_2 ** 2) * gdm0 - f * gdm1)
             Y[3:] += self.theta * ((1 + X01 ** 2 / lgdm1_2 ** 2) * gdm1 - f * gdm0)
 
@@ -895,7 +938,7 @@ class IPInversionH2(IPMisfitCostFunction):
         """
         returns an approximation of inverse of the Hessian. Overwrites `getInverseHessianApproximation` of `MeteredCostFunction`
         """
-        if False and initializeHessian and self.theta > 0:
+        if False and initializeHessian and self.theta > 0: # THIS DOES NOT WORK
             # as restart is disabaled this will not be called:
             gdm = grad(dm)
             A = self.Hpde.createCoefficient('A')
@@ -919,10 +962,17 @@ class IPInversionH2(IPMisfitCostFunction):
             self.Hpde.setValue(A=A)
 
         P = Data(0., (6,), Solution(self.domain))
-        for i in [0, 1]:
-            self.Hpde.setValue(X=r[0:3][i], Y=r[3:][i])
-            P[i*3:] = self.Hpde.getSolution() / (self.w1[i] + self.theta)
-            self.logger.debug(f"search direction component {i} = {str(P[i*3:(i+1)*3])}.")
+        for k in [0, 1, 2]:
+            if self.save_memory:
+                self.Hpde.setValue(q=self.Hpde_qs[k])
+            for i in [0, 1]:
+                if self.save_memory:
+                    self.Hpde.setValue(X=r[1][i*3+k], Y=r[0][i*3+k])
+                    P[i * 3 + k] = self.Hpde.getSolution() / (self.w1[i] + self.theta)
+                else:
+                    self.Hpdes[k].setValue(X=r[1][i * 3 + k], Y=r[0][i * 3 + k])
+                    P[i*3+k] = self.Hpdes[k].getSolution() / (self.w1[i] + self.theta)
+                self.logger.debug(f"search direction component {i*3+k} = {str(P[i*3+k])}.")
         return P
 
     def getDualProduct(self, dM, r):

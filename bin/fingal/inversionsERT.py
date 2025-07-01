@@ -453,23 +453,34 @@ class ERTInversionH2(ERTMisfitCostFunction):
 
     def __init__(self, domain=None, data=None,
                  sigma_0_ref=1e-4, sigma_src=None, w1=1., m_ref=None, zero_mean_m = False,
-                 maskZeroPotential = None, fixTop=False, save_memory = False,
+                 maskZeroPotential = None, fixTop=False, save_memory = False, length_scale = None,
                  pde_tol=1.e-8, reg_tol=None, stationsFMT="e%s", logclip=5, dataRTolDC=1e-4,
-                 useLogMisfitDC=False, logger=None, EPSILON=1e-15, **kargs):
+                 useLogMisfitDC=False, logger=None, **kargs):
         """
-        :param domain: pde domain
-        :param data: survey data, is `fingal.SurveyData`
-        :param sigma_0_ref: sigma = sigma_0_ref * exp(m)
-        :param sigma_src: conductivity used to calculate the injection/source potentials (need to be constant)
-        :param w1: weighting H1 regularization  int grad(m)^2
-        :param useL1Norm: use L1+eps regularization
-        :param epsilonL1Norm: cut-off for L1+eps regularization
-        :param maskZeroPotential: mask of the faces where potential field 'radiation' is set.
-        :param pde_tol: tolerance for the PDE solver
-        :param reg_tol: tolerance for the PDE solver in the regularization
-        :param stationsFMT: format to map station keys k to mesh tags stationsFMT%k or None
-        :param logclip: cliping for p to avoid overflow in conductivity calculation
-        :param EPSILON: absolute tolerance for zero values.
+        :param domain: PDE & inversion domain
+        :param data: survey data, is `fingal.SurveyData`. Resistence potential data are required.
+        :param maskZeroPotential: mask of locations where electric potential is set to zero.
+        :param sigma_src: background conductivity, used to calculate the source potentials. If not set sigma_0_ref
+        is used.
+        :param length_scale: length scale, with a=(1/length scale)**2  a*w1 is weighting factor for |grad m|^2 = |M|^2 in
+                            the regularization term. If `None`, the term is dropped.
+        :param pde_tol: tolerance for solving the forward PDEs and recovering m from M.
+        :param stationsFMT: format string to convert station id to mesh label
+        :param m_ref: reference property function
+        :param zero_mean_m: constrain m by zero mean.
+        :param useLogMisfitDC: if set logarithm of DC data is used in misfit.
+        :param dataRTolDC: relative tolerance for damping small DC data on misfit
+        :param sigma_0_ref: reference DC conductivity
+        :param w1: regularization weighting factor
+        :param fixTop: if set m[0]-m_ref[0] and m[1]-m_ref[1] are fixed at the top of the domain
+                        rather than just on the left, right, front, back and bottom face.
+        :param logclip: value of m are clipped to stay between -logclip and +logclip
+        :param reg_tol: tolerance for PDE solve for regularization.
+        :param save_memory: if not set, the three PDEs for the three components of the inversion unknwon
+                            with the different boundary conditions are held. Otherwise, boundary conditions
+                            are updated for each component which requires refactorization which obviously
+                            requires more time.
+        :param logger: the logger, if not set, 'fingal.IPInversion.H2' is used.
         """
         if sigma_src == None:
             sigma_src = sigma_0_ref
@@ -481,7 +492,11 @@ class ERTInversionH2(ERTMisfitCostFunction):
         self.zero_mean_m = zero_mean_m
         self.sigma_0_ref = sigma_0_ref
         self.logger.info("Reference conductivity sigma_0_ref = %s" % (str(self.sigma_0_ref)))
-
+        if length_scale is None:
+            self.a = 0.
+        else:
+            self.a = ( 1./length_scale )**2
+        self.logger.info("Length scale factor is %s." % (str(length_scale)))
         # its is assumed that sigma_ref on the faces is not updated!!!
         # masks for surfaces:
         x=self.forward_pde.getDomain().getX()
@@ -529,10 +544,10 @@ class ERTInversionH2(ERTMisfitCostFunction):
 
     def setW1(self, w1):
         if self.save_memory:
-            self.Hpde.setValue(A=w1 * kronecker(3))
+            self.Hpde.setValue(A=w1 * kronecker(3), D = w1 * self.a )
         else:
             for pde in self.Hpdes:
-                pde.setValue(A=w1 * kronecker(3))
+                pde.setValue(A=w1 * kronecker(3), D = w1 * self.a )
         self.w1 = w1
 
     def updateSigma0Ref(self, sigma_0_ref):
@@ -584,8 +599,9 @@ class ERTInversionH2(ERTMisfitCostFunction):
         return the value of the cost function
         """
         misfit_0 = self.getMisfit(isigma_0, isigma_0_stations, *args2)
-        gdM=grad(dM, where=im.getFunctionSpace())
-        reg = self.w1 / 2 * integrate(length(gdM)**2)
+        gdM = grad(dM, where=im.getFunctionSpace())
+        idM = interpolate(dM, im.getFunctionSpace())
+        reg = self.w1 / 2 * (integrate(length(gdM)**2) + self.a * integrate(length(idM)**2) )
         V = reg + misfit_0
 
         self.logger.debug(f'misfit ERT, reg - total \t=  {misfit_0:e}, {reg:e} -  {V:e}.')
@@ -596,19 +612,19 @@ class ERTInversionH2(ERTMisfitCostFunction):
         """
         returns the gradient of the cost function. Overwrites `getGradient` of `MeteredCostFunction`
         """
-        Ystar = Scalar(0.,im.getFunctionSpace() )
         gdM=grad(dM, where=im.getFunctionSpace())
         X = gdM * self.w1
+        Y = interpolate(dM, im.getFunctionSpace()) * ( self.a * self.w1 )
 
         DMisfitDsigma_0 = self.getDMisfit(isigma_0, isigma_0_stations, *args2)
         Dsigma_0Dm = self.getDsigma0Dm(isigma_0, im)
-        Ystar+= DMisfitDsigma_0 * Dsigma_0Dm
+        Ystar= DMisfitDsigma_0 * Dsigma_0Dm
         if self.zero_mean_m:
             dmstar = self.mpde.getSolution( Y = Ystar )
         else:
             self.mpde.setValue(X=Data(), Y = Ystar)
             dmstar=self.mpde.getSolution()
-        Y=grad(dmstar, where=X.getFunctionSpace())
+        Y+=grad(dmstar, where=X.getFunctionSpace())
         return ArithmeticTuple(Y, X)
 
     def getInverseHessianApproximation(self, r, dM, m, im, isigma_0, isigma_0_stations, args2, initializeHessian=False):

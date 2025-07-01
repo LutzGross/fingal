@@ -186,6 +186,7 @@ class SurveyData(object):
         self.observationElectrodes=None
         self._resistence_max=None
         self._secondary_resistence_max=None
+        self._chargeability_max = None
     @classmethod 
     def checkObservationType(cls, obs):
         if isinstance(obs, list):
@@ -270,6 +271,10 @@ class SurveyData(object):
         if self._secondary_resistence_max is None:
             self._secondary_resistence_max = max([ abs(self.getSecondaryResistenceData(t)) for t in self.tokenIterator() ] )
         return self._secondary_resistence_max
+    def getMaximumChargeability(self):
+        if self._chargeability_max is None:
+            self._chargeability_max = max([ abs(self.getChargeabilityData(t)) for t in self.tokenIterator() ] )
+        return self._chargeability_max
     # ======================
     def getResistenceData(self, token):
         return self.getDataRecord(token, datatype='R')
@@ -332,6 +337,17 @@ class SurveyData(object):
                 return r*eta_err+eta*r_err
         else:
             return self.default_rel_error * self.getMaximumSecondaryResistence()
+
+    def getSecondaryResistenceRelError(self, token):
+        if self.hasDataType("RELERR_R2"):
+            return self.getDataRecord(token, datatype='RELERR_R2')
+        else:
+            ERR = self.getSecondaryResistenceError(token)
+            V = self.getSecondaryResistenceData(token)
+            if self.isUndefined(V) or self.isUndefined(ERR):
+                return self.unDefined
+            else:
+                return ERR/V
     # =========================================
     def getFieldIntensityData(self, token):
         return self.getDataRecord(token, datatype='E')

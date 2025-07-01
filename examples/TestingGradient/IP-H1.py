@@ -39,7 +39,7 @@ costf=IPInversionH1(domain, data=survey,
                          w1=config.regularization_w1,
                         maskZeroPotential=mask_face, dataRTolDC= config.data_rtol,
                          pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
-                         useLogMisfitDC= config.use_log_misfit_DC, logger=logger)
+                         useLogMisfitDC= config.use_log_misfit_DC, useLogMisfitIP= config.use_log_misfit_IP, logger=logger)
 
 tabfile=open(TABFN, 'w')
 # test the regularization first:
@@ -61,12 +61,12 @@ for w10, w11, theta in [(1., 0., 0), (0., 1., 0), (0., 0., 1), (1., 1., 0.5)]:
     #1/0
     ddm=(x+y+0.5*z)/Lsup(r)/3*10*pp/10000
     ddm = (x + y + 0.5 * z) / Lsup(r) * pp / 6
+    args = costf.getArgumentsAndCount(M)
+    G = costf.getGradientAndCount(M, *args)
     for d in [ [1, 0] , [0, 1] , [1, -1.] ] :
         tabfile.write(
             f".. w1 , = {[w10, w11]}, theta = {theta}, with_ERTmisfit= {False}, with_IPmisfit= {False} d={d}  .............\n")
         dM=ddm * d
-        args=costf.getArgumentsAndCount(M)
-        G=costf.getGradientAndCount(M, *args)
         Dex = costf.getDualProductAndCount(dM, G)
         J0=costf.getValueAndCount(M,  *args)
         print("J(m)=%e"%J0)
@@ -107,13 +107,14 @@ for w1, theta, with_ERTmisfit, with_IPmisfit  in [(0., 0., True, False), (0., 0.
     #====
     r= length(domain.getX())
     M=RandomData((2,), ContinuousFunction(domain))*pp
+    args=costf.getArgumentsAndCount(M)
+    G=costf.getGradientAndCount(M, *args)
+
     ddm = (x + y + 0.5 * z) / Lsup(r) * pp / 6
     for d in [ [5, 0] , [0, 5.] , [1, 2.5] ] :
         tabfile.write(
             f".. w1 , = {w1}, theta = {theta}, with_ERTmisfit= {with_ERTmisfit}, with_IPmisfit= {with_IPmisfit} d={d}  .............\n")
         dM=ddm * d
-        args=costf.getArgumentsAndCount(M)
-        G=costf.getGradientAndCount(M, *args)
         Dex = costf.getDualProductAndCount(dM, G)
         J0=costf.getValueAndCount(M,  *args)
         print("J(m)=%e"%J0)
