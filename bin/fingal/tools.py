@@ -356,8 +356,6 @@ class DataMisfitQuad(DataMisfit):
     """
     def getValue(self, u):
         res = self.data-self.getDifference(u)
-        print(self.iMs, self.iNs, " : ", res)
-
         dd = abs(res) ** 2 * self.weightings
         return 0.5 * sum(dd)
 

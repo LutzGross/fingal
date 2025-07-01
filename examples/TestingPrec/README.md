@@ -3,7 +3,7 @@
 This is the place to test the effect different regularizations 
 
 
-### H2, regularization_w1=1e1, regularization_length_scale = None
+### H2, regularization_w1DC=1e1, regularization_length_scale = None
 
     Inversion.LBFGS: ********** iteration  11 **********
     Inversion.LBFGS:        F(m) = 3.64408
@@ -33,7 +33,7 @@ This is the place to test the effect different regularizations
     Inversion.LBFGS: Gradient has converged: |F-Fold|=3.60476e-05 < g_tol*max(|F|,|Fold|)=3.64408e-05
     Inversion.LBFGS: Success after 11 iterations!
 
-### H2, regularization_w1=1e1, regularization_length_scale = None
+### H2, regularization_w1DC=1e1, regularization_length_scale = None
     Inversion.LBFGS: ********** iteration  21 **********
     Inversion.LBFGS:        F(m) = 1.84977
     Inversion.ERT-H2: search direction component 0 = Summary: inf=-0.000374912 sup=0.000576077 data points=14674.
@@ -159,7 +159,7 @@ This is the place to test the effect different regularizations
     Inversion.LBFGS: Gradient has converged: |F-Fold|=5.91035e-07 < g_tol*max(|F|,|Fold|)=1.84977e-05
     Inversion.LBFGS: Success after 21 iterations!
 
-### H2, regularization_w1=1e-1, regularization_length_scale = None
+### H2, regularization_w1DC=1e-1, regularization_length_scale = None
     Inversion.LBFGS: ********** iteration  42 **********
     Inversion.LBFGS:        F(m) = 0.388102
     Inversion.ERT-H2: search direction component 0 = Summary: inf=-0.00661094 sup=0.00721155 data points=14674.
@@ -254,7 +254,7 @@ This is the place to test the effect different regularizations
     Inversion.LBFGS: Solution has converged: |m-m_old|=1.06521e-05 < |m|*m_tol=2.90287e-05
     Inversion.LBFGS: Success after 42 iterations!
 
-### PseudoGauss, regularization_w1=1e-3, regularization_length_scale = 5
+### PseudoGauss, regularization_w1DC=1e-3, regularization_length_scale = 5
     Inversion.LBFGS: ********** iteration  16 **********
     Inversion.LBFGS:        F(m) = 1.13251
     Inversion.ERT-Gauss: search direction component 0 = Summary: inf=-0.0015567 sup=0.00219379 data points=14674.
@@ -283,7 +283,7 @@ This is the place to test the effect different regularizations
     Inversion.LBFGS: Gradient has converged: |F-Fold|=4.95567e-06 < g_tol*max(|F|,|Fold|)=1.13251e-05
     Inversion.LBFGS: Success after 16 iterations!
 
-### PseudoGauss, regularization_w1=1e-4, regularization_length_scale = 5
+### PseudoGauss, regularization_w1DC=1e-4, regularization_length_scale = 5
     Inversion.LBFGS: ********** iteration  21 **********
     Inversion.LBFGS:        F(m) = 0.214754
     Inversion.ERT-Gauss: search direction component 0 = Summary: inf=-0.0981558 sup=0.00805389 data points=14674.

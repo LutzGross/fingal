@@ -45,8 +45,8 @@ To run the inversion based on the configuration file `config.py` use:
     runERTinversion.py --vtk -d config
 
 The reference conductivity `sigma_ref` set in the configuration file 
-is rescaled prior to the inversion in an attempt to reduce the initial misfit
-(use '--nooptimize' to switch off rescaling).
+is reset prior to the inversion in an attempt to reduce the initial misfit.  
+(use line command '--nooptimize' to switch off this function).
 `-d` switches on more output. With the switch `--vtk` the file `sigma.vtk` in 
 the [VTK](https://vtk.org/) file format is created where `sigma` is taken from the `output` 
 variable set in configuration file
@@ -54,23 +54,19 @@ variable set in configuration file
 but less portable). 
 
 Misfit can be squares of data residual (weighted by error) (aka as chi^2) or square of 
-data logarithm (`set use_log_misfit_ERT` = True). 
+data logarithm (`config.use_log_misfit_ERT` = `True`). 
 
 Various regularization approaches can be used: 
 
    - Gradient of property function with fixed conductivity `sigma_ref` on some boundaries: `H1`
-   - Laplacian of property function with fixed conductivity `sigma_ref` on some boundaries: `H2` 
    - Gradient of property function preserving conductivity mean `sigma_ref`: `H1_0`
+   - Laplacian of property function with fixed conductivity `sigma_ref` on some boundaries: `H2`, 
    - Laplacian of property function conductivity preserving mean `sigma_ref`: `H2_0`
-   - Gaussian Kernel with additional spatial correlation length scale: `Gauss` 
-   - Gaussian Kernel with additional spatial correlation length scale with decoupled approximative Hessian: `DGauss`
 
-For Gaussian regularization requires an addition regularization parameter
-'regularization_length_scale' to be set. A good choice is typically the distance of 
-electrodes. Option `Gauss` uses a FOSLS approach to resolve 
-the second derivative. The approach is typically very robust and used less number 
-of iterations but is computationally more expensive. To reduce memory requirements
-'DGauss' can be used but it comes at the cost of more iteration steps.
+For the cases `H2` and `H2_0` one can also set `config.regularization_length_scale` with the effect that
+the gradient of the property function is added to the regularization with weighting factor `a**2` 
+for `a=1/config.regularization_length_scale`.  
+
 
 ## Sensitivity and Resolution
 

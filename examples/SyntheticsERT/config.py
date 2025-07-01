@@ -43,6 +43,7 @@ def true_properties(domain):
     Mn_true.setTaggedValue('anomaly_right', Mn_ref / 100 * 0.25)
     return sigma0_true, Mn_true
 
+sigma0_dump = None
 #
 #
 #  Inversion:
@@ -58,8 +59,8 @@ imax=400
 truncation=20
 restart=60
 pde_tol=1e-10
-regularization_w1=1e-2
-#regularization_w1=1e-4
+regularization_w1DC=1e-2
+#regularization_w1DC=1e-4
 use_robin_condition_in_model = False
 use_L1Norm=False
 epsilon_L1Norm=0.01
@@ -68,7 +69,6 @@ regularization_order = 'H1' # in ['H1', 'H2', 'H1_0', 'H2_0', 'Gauss', DGauss']
 
 
 regularization_length_scale = 3
-regularization_penalty_factor = 10
 # Output handeling:
 #
 outfile='sigma'

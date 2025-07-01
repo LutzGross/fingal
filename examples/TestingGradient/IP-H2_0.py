@@ -36,7 +36,7 @@ mask_face = MaskFromBoundaryTag(domain, *config.faces_tags)
 
 costf = IPInversionH2(domain, data=survey,
                       sigma_0_ref=config.sigma0_ref, Mn_ref=config.Mn_ref,
-                      w1=config.regularization_w1, zero_mean_m=True,
+                      w1=config.regularization_w1DC, zero_mean_m=True,
                       maskZeroPotential=mask_face, dataRTolDC=config.data_rtol,
                       pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
                       useLogMisfitDC=config.use_log_misfit_DC, logger=logger)

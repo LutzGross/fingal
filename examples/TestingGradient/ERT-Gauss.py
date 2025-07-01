@@ -39,7 +39,7 @@ mask_face = MaskFromBoundaryTag(domain, *config.faces_tags)
 costf=ERTInversionGauss(
                         domain, data=survey,
                          sigma_0_ref=config.sigma0_ref,
-                         w1=config.regularization_w1, penalty_factor=config.regularization_penalty_factor,
+                         w1=config.regularization_w1DC, penalty_factor=config.regularization_penalty_factor,
                          maskZeroPotential= mask_face, dataRTolDC= config.data_rtol,
                          pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
                          useLogMisfitDC= config.use_log_misfit_DC, logger=logger)

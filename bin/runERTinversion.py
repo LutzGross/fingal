@@ -71,8 +71,8 @@ else:
 
 # create cost function:
 logger.info(f"Regularization type = {config.regularization_order}.")
-logger.info(f"Regularization_w1 = {config.regularization_w1}.")
-if 'GAUSS' in config.regularization_order.upper():
+logger.info(f"Regularization_w1DC = {config.regularization_w1DC}.")
+if 'H2' in config.regularization_order.upper() or 'H2_0' in config.regularization_order.upper():
     logger.info(f"Regularization_length_scale = {config.regularization_length_scale}.")
 
 # initialize cost function:
@@ -82,14 +82,14 @@ if config.regularization_order in [ "H1", "H1_0" ]:
         logger.info(f"Robin boundary conditions are applied in Forward model.")
         costf=ERTInversionH1WithRobinCondition(domain, data=survey,
                              sigma_0_ref=config.sigma0_ref, fixTop=config.fix_top,
-                             w1=config.regularization_w1, useL1Norm=config.use_L1Norm, epsilonL1Norm=config.epsilon_L1Norm,
+                             w1=config.regularization_w1DC, useL1Norm=config.use_L1Norm, epsilonL1Norm=config.epsilon_L1Norm,
                              maskFixedProperty=fixedm, maskOuterFaces= mask_face, dataRTolDC= config.data_rtol,
                              pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
                              useLogMisfitDC= config.use_log_misfit_DC, logger=logger.getChild("ERT-H1-Robin"))
     else:
         costf=ERTInversionH1(domain, data=survey,
                              sigma_0_ref=config.sigma0_ref, fixTop=config.fix_top, zero_mean_m = config.regularization_order == "H1_0",
-                         w1=config.regularization_w1, useL1Norm=config.use_L1Norm, epsilonL1Norm=config.epsilon_L1Norm,
+                         w1=config.regularization_w1DC, useL1Norm=config.use_L1Norm, epsilonL1Norm=config.epsilon_L1Norm,
                          maskFixedProperty=fixedm, maskZeroPotential= mask_face, dataRTolDC= config.data_rtol, m_ref=m_ref,
                          pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
                          useLogMisfitDC= config.use_log_misfit_DC,logger=logger.getChild(f"ERT-{config.regularization_order}"))
@@ -99,7 +99,7 @@ elif config.regularization_order in [ "H2" , "H2_0" ] :
     assert not config.use_robin_condition_in_model, "H2 Regularization does not support robin_condition in the model."
     costf=ERTInversionH2(domain, data=survey, save_memory = args.savememory,
                          sigma_0_ref=config.sigma0_ref, reg_tol=None, fixTop=config.fix_top,  zero_mean_m = config.regularization_order == "H2_0",
-                         w1=config.regularization_w1, maskZeroPotential= mask_face, dataRTolDC= config.data_rtol,  m_ref=m_ref,
+                         w1=config.regularization_w1DC, maskZeroPotential= mask_face, dataRTolDC= config.data_rtol,  m_ref=m_ref,
                          pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
                          length_scale=config.regularization_length_scale,
                          useLogMisfitDC= config.use_log_misfit_DC, logger=logger.getChild(f"ERT-{config.regularization_order}"))
@@ -108,7 +108,7 @@ elif config.regularization_order == "Gauss":
     assert not config.use_robin_condition_in_model, "Gauss Regularization does not support robin_condition in the model."
     costf = ERTInversionGauss(domain, data=survey,
                                     sigma_0_ref=config.sigma0_ref, fixTop=config.fix_top,
-                                    w1=config.regularization_w1, length_scale = config.regularization_length_scale,
+                                    w1=config.regularization_w1DC, length_scale = config.regularization_length_scale,
                                     penalty_factor=config.regularization_penalty_factor, maskZeroPotential=mask_face, dataRTolDC= config.data_rtol,
                                     pde_tol=config.pde_tol, stationsFMT=config.stationsFMT,  m_ref=m_ref,
                                     logclip=config.clip_property_function,
@@ -119,7 +119,7 @@ elif config.regularization_order == "DGauss":
     costf = ERTInversionGaussWithDiagonalHessian(domain, data=survey, save_memory = args.savememory,
                                                    sigma_0_ref=config.sigma0_ref, fixTop=config.fix_top,
                                                    penalty_factor=config.regularization_penalty_factor,
-                                                    w1=config.regularization_w1, length_scale = config.regularization_length_scale,
+                                                    w1=config.regularization_w1DC, length_scale = config.regularization_length_scale,
                                                    maskZeroPotential=mask_face, dataRTolDC= config.data_rtol,
                                                    pde_tol=config.pde_tol, stationsFMT=config.stationsFMT,
                                                    logclip=config.clip_property_function,  m_ref=m_ref,
@@ -166,6 +166,9 @@ print(costf.getStatistics())
 m=costf.extractPropertyFunction(solver.getResult())
 
 sigma=costf.getSigma0(m, applyInterploation=False)
+if hasattr(config, "sigma0_dump") and config.sigma0_dump:
+    sigma.dump(config.sigma0_dump)
+    logger.info(f"Sigma0 was dumped to {config.sigma0_dump}.")
 if args.vtk:
     saveVTK(config.outfile, sigma=sigma, tag=makeTagMap(Function(domain)))
     logger.info(f"Result written to {config.outfile}.vtu.")

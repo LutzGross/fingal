@@ -44,8 +44,8 @@ fix_top = False
 fixed_region_tags=[]
 #weighting_misfit_ERT=0.5
 clip_property_function=10
-regularization_w1=1e-5
-#regularization_w1=1e-4
+regularization_w1DC=1e-5
+#regularization_w1DC=1e-4
 
 use_log_misfit_DC = False
 use_log_misfit_IP = False

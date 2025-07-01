@@ -38,7 +38,7 @@ mask_face=MaskFromBoundaryTag(domain, *config.faces_tags)
 
 costf = ERTInversionH2(domain, data=survey,
                        sigma_0_ref=config.sigma0_ref, reg_tol=None, zero_mean_m = True,
-                       w1=config.regularization_w1, maskZeroPotential=mask_face, dataRTolDC=config.data_rtol,
+                       w1=config.regularization_w1DC, maskZeroPotential=mask_face, dataRTolDC=config.data_rtol,
                        pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, logclip=config.clip_property_function,
                        useLogMisfitDC=config.use_log_misfit_DC, logger=logger)
 

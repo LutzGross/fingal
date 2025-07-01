@@ -1,5 +1,4 @@
-# Synthetic IP Inversion with DC-IP coupling 
-
+# Synthetic IP Inversion with DC and IP solved seperatly 
 
 ### Generate Data Set
 The first step is to create a synthetic data set. The [gmsh](https://gmsh.info/)  
@@ -19,7 +18,7 @@ To make the station and schedule file (names are set in [`config.py`](./config.p
 
     python3 mkIt.py
 
-The script inspects the `with_anomaly.geo` file grab the number of electrodes, nuber of lines
+The script inspects the `with_anomaly.geo` file grab the number of electrodes, number of lines
 and their spacings. The schedule is following a Wenner set-up for each line. 
 
 
@@ -41,22 +40,20 @@ This a simple way to generate a mesh from the electrode's positions:
 
 The mesh is written to the 'config.meshfile' in the *esys.finley* `fly` format.
 
-To run the inversion based on the configuration file `config.py` use: 
+First step in the inversion is to run an ERT inversion:
 
-    runIPinversion.py --vtk -d config
+    runERTinversion.py --vtk -d config
 
-The reference conductivity `sigma_ref` and normalised chargeability `Mn_ref` are set in
-the configuration file 
-are reset prior to the inversion in an attempt to reduce the initial misfit
-(use '--nooptimize' to switch off this function).
-`-d` switches on more output. With the switch `--vtk` the file `sigma.vtk` in 
-the [VTK](https://vtk.org/) file format is created where `sigma` is taken from the `output` 
-variable set in configuration file
-(by default the `silo` format is used which is more compact 
-but less portable). 
+We refer to [SyntheticsERT](../SyntheticsERT/README.md) for details.
+The inversion - if sucessful - will create a dump file `dump_sigma0` as set
+in `config.sigma0_dump` which provides the input for the low frequency
+conductivity `sigma` for the IP inversion targeting the normalised chargeability 
+`Mn`. 
 
-Misfit can be squares of data residual (weighted by error) (aka as chi^2) or square of 
-data logarithm (set `use_log_misfit_ERT = True` and `use_log_misfit_IP = True`). 
+
+    runIP2inversion.py --vtk -d config
+
+ 
 
 
 by @LutzGross
