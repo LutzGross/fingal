@@ -57,7 +57,7 @@ regularization_w1DC=1e-4 # H1
 use_L1Norm=False
 epsilon_L1Norm=0.01
 use_log_misfit_DC = False
-regularization_order = 'H1' # in ['H1', 'H2', 'Gauss', 'DGauss' ]
+regularization_DC = 'H1' # in ['H1', 'H2', 'Gauss', 'DGauss' ]
 regularization_length_scale = 5
 regularization_w1DC=1e-6
 # Output handeling:

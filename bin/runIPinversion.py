@@ -66,12 +66,12 @@ else:
 # ... create mask where potential is set to zero:
 mask_face = MaskFromBoundaryTag(domain, *config.faces_tags)
 # create cost function:
-logger.info(f"Regularization type = {config.regularization_order}.")
+logger.info(f"Regularization type = {config.regularization_DC}.")
 logger.info(f"regularization_w1DC = {config.regularization_w1DC}.")
 logger.info(f"regularization_w1IP = {config.regularization_w1IP}.")
 w1 = np.array([config.regularization_w1DC, config.regularization_w1IP])
 # initialize cost function:
-if config.regularization_order in ["H1_0", "H1"] :
+if config.regularization_DC in ["H1_0", "H1"] :
     costf = IPInversionH1(domain, data=survey, sigma_0_ref=config.sigma0_ref, Mn_ref = config.Mn_ref,
                             w1 = w1, theta = config.regularization_theta,
                             maskZeroPotential=mask_face, maskFixedProperty=fixedm, fix_top=config.fix_top,
@@ -80,10 +80,10 @@ if config.regularization_order in ["H1_0", "H1"] :
                             useLogMisfitIP = config.use_log_misfit_IP, useLogMisfitDC=config.use_log_misfit_DC,
                             dataRTolDC = config.data_rtol, dataRTolIP = config.data_rtol,  m_ref=m_ref,
                             logclip=config.clip_property_function,
-                            zero_mean_m=config.regularization_order == "H1_0",
-                            logger = logger.getChild(f"IP-{config.regularization_order}"))
+                            zero_mean_m=config.regularization_DC == "H1_0",
+                            logger = logger.getChild(f"IP-{config.regularization_DC}"))
     dM_init = Data(0.0, (2,), Solution(domain))
-elif config.regularization_order in ["H2_0", "H2"]:
+elif config.regularization_DC in ["H2_0", "H2"]:
     costf = IPInversionH2(domain, data=survey,  maskZeroPotential=mask_face,
                             pde_tol= config.pde_tol,
                             stationsFMT=config.stationsFMT, m_ref=m_ref,
@@ -92,14 +92,14 @@ elif config.regularization_order in ["H2_0", "H2"]:
                             weightingMisfitDC=config.regularization_weighting_DC_misfit,
                             sigma_0_ref=config.sigma0_ref, Mn_ref= config.Mn_ref,
                             w1=w1, theta=config.regularization_theta,
-                            fixTop=config.fix_top,  zero_mean_m = config.regularization_order == "H2_0",
+                            fixTop=config.fix_top,  zero_mean_m = config.regularization_DC == "H2_0",
                             logclip=config.clip_property_function, m_epsilon=1e-18,
                             length_scale=config.regularization_length_scale,
                             reg_tol=None, save_memory=args.savememory,
-                            logger=logger.getChild(f"IP-{config.regularization_order}") )
+                            logger=logger.getChild(f"IP-{config.regularization_DC}") )
     dM_init = Data(0.0, (6,), Solution(domain))
 else:
-    raise ValueError("Unknown regularization type " + config.regularization_order)
+    raise ValueError("Unknown regularization type " + config.regularization_DC)
 
 # set up solver:
 if not args.nooptimize:

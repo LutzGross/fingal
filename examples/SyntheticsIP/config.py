@@ -72,12 +72,12 @@ use_log_misfit_DC = False
 use_log_misfit_IP = False
 
 regularization_weighting_DC_misfit =  1
-regularization_order = 'H1' # in ['H1', "H1_0", 'H2',  "H2_0"]
-if regularization_order == 'H2_0' :
+regularization_DC = 'H1' # in ['H1', "H1_0", 'H2',  "H2_0"]
+if regularization_DC == 'H2_0' :
     regularization_length_scale = None # only used for "H2" and "H2_0" regularization
     regularization_w1DC=100
     regularization_w1IP=100
-if regularization_order == 'H1_0' :
+if regularization_DC == 'H1_0' :
     regularization_w1DC=0.001
     regularization_w1IP = 0.001
 # Output handeling:

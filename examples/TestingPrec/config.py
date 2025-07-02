@@ -60,7 +60,7 @@ pde_tol=1e-10
 use_L1Norm=False
 epsilon_L1Norm=0.01
 use_log_misfit_DC = False
-regularization_order = 'H2' # in ['H1', 'H2', 'Gauss', 'PseudoGauss', D-PseudoGauss']
+regularization_DC = 'H2' # in ['H1', 'H2', 'Gauss', 'PseudoGauss', D-PseudoGauss']
 regularization_length_scale = 5000
 regularization_w1DC=1e-1
 # Output handeling:

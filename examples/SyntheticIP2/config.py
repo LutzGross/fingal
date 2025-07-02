@@ -65,22 +65,31 @@ imax=400
 truncation=20
 restart=60
 pde_tol=1e-10
-regularization_w1DC=1e-2
-regularization_w1IP=1e-2
+regularization_w1DC=1e-3
+regularization_w1IP=1e-3
 regularization_theta = 0.
 #regularization_w1DC=1e-4
 use_log_misfit_DC = False
 use_log_misfit_IP = False
-
+regularization_length_scale = None
 regularization_weighting_DC_misfit =  1
-regularization_order = 'H1' # in ['H1', "H1_0", 'H2',  "H2_0"]
-if regularization_order == 'H2_0' :
+regularization_DC = 'H2' # in ['H1', "H1_0", 'H2',  "H2_0"]
+regularization_w1DC=0.1
+regularization_length_scale = 3
+
+if regularization_DC == 'H2_0' :
     regularization_length_scale = None # only used for "H2" and "H2_0" regularization
     regularization_w1DC=100
     regularization_w1IP=100
-if regularization_order == 'H1_0' :
+if regularization_DC == 'H1_0' :
     regularization_w1DC=0.001
     regularization_w1IP = 0.001
+
+#
+#    regularization_DC = 'H2'
+#    regularization_w1DC = 1e-3
+#    misfit = 6.744216e-02, 64 iterations
+#
 # Output handeling:
 #
 outfile='sigma'

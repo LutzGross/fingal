@@ -50,7 +50,7 @@ regularization_w1DC=1e-5
 use_log_misfit_DC = False
 use_log_misfit_IP = False
 
-regularization_order = 'H1' # in ['H1', 'H2', 'Gauss', 'PseudoGauss', D-PseudoGauss']
+regularization_DC = 'H1' # in ['H1', 'H2', 'Gauss', 'PseudoGauss', D-PseudoGauss']
 regularization_length_scale = None
 
 
