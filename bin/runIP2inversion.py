@@ -2,7 +2,7 @@
 from esys.escript import *
 import importlib, os, sys
 sys.path.append(os.getcwd())
-from fingal import IPInversionH1, IPInversionH2, readElectrodeLocations, readSurveyData
+from fingal import IP2InversionH1, IP2InversionH2, readElectrodeLocations, readSurveyData
 from esys.finley import ReadMesh
 import numpy as np
 from esys.weipa import saveVTK, saveSilo
@@ -17,7 +17,7 @@ import logging
 from datetime import datetime
 #setEscriptParamInt('TOO_MANY_LINES', 6000)
 
-parser = argparse.ArgumentParser(description='driver to invert an IP survey - coupled version.')
+parser = argparse.ArgumentParser(description='driver to invert an IP survey - run ERT inversion first.')
 parser.add_argument(dest='config', metavar='configfile', type=str, help='python setting configuration')
 parser.add_argument('--restartfile', '-R', dest='RESTARTFN', metavar='RESTARTFN', type=None, default="restart", help='reststart file name')
 parser.add_argument('--restart', '-r',  dest='restart', action='store_true', default=False, help="start from restart file. RESTARTFN need to be set and exist.")
@@ -39,7 +39,7 @@ else:
 config = importlib.import_module(args.config)
 
 
-logger.info("** This is an IP inversion (coupled) @ %s **"%datetime.now().strftime("%d.%m.%Y %H:%M"))
+logger.info("** This is an IP inversion (IP part) @ %s **"%datetime.now().strftime("%d.%m.%Y %H:%M"))
 logger.info("configuration "+args.config+" imported.")
 
 elocations=readElectrodeLocations(config.stationfile, delimiter=config.stationdelimiter)
@@ -65,48 +65,50 @@ else:
     fixedm=None
 # ... create mask where potential is set to zero:
 mask_face = MaskFromBoundaryTag(domain, *config.faces_tags)
+# ... get sigma0 ...
+if config.sigma0_dump :
+    sigma0=load(config.sigma0_dump, domain)
+    logger.info(f"Sigma0 was load from {config.sigma0_dump}.")
+else:
+    sigma0 = Scalar(config.sigma0_ref, Solution(domain))
+    logger.info("Sigma0 was set to config.sigma0_ref.")
+logger.info("Sigma0: " + str(sigma0))
 # create cost function:
-logger.info(f"Regularization type = {config.regularization_DC}.")
-logger.info(f"regularization_w1DC = {config.regularization_w1DC}.")
+logger.info(f"Regularization type = {config.regularization_IP}.")
 logger.info(f"regularization_w1IP = {config.regularization_w1IP}.")
-w1 = np.array([config.regularization_w1DC, config.regularization_w1IP])
 # initialize cost function:
-if config.regularization_DC in ["H1_0", "H1"] :
-    costf = IPInversionH1(domain, data=survey, sigma_0_ref=config.sigma0_ref, Mn_ref = config.Mn_ref,
-                            w1 = w1, theta = config.regularization_theta,
+if config.regularization_IP in ["H1_0", "H1"] :
+    costf = IP2InversionH1(domain, data=survey, sigma_0=sigma0, Mn_ref = config.Mn_ref,
+                            w1 = config.regularization_w1IP,
                             maskZeroPotential=mask_face, maskFixedProperty=fixedm, fix_top=config.fix_top,
                             stationsFMT=config.stationsFMT, pde_tol= config.pde_tol,
-                            weightingMisfitDC=config.regularization_weighting_DC_misfit,
-                            useLogMisfitIP = config.use_log_misfit_IP, useLogMisfitDC=config.use_log_misfit_DC,
-                            dataRTolDC = config.data_rtol, dataRTolIP = config.data_rtol,  m_ref=m_ref,
+                            useLogMisfitIP = config.use_log_misfit_IP,
+                            dataRTolIP = config.data_rtol,  m_ref=m_ref,
                             logclip=config.clip_property_function,
-                            zero_mean_m=config.regularization_DC == "H1_0",
-                            logger = logger.getChild(f"IP-{config.regularization_DC}"))
-    dM_init = Data(0.0, (2,), Solution(domain))
-elif config.regularization_DC in ["H2_0", "H2"]:
-    costf = IPInversionH2(domain, data=survey,  maskZeroPotential=mask_face,
+                            zero_mean_m=config.regularization_IP == "H1_0",
+                            logger = logger.getChild(f"IP-{config.regularization_IP}"))
+    dM_init = Scalar(0.0, Solution(domain))
+elif config.regularization_IP in ["H2_0", "H2"]:
+    costf = IP2InversionH2(domain, data=survey,  maskZeroPotential=mask_face,
                             pde_tol= config.pde_tol,
                             stationsFMT=config.stationsFMT, m_ref=m_ref,
-                            useLogMisfitDC=config.use_log_misfit_DC, dataRTolDC=config.data_rtol,
                             useLogMisfitIP=config.use_log_misfit_IP, dataRTolIP=config.data_rtol,
                             weightingMisfitDC=config.regularization_weighting_DC_misfit,
-                            sigma_0_ref=config.sigma0_ref, Mn_ref= config.Mn_ref,
-                            w1=w1, theta=config.regularization_theta,
-                            fixTop=config.fix_top,  zero_mean_m = config.regularization_DC == "H2_0",
+                            sigma_0=sigma0, Mn_ref= config.Mn_ref,
+                            w1=config.regularization_w1IP,
+                            fixTop=config.fix_top,  zero_mean_m = config.regularization_IP == "H2_0",
                             logclip=config.clip_property_function, m_epsilon=1e-18,
                             length_scale=config.regularization_length_scale,
                             reg_tol=None, save_memory=args.savememory,
-                            logger=logger.getChild(f"IP-{config.regularization_DC}") )
-    dM_init = Data(0.0, (6,), Solution(domain))
+                            logger=logger.getChild(f"IP-{config.regularization_IP}") )
+    dM_init = Vector(0.0, Solution(domain))
 else:
-    raise ValueError("Unknown regularization type " + config.regularization_DC)
+    raise ValueError("Unknown regularization type " + config.regularization_IP)
 
 # set up solver:
 if not args.nooptimize:
-    new_sigma_ref, new_Mn_ref =costf.fitSigmaAndMnRef()
-    logger.info(f"New value for config.sigma_ref = {new_sigma_ref}.")
+    new_Mn_ref =costf.fitMnRef()
     logger.info(f"New value for config.Mn_ref = {new_Mn_ref}.")
-    costf.updateSigma0Ref(new_sigma_ref)
     costf.updateMnRef(new_Mn_ref)
 if args.testonly:
     exit(0)

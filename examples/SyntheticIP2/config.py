@@ -41,7 +41,7 @@ Mn_ref=0.001*sigma0_ref
 def true_properties(domain):
     from esys.escript import Scalar, Function
     sigma0_true=Scalar(sigma0_ref , Function(domain))
-    sigma0_true.setTaggedValue('anomaly', sigma0_ref * 10)
+    #sigma0_true.setTaggedValue('anomaly', sigma0_ref * 10)
     Mn_true=Scalar(Mn_ref, Function(domain))
     Mn_true.setTaggedValue('anomaly',  sigma0_ref * 10 * 0.5 )
     return sigma0_true, Mn_true
@@ -70,21 +70,21 @@ regularization_w1IP=1e-3
 regularization_theta = 0.
 #regularization_w1DC=1e-4
 use_log_misfit_DC = False
-use_log_misfit_IP = False
+use_log_misfit_IP = True
 regularization_length_scale = None
 regularization_weighting_DC_misfit =  1
 regularization_DC = 'H2' # in ['H1', "H1_0", 'H2',  "H2_0"]
 regularization_w1DC=0.1
 regularization_length_scale = 3
-
+regularization_IP = 'H1'
 if regularization_DC == 'H2_0' :
     regularization_length_scale = None # only used for "H2" and "H2_0" regularization
     regularization_w1DC=100
-    regularization_w1IP=100
+    regularization_w1IP=1
 if regularization_DC == 'H1_0' :
     regularization_w1DC=0.001
     regularization_w1IP = 0.001
-
+    regularization_w1DC=1000.
 #
 #    regularization_DC = 'H2'
 #    regularization_w1DC = 1e-3
