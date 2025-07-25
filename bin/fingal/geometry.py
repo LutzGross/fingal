@@ -112,8 +112,6 @@ class MeshWithTopgraphy(object):
         # interpolation operator (x,y)->elevation
         self.interp = None
 
-
-
     def getElevation(self, x, y ):
         """
 
@@ -213,6 +211,7 @@ class MeshWithTopgraphy(object):
         self.zminCore = self.zmincore - self.zlengthCore
     def getFlatZPosition(self, x, y):
         return self.fit[0] + self.fit[1] * x + self.fit[2] * y
+
     def makeFlatSurfaceGeometry(self, geofile_2D_flat=None):
         """
         creates a flat 2D mesh including extra_padding region
@@ -438,7 +437,7 @@ class MeshWithTopgraphy(object):
             self.mshfile_3D = mshfile_3D
         if geofile_3D:
             self.geofile_3D = geofile_3D
-        rp = subprocess.run(["gmsh", "-3", "-optimize_netgen", "-algo", "frontal", "-o", self.mshfile_3D, self.geofile_3D])
+        rp = subprocess.run(["gmsh", "-3", "-optimize_netgen", "-algo", "auto", "-o", self.mshfile_3D, self.geofile_3D])
         rp.check_returncode()
         print(">> GMSH mesh file %s generated." % self.mshfile_3D)
         return self.mshfile_3D
@@ -478,9 +477,8 @@ class MeshWithTopgraphy(object):
 
         X, Y = np.meshgrid(X, Y)
         Z = self.getElevation(X, Y)
-
         plt.figure()
-        plt.pcolormesh(X, Y, Z[:, :])
+        pcm = plt.pcolormesh(X, Y, Z[:, :])
         plt.scatter(self.positions[0], self.positions[1], s=4, c='r')
         plt.axis('scaled')
         plt.grid(visible=True, which='major', axis='both', color='k', linestyle='dotted', linewidth=0.5)
@@ -489,7 +487,7 @@ class MeshWithTopgraphy(object):
         plt.ylabel("northing")
         plt.minorticks_on()
 
-        plt.colorbar()
+        plt.colorbar(pcm)
         plt.savefig(plotfile)
 
         print("Topography pic written to %s." % plotfile)

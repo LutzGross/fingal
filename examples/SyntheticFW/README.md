@@ -1,3 +1,5 @@
+# THIS IS NOT WORKING - SCRTPT NEED TO BE ADJUSTED TO NEW ESCRIPT-VERSION
+
 # Synthetic Field Intensity Inversion (aka [FullWaver](http://www.iris-instruments.com/v-fullwaver.html))
 
 This is synthetic case with three cubic anomalies where
@@ -63,13 +65,7 @@ chargeability inversion. The option '-d' switches on additional output during th
 where the file name is taken from the configuration file. Support for VTK file out is provided via the '--vtk' option. 
 
 
-
-
     runIPFieldinversion.py --restart -d config
-
-
-
-
 
 
 by @LutzGross

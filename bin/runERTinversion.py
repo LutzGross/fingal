@@ -140,10 +140,6 @@ def myCallback(iterCount, m, dm, Fm, grad_Fm, norm_m, args_m, failed):
     if args.RESTARTFN and iterCount >0:
         m.dump(args.RESTARTFN)
         logger.info(f"restart file {iterCount} for step {args.RESTARTFN} created.")
-    #print(f"snapshot for step {k} saved.")
-    #saveSilo("snapshot_"+args.OUTFILE, m=x)
-
-
 # set up solver:
 solver= MinimizerLBFGS(F=costf, iterMax=config.imax, logger=logger.getChild("LBFGS"))
 solver.getLineSearch().setOptions(interpolationOrder=config.interpolation_order)
