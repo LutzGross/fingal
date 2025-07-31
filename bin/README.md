@@ -1,4 +1,41 @@
-# Configuration File
+# Documentation 
+
+## Scripts
+
+(*not working* does mean that it is expected that the scripts could fixed easily.*)
+
+### Meshing
+- makeMesh.py  - create mesh from station data and topography (if needed)  
+- mkMeshFromStations.py  - not sure this is still needed.
+- mkMeshFromStationsWithTopo.py - not sure this is still needed.
+
+- extractCoreSurfaceAsGeo.py - use this to create GMSH `.geo` file to add padding.
+
+### Converter
+- mph2fly.py - COMSOL  `.mph`-file to finley `.fly`-format
+- vtu2fly.py - VTK `.vtu`-file to finley `.fly`-format
+- gmsh2fly.py - GMSH `.msh`-file to finley `.fly`-format
+- convertZZ.py - processess a ZZ-data file (not working)
+- fly2silo.py - does exactly what the name says. 
+
+### Inversions
+
+- runSynthetic.py - creates a synethetic survey data set
+- runSensitivityERT.py - sensitivity analysis for ERT surveys
+- runERTinversion.py - ERT inversion
+- runIPinversion.py - coupled IP inversion
+- runIP2inversion.py - subsequent IP inversion from using ERT inversion results
+- runTempInversion.py - temperature driven inversion (not working)
+- runIPFieldinversion.py - FullWaver inversion (really not working) 
+
+### Helpers
+- mkWennerSurvey.py - makes a Wenner survey schedule file 
+- plotStations.py - plot the stations
+- mkSurveyFromINP.py -  INP file converter (not working) 
+- mkSurveyFromGeosoftFile.py - GEOSOFT file converter (not working) 
+
+
+## Configuration File
 
 The configuration file is a *Python* script that sets the following variables:
  

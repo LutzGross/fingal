@@ -18,27 +18,13 @@ and add the path  to the `fingal` to your executable and python path:
 Depending on your `esys-escript` installation you also have to add the path to 
 the `esys-escript` installation to `PATH`, `LD_LIBRARY_PATH` and `PYTHONPATH`.
 
-# Examples
 
-- As simple example for ERT inversion using synthetic data: [ERTSynthetics](examples/SyntheticsERT/README.md)
+# Usage and Examples
+
+See [.\bin\README.md](.\bin\README.md) for line commands and documentation of the 
+
+- A simple example for ERT inversion using synthetic data: [ERTSynthetics](examples/SyntheticsERT/README.md)
 - ERT inversion using field data: [Heron](examples/Heron/README.md)
-- Synthetic FullWaver data inversion: [SyntheticFW](examples/SyntheticFW/README.md) (does not work)
-- Volcano with FullWaver data: [VolcanoFW](examples/VolcanoFW/README.md) (does not work)
-
-# List of Command Line Functions
-
-This is a list of some of the command line function provided. Use the command line option `-h` to see the options.
-
-- `mkConfig.py` : creates an initial configuartion file that need to be adjudted to the specific case.
-- `mkMeshFromStations.py`: uses a station file to set up a gmsh geo file to generate finite element mesh
-- `runSynthetic.py`: run a synthetic survey using a given schedule. 
-- `convertZZ.py`: converts a ZZ survey file into a station and data file.
-- `fly2silo.py`: creates a silo 3D visualization file from fly mesh file.
-- `gmsh2fly.py`: converts a gmsh msh file to fly mesh file.
-- `mph2fly.py`: converts a COMSOL mph file to fly mesh file.
-- `plotStations.py`: plot the survey stations in plane view. 
-- `runERTinversion.py`: runs ERT (an IP) inversion using potential fields.
-- `runIPFieldinversion.py`: runs ERT (an IP) inversion using electric field data (aka FullWaver).
 
 ## Some Visualization
 With VTK files you can use 3D visualization packages such as
