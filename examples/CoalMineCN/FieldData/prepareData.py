@@ -39,22 +39,3 @@ for A, B, M, N in data:
     f.write("%d, %d, %d, %d, %g\n"%(A, B, M, N, data[(A,B,M,N)]  ))
 f.close()
 print("%s observations  written to file %s"%(len(data), config.datafile ))
-
-# generate mesh:
-
-rp = subprocess.run(["gmsh", "-3", "-optimize_netgen", "-o", MSHFILE, GEOFILE])
-# rp.check_returncode()
-print(f"GMSH mesh file {MSHFILE} was generated.")
-
-
-# convert into a FLY file:
-domain = ReadGmsh(MSHFILE, 3,
-                  diracPoints=[ elocations[s] for s in elocations ],
-                  diracTags=[ f"s{s}" for s in elocations ],
-                  optimize=True)
-domain.write(config.meshfile)
-print(f"mesh file {config.meshfile} was created.")
-
-if SILOFILE:
-    saveSilo(SILOFILE, tag=makeTagMap(ReducedFunction(domain)))
-    print(f'Mesh written to file {SILOFILE}.silo.')
