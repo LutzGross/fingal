@@ -126,7 +126,6 @@ orthogonal to the x-axis (left and right face) and the y-axis (front and bottom 
 ### Output handeling:
 
  - `outfile`- name of the result file, e.g.`'sigma'`. Depending on the requested output format an appropriate extension is added.
- - `restartfile` - if set a restart file of the current property function is generated at each iteration step, eg. `'restart'`. Use the restart option of the inversion code, to restart the inversion from this file.
  - `sigma0_dump` - name of dump file for DC conductivity, e.g. `'sigma0dump'`. If set, ERT inversion is creating this file to provide the low frequency conductivity for a seperate IP2 inversion.
 
 ### True Properties

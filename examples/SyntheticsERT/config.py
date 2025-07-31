@@ -65,7 +65,7 @@ use_robin_condition_in_model = False
 use_L1Norm=False
 epsilon_L1Norm=0.01
 use_log_misfit_DC = False
-regularization_DC = 'H1' # in ['H1', 'H2', 'H1_0', 'H2_0', 'Gauss', DGauss']
+regularization_DC = 'H1' # in ['H1', 'H2', 'H1_0', 'H2_0']
 
 
 regularization_length_scale = 3

@@ -50,15 +50,14 @@ imax=400
 truncation=20
 restart=600
 pde_tol=1e-10
-regularization_w1DC=1e-5
 #regularization_w1DC=1e-4
 use_L1Norm=False
 epsilon_L1Norm=0.01
 use_log_misfit_DC = False
-regularization_DC = 'H2_0' # in ['H1', 'H2', 'H1_0', 'H2_0', 'Gauss', DGauss']
-
+regularization_DC = 'H2_0' # in ['H1', 'H2', 'H1_0', 'H2_0']
 regularization_length_scale = 3
-regularization_penalty_factor = 10
+regularization_w1DC=1e-1
+
 # Output handeling:
 #
 outfile='sigma'

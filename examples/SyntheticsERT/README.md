@@ -2,10 +2,10 @@
 
 ### Generate Data Set
 The first step is to create a synthetic data set. The [gmsh](https://gmsh.info/)  
-geometry file defines core domain with some padding and subdomains stagged as `anomaly_right`
+geometry file defines core domain with some padding and subdomains staged as `anomaly_right`
 and `anomaly_left` that define electric conductivity anomalies
 for the synthetic data generation. 
-Edit ths `geo`-file ['with_anomaly.geo'](./with_anomaly.geo) to change the shape and 
+Edit ths `geo`-file [`with_anomaly.geo`](./with_anomaly.geo) to change the shape and 
 location of the anomaly and the survey that is set as equidistant, parallel lines of equidistant
 electrodes.
 
@@ -13,8 +13,7 @@ Run
 
     gmsh -3 -optimize_netgen -o mesh_synthetic.msh with_anomaly.geo
 
-to generate the mesh for the synthetic data generation. 
-To make the station and schedule file (names are set in [`config.py`](./config.py)) run
+to generate the mesh for the synthetic data generation. To make the station and schedule file (names are set in [`config.py`](./config.py)) run
 
     python3 ./mkIt.py
 
@@ -34,11 +33,11 @@ Create the data file with 1% noise:
     runSynthetic.py --noise 1 --silo syntheticmesh mesh_synthetic.msh config
 
 
-This a simple way to generate a mesh from the electrode's positions:
+This is a simple way to generate a mesh from the electrode's positions:
 
     mkMeshFromStations.py --coremeshfactor 0.5 config
 
-The mesh is written to the 'config.meshfile' in the *esys.finley* `fly` format.
+The mesh is written to the `config.meshfile` in the *esys.finley* `fly` format.
 
 To run the inversion based on the configuration file `config.py` use: 
 
@@ -46,7 +45,7 @@ To run the inversion based on the configuration file `config.py` use:
 
 The reference conductivity `sigma_ref` set in the configuration file 
 is reset prior to the inversion in an attempt to reduce the initial misfit.  
-(use line command '--nooptimize' to switch off this function).
+(use line command `--nooptimize` to switch off this function).
 `-d` switches on more output. With the switch `--vtk` the file `sigma.vtk` in 
 the [VTK](https://vtk.org/) file format is created where `sigma` is taken from the `output` 
 variable set in configuration file
@@ -75,10 +74,10 @@ Files of a sensitivity density and resolution loss map can be created by
     runSensitivityERT.py --file sensitivity --obs 1001,1032,1008,1024 config
 
 where `--file`  is the file name for the _silo_ output file (use option `--vtk`
-for VTK file format. The sensitivity density for a specific experiment
+for VTK file format). The sensitivity density for a specific experiment
 The mesh is read from the mesh file given in the configuration file.
 Alternatively use the `--mesh` option (in `msh` or `fly` format). It is
-assumed that the conductivity is constant. When `--truesigma` is set using 
+assumed that conductivity is constant. When `--truesigma` is set using 
 the function `true_properties` in the configuration file if set.
 
 For the sensitivity density _S_ at a point and a change _dsigma_ 
