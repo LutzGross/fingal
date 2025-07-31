@@ -9,7 +9,7 @@ To run the inversion, two data sets are required:
 - **electrode/station locations** in `csv` format with each row giving the station identifier 
 and 3D station coordinates. (Note: for this case, it is assumed that all z/x_2 coordinates are identical.) 
 Ideally, the line should be aligned with x or the y-axis.
-- **data file** also in `csv` format. Each row gives A, B, M, N (using identifiers) plus the respective measurements. The order of data columns is specified by the list `datacolumns` (here just `R`), see [configuration files](../../bin/configdoc.md). 
+- **data file** also in `csv` format. Each row gives A, B, M, N (using identifiers) plus the respective measurements. The order of data columns is specified by the list `datacolumns` (here just `R`), see [configuration files](../../bin/README.md). 
 
 In addition, a configuration file is requested. It is a *Python* script where an 
 initial version can be generated from the data and station file using 
