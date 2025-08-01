@@ -23,8 +23,9 @@ the `esys-escript` installation to `PATH`, `LD_LIBRARY_PATH` and `PYTHONPATH`.
 
 See [.\bin\README.md](.\bin\README.md) for line commands and documentation of the 
 
-- A simple example for ERT inversion using synthetic data: [ERTSynthetics](examples/SyntheticsERT/README.md)
-- ERT inversion using field data: [Heron](examples/Heron/README.md)
+- A simple example for ERT inversion using synthetic data: [ERTSynthetics](./examples/SyntheticsERT/README.md)
+- ERT inversion using field data: [Heron](./examples/Heron/README.md)
+- Including topography: [Topograghy](./examples/Topography/README.md) 
 
 ## Some Visualization
 With VTK files you can use 3D visualization packages such as

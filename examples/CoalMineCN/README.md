@@ -1,5 +1,8 @@
 # Mine
 
+In this application two ERT surveys are run on gallery walls in a mine, see [`mine3D.geo`](./mine3D.geo) for the geometry.
+There are two 
+
 
 
 ## Mesh generation

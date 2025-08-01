@@ -4,6 +4,14 @@
 
 (*not working* does mean that it is expected that the scripts could fixed easily.*)
 
+Don't forget to set the OPENMP environment variables, eg.
+
+    export OMP_NUM_THREADS=4
+    export OMP_PLACES=threads
+    export OMP_PROC_BIND=True
+    
+
+
 ### Meshing
 - makeMesh.py  - create mesh from station data and topography (if needed)  
 - mkMeshFromStations.py  - not sure this is still needed.

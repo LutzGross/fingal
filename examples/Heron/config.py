@@ -55,7 +55,7 @@ use_L1Norm=False
 epsilon_L1Norm=0.01
 use_log_misfit_DC = False
 regularization_DC = 'H2_0' # in ['H1', 'H2', 'H1_0', 'H2_0']
-regularization_length_scale = 3
+regularization_length_scale = None
 regularization_w1DC=1e-2
 
 # Output handeling:
