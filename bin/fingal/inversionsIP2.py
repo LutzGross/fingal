@@ -417,8 +417,9 @@ class IP2InversionH1(IP2MisfitCostFunction):
         V =  R + misfit_IP
         self.logger.debug(
                 f'misfit IP, reg = total \t;  {misfit_IP:e};  {R:e} = {V:e}')
-        self.logger.debug(
-                f'ratios IP, reg [%] \t = {misfit_IP/V*100:g};  {R/V*100:g}')
+        if V >0 :
+            self.logger.debug(
+                    f'ratios IP, reg [%] \t = {misfit_IP/V*100:g};  {R/V*100:g}')
         return V
 
     def getGradient(self, dm,  im, iMn, args2):
