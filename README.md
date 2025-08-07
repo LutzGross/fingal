@@ -21,7 +21,7 @@ the `esys-escript` installation to `PATH`, `LD_LIBRARY_PATH` and `PYTHONPATH`.
 
 # Usage and Examples
 
-See [.\bin\README.md](.\bin\README.md) for line commands and documentation of the 
+See [./bin/README.md](./bin/README.md) for line commands and documentation of the 
 
 - A simple example for ERT inversion using synthetic data: [ERTSynthetics](./examples/SyntheticsERT/README.md)
 - ERT inversion using field data: [Heron](./examples/Heron/README.md)
