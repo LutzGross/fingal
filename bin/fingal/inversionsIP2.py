@@ -588,6 +588,13 @@ class IP2InversionH2(IP2MisfitCostFunction):
         self.w1 = w1
         self.logger.debug(f'w1 = {self.w1:g}')
 
+    def getSigma0(self, m=None, applyInterploation=False):
+        if applyInterploation:
+            isigma_0 = interpolate(self.sigma_0, Function(self.domain))
+        else:
+            isigma_0 = self.sigma_0
+        return isigma_0
+
     def updateMnRef(self, Mn_ref):
         """
         set a new reference conductivity
@@ -603,6 +610,7 @@ class IP2InversionH2(IP2MisfitCostFunction):
         im = clip(im, minval=-self.logclip, maxval=self.logclip)
         Mn = self.Mn_ref * exp(im)
         return Mn
+
 
     def getDMnDm(self, Mn, m):
         return Mn
