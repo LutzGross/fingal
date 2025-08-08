@@ -89,18 +89,16 @@ if config.regularization_IP in ["H1_0", "H1"] :
                             logger = logger.getChild(f"IP-{config.regularization_IP}"))
     dM_init = Scalar(0.0, Solution(domain))
 elif config.regularization_IP in ["H2_0", "H2"]:
-    costf = IP2InversionH2(domain, data=survey,  maskZeroPotential=mask_face,
-                            pde_tol= config.pde_tol,
-                            stationsFMT=config.stationsFMT, m_ref=m_ref,
-                            useLogMisfitIP=config.use_log_misfit_IP, dataRTolIP=config.data_rtol,
-                            weightingMisfitDC=config.regularization_weighting_DC_misfit,
-                            sigma_0=sigma0, Mn_ref= config.Mn_ref,
-                            w1=config.regularization_w1IP,
-                            fixTop=config.fix_top,  zero_mean_m = config.regularization_IP == "H2_0",
-                            logclip=config.clip_property_function, m_epsilon=1e-18,
-                            length_scale=config.regularization_length_scale,
-                            reg_tol=None, save_memory=args.savememory,
-                            logger=logger.getChild(f"IP-{config.regularization_IP}") )
+    costf = IP2InversionH2(domain, data=survey, sigma_0=sigma0, Mn_ref = config.Mn_ref,
+                            w1 = config.regularization_w1IP,
+                            maskZeroPotential=mask_face, fix_top=config.fix_top,
+                            stationsFMT=config.stationsFMT, pde_tol= config.pde_tol,
+                            useLogMisfitIP = config.use_log_misfit_IP,
+                            dataRTolIP = config.data_rtol,  m_ref=m_ref,
+                            logclip=config.clip_property_function,
+                            save_memory=args.savememory, length_scale=config.regularization_length_scale,
+                            zero_mean_m=config.regularization_IP == "H2_0",
+                            logger = logger.getChild(f"IP-{config.regularization_IP}") )
     dM_init = Vector(0.0, Solution(domain))
 else:
     raise ValueError("Unknown regularization type " + config.regularization_IP)

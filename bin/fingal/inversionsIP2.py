@@ -278,14 +278,13 @@ class IP2MisfitCostFunction(CostFunction):
 
 class IP2InversionH1(IP2MisfitCostFunction):
     """
-   Class to run a IP inversion for conductivity (sigma_0, DC) and normalized chargeabilty (Mn=sigma_oo-sigma_0)
-   using H1-regularization on m-m_ref:
+    Class to run a IP inversion for conductivity (sigma_0, DC) and normalized chargeabilty (Mn=sigma_oo-sigma_0)
+    using H1-regularization on m-m_ref:
 
             m=log(Mn/Mn_ref)
 
-   """
-
-    def __init__(self, domain, data, maskZeroPotential, sigma_0 = 1., pde_tol= 1e-8,
+    """
+    def __init__(self, domain, data=None, maskZeroPotential=None, sigma_0 = 1., pde_tol= 1e-8,
                     stationsFMT="e%s", m_ref = None, fix_top = False, zero_mean_m = False,
                     useLogMisfitIP=False, dataRTolIP=1e-4, sigma_0_ref = None,
                     Mn_ref = 1.e-6,
@@ -341,6 +340,7 @@ class IP2InversionH1(IP2MisfitCostFunction):
         else:
             self.mask_fixed_property = wherePositive(maskFixedProperty)
         self.updateMnRef(Mn_ref)
+
         # regularization
         if reg_tol is None:
             reg_tol=min(sqrt(pde_tol), 1e-3)
@@ -387,9 +387,9 @@ class IP2InversionH1(IP2MisfitCostFunction):
 
     def extractPropertyFunction(self, dm):
         if self.m_ref:
-            m = dm + self.m_ref
+            m=dm+self.m_ref
         else:
-            m = dm
+            m=dm
         return m
 
     def getArguments(self, dm):
@@ -430,8 +430,7 @@ class IP2InversionH1(IP2MisfitCostFunction):
         X = self.w1 * gdm
         DMisfitDMn  = self.getDMisfit(iMn, *args2)
         DMnDm = self.getDMnDm(iMn, im)
-        Y = DMisfitDMn * DMnDm
-
+        Y= DMisfitDMn * DMnDm
         return ArithmeticTuple(Y, X)
 
     def getInverseHessianApproximation(self, r, dm, iMn, *args2, initializeHessian=False):
@@ -473,20 +472,18 @@ class IP2InversionH1(IP2MisfitCostFunction):
 
 class IP2InversionH2(IP2MisfitCostFunction):
     """
-   Class to run a IP inversion for conductivity (sigma_0, DC) and normalized chargeabilty (Mn=sigma_oo-sigma_0)
-   using H2-regularization on M = grad(m-m_ref) (as 3 components):
+    Class to run a IP inversion for conductivity (sigma_0, DC) and normalized chargeabilty (Mn=sigma_oo-sigma_0)
+    using H2-regularization on M = grad(m-m_ref) (as 3 components):
 
         m=log(Mn/Mn_ref)
 
-   """
-
-    def __init__(self, domain, data, maskZeroPotential, sigma_src=None, pde_tol=1e-8,
-                 stationsFMT="e%s", m_ref=None, length_scale=None,
-                 useLogMisfitDC=False, dataRTolDC=1e-4, useLogMisfitIP=False, dataRTolIP=1e-4,
-                 weightingMisfitDC=1, sigma_0_ref=1e-4, Mn_ref=1.e-6,
-                 w1=1, fixTop=False,  zero_mean_m = True,
-                 logclip=5, m_epsilon=1e-18, reg_tol=None, save_memory=False,
-                 logger=None, **kargs):
+    """
+    def __init__(self, domain, data, maskZeroPotential, sigma_0 = 1., pde_tol = 1e-8,
+        stationsFMT = "e%s", m_ref = None, fix_top = False, zero_mean_m = False,
+        useLogMisfitIP = False, dataRTolIP = 1e-4, sigma_0_ref = None,
+        Mn_ref = 1.e-6, w1 = 1, save_memory=False, length_scale  = None,
+        logclip = 5, m_epsilon = 1e-18, reg_tol = None,
+        logger = None, ** kargs):
         """
         :param domain: PDE & inversion domain
         :param data: survey data, is `fingal.SurveyData`. Resistence and secondary potential data are required.
@@ -518,38 +515,35 @@ class IP2InversionH2(IP2MisfitCostFunction):
                             requires more time.
         :param logger: the logger, if not set, 'fingal.IPInversion.H2' is used.
         """
-        if sigma_src == None:
-            sigma_src = sigma_0_ref
         if logger is None:
             self.logger = logging.getLogger('fingal.IPInversion.H2')
         else:
             self.logger = logger
-        super().__init__(domain=domain, data=data, sigma_src=sigma_src, pde_tol=pde_tol,
-                         maskZeroPotential=maskZeroPotential, stationsFMT=stationsFMT,
-                         useLogMisfitDC=useLogMisfitDC, dataRTolDC=dataRTolDC,
-                         useLogMisfitIP=useLogMisfitIP, dataRTolIP=dataRTolIP,
-                         weightingMisfitDC=weightingMisfitDC,
-                         logger=logger, **kargs)
+
+        super().__init__(domain=domain, data=data, pde_tol= pde_tol, sigma_0 = sigma_0,
+                            sigma_0_ref = sigma_0_ref,
+                            maskZeroPotential=maskZeroPotential, stationsFMT=stationsFMT,
+                            useLogMisfitIP=useLogMisfitIP, dataRTolIP=dataRTolIP,
+                            logger=self.logger, **kargs)
+
 
         self.logclip = logclip
         self.m_epsilon = m_epsilon
         self.m_ref = m_ref
         self.zero_mean_m =  zero_mean_m
-        # its is assumed that sigma_ref and Mn_ref on the faces is not updated!!!
+        # its is assumed that  Mn_ref on the faces is not updated!!!
         x=self.domain.getX()
         qx = whereZero(x[0] - inf(x[0])) + whereZero(x[0] - sup(x[0]))
         qy = whereZero(x[1] - inf(x[1])) + whereZero(x[1] - sup(x[1]))
         qz = whereZero(x[2] - inf(x[2]))
-        if fixTop:
+        if fix_top:
             qz += whereZero(x[2] - sup(x[2]))
-
-        self.updateSigma0Ref(sigma_0_ref)
         self.updateMnRef(Mn_ref)
         # regularization
         if self.zero_mean_m:
             self.logger.info(f'Property function with zero mean.')
         else:
-            if fixTop:
+            if fix_top:
                 self.logger.info(f'Property function zero on all boundaries.')
             else:
                 self.logger.info(f'Property function free on top and zero on all other boundaries.')
@@ -588,7 +582,6 @@ class IP2InversionH2(IP2MisfitCostFunction):
                 pde.setValue(q=q, A=kronecker(3), D=self.a)
                 self.Hpdes.append(pde)
 
-
         self.setW1(w1)
 
     def setW1(self, w1):
@@ -618,7 +611,7 @@ class IP2InversionH2(IP2MisfitCostFunction):
         if self.zero_mean_m:
             dm = self.mpde.getSolution(X=interpolate(dM, Function(dM.getDomain())))
         else:
-            self.mpde.setValue(X=interpolate(dM, Function(dM.getDomain())), Y=Data(), y=Data())
+            self.mpde.setValue(X=interpolate(dM, Function(dM.getDomain())), Y=Data())
             dm=self.mpde.getSolution()
         if self.m_ref:
             m=dm+self.m_ref
@@ -643,19 +636,18 @@ class IP2InversionH2(IP2MisfitCostFunction):
         return the value of the cost function
         """
         misfit_IP = self.getMisfit(*args2)
-
         gdM = grad(dM, where=im.getFunctionSpace())
         idM = interpolate(dM, im.getFunctionSpace() )
-        R = self.w1 / 2. * integrate( length(gdM) ** 2 + self.a * length(idM)**2 )
+        R = ( self.w1 / 2. ) * integrate( length(gdM) ** 2 + self.a * length(idM)**2 )
         V = R + misfit_IP
         self.logger.debug(
                 f'misfit IP; reg, total \t=  {misfit_IP:e};  {R:e} = {V:e}')
-        self.logger.debug(
+        if V > 0:
+            self.logger.debug(
                 f'ratios IP; reg \t=  {misfit_IP / V * 100:g};  {R / V * 100:g}')
-
         return V
 
-    def getGradient(self, dM, im, isigma_0, isigma_0_stations, iMn, args2):
+    def getGradient(self, dM, im, iMn, args2):
         """
         returns the gradient of the cost function. Overwrites `getGradient` of `MeteredCostFunction`
         """
@@ -670,30 +662,24 @@ class IP2InversionH2(IP2MisfitCostFunction):
         if self.zero_mean_m:
             dmstar = self.mpde.getSolution( Y = Ystar )
         else:
-            self.mpde.setValue(X=Data(), Y = Ystar)
-            dmstar=self.mpde.getSolution()
-        Y+= grad(dmstar, where=X.getFunctionSpace())
-
+            self.mpde.setValue(X=Data(), Y = Ystar )
+            dmstar = self.mpde.getSolution()
+        Y+=grad(dmstar, where=X.getFunctionSpace())
         return ArithmeticTuple(Y, X)
 
-    def getInverseHessianApproximation(self, r, dM, isigma_0, isigma_0_stations,
-                                       iMn, *args2, initializeHessian=False):
+    def getInverseHessianApproximation(self, r, dM, im, iMn, *args2, initializeHessian=False):
         """
         returns an approximation of inverse of the Hessian. Overwrites `getInverseHessianApproximation` of `MeteredCostFunction`
         """
-
-        P = Data(0., (6,), Solution(self.domain))
+        P = Data(0., (3,), Solution(self.domain))
         for k in [0, 1, 2]:
             if self.save_memory:
-                self.Hpde.setValue(q=self.Hpde_qs[k])
-            for i in [0, 1]:
-                if self.save_memory:
-                    self.Hpde.setValue(X=r[1][i*3+k], Y=r[0][i*3+k])
-                    P[i * 3 + k] = self.Hpde.getSolution() / self.w1
-                else:
-                    self.Hpdes[k].setValue(X=r[1][i * 3 + k], Y=r[0][i * 3 + k])
-                    P[i*3+k] = self.Hpdes[k].getSolution() / self.w1[i]
-                self.logger.debug(f"search direction component {i*3+k} = {str(P[i*3+k])}.")
+                self.Hpde.setValue(X=r[1][k], Y=r[0][k], q=self.Hpde_qs[k])
+                P[k] = self.Hpde.getSolution() / self.w1
+            else:
+                self.Hpdes[k].setValue(X=r[1][k], Y=r[0][k])
+                P[k] = self.Hpdes[k].getSolution() / self.w1
+            self.logger.debug(f"search direction component {k} = {str(P[k])}.")
         return P
 
     def getDualProduct(self, dM, r):

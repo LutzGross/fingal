@@ -5,19 +5,19 @@ import importlib, os, sys
 from leather import Scale
 
 sys.path.append(os.getcwd())
-from fingal import IP2InversionH1
+from fingal import IP2InversionH2
 from fingal import readElectrodeLocations, readSurveyData, makeMaskForOuterSurface
 from esys.finley import ReadMesh
 import numpy as np
 from esys.escript.pdetools import MaskFromBoundaryTag
 
-CONFIG="config-IP2-H1"
-TABFN="IP2-H1.log"
+CONFIG="config-IP2-H2_0"
+TABFN="IP2-H2_0.log"
 ESTTOL = 5.e-8
 import logging
 from datetime import datetime
 
-logger=logging.getLogger('IP-H1')
+logger=logging.getLogger('IP-H2_0')
 logger.setLevel(logging.DEBUG)
 config = importlib.import_module(CONFIG)
 
@@ -37,21 +37,22 @@ assert survey.getNumObservations()>0, "no data found."
 mask_face = MaskFromBoundaryTag(domain, *config.faces_tags)
 
 
-costf = IP2InversionH1(domain, data=survey, sigma_0=Scalar(config.sigma0_ref, ContinuousFunction(domain)), Mn_ref=config.Mn_ref,
+costf = IP2InversionH2(domain, data=survey, sigma_0=Scalar(config.sigma0_ref, ContinuousFunction(domain)), Mn_ref=config.Mn_ref,
                        w1=config.regularization_w1IP,
                        maskZeroPotential=mask_face,
+                        save_memory=False, length_scale=config.regularization_length_scale,
                        stationsFMT=config.stationsFMT, pde_tol=config.pde_tol,
                        useLogMisfitIP=config.use_log_misfit_IP,
                        dataRTolIP=config.data_rtol,
                        logclip=config.clip_property_function,
-                       zero_mean_m=False,
+                       zero_mean_m=True,
                        logger=logger)
 
 tabfile=open(TABFN, 'w')
 # test the regularization first:
-for w1, with_IPmisfit in [ (1, True), (0, False), (1e2, False) ]:
+for w1, with_IPmisfit in [ (1, False), (0, True), (1e-2, True) ]:
     costf.setW1(w1)
-    costf.ignoreIPMisfit(with_IPmisfit)
+    costf.ignoreIPMisfit(not with_IPmisfit)
     x = domain.getX()[0]
     y = domain.getX()[1]
     z = domain.getX()[2]
@@ -61,36 +62,34 @@ for w1, with_IPmisfit in [ (1, True), (0, False), (1e2, False) ]:
     pp/=sup(abs(pp))
     #====
     r= length(domain.getX())
-    M=pp
-    #print(abs(inner(grad(M[0]), grad(M[1])) / (length(grad(M[0]))*length(grad(M[1])))))
-    #1/0
-    ddm=(x+y+0.5*z)/Lsup(r)/3*10*pp/10000
-    ddm = (x + y + 0.5 * z) / Lsup(r) * pp / 6
+    M = RandomData((3,), ContinuousFunction(domain)) * pp /5
+    ddm = (x + y + 0.5 * z) / Lsup(r) * pp / 20
     args = costf.getArgumentsAndCount(M)
     G = costf.getGradientAndCount(M, *args)
-    tabfile.write(
-        f".. w1 , = {w1}, with_IPmisfit= {with_IPmisfit}  .............\n")
-    dM=ddm
-    Dex = costf.getDualProductAndCount(dM, G)
-    J0=costf.getValueAndCount(M,  *args)
-    print("J(m)=%e"%J0)
-    print("gradient = %s"%str(G))
-    b=[]
-    x=[]
-
-    tabfile.write("log(a)     J(m)        J(m+a*p)       grad        num. grad     error O(a)   O(1)     rel. err. eval.\n")
-    for k in range(4, 13):
-        a=0.5**k
-        J=costf.getValueAndCount(M+a*dM)
-        D=(J-J0)/a
-        if abs(J0-J) > ESTTOL * max(J0,J):
-            b.append(log(abs(D-Dex)))
-            x.append(log(a))
-        tabfile.write("%d      %e %e %e %e %e %e %e\n"%(k,J0, J,Dex,  D, D-Dex, (D-Dex)/a, abs(J0-J)/max(J0,J)) )
-    if len(x) > 0  :
-        m, c = np.linalg.lstsq(np.vstack([np.array(x), np.ones(len(x))]).T, b, rcond=-1)[0]
-        if m < 0.99:
-            tabfile.write(f"WARNING: Poor convergence rate = {m} (# of data = {len(x)}).\n")
-        else:
-            tabfile.write(f"Convergence rate = {m} (# of data = {len(x)}).\n")
+    J0 = costf.getValueAndCount(M, *args)
+    print("J(m)=%e" % J0)
+    print("gradient = %s" % str(G))
+    for d in [[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 1]]:
+        tabfile.write(
+            f".. w1 , = {w1}, with_IPmisfit= {with_IPmisfit} d={d}  .............\n")
+        dM = ddm * d
+        Dex = costf.getDualProductAndCount(dM, G)
+        b = []
+        x = []
+        please_fit = True
+        tabfile.write("log(a)     J(m)        J(m+a*p)       grad        num. grad     error O(a)   O(1)     rel. err. eval.\n")
+        for k in range(4, 13):
+            a = 0.5 ** k
+            J = costf.getValueAndCount(M + a * dM)
+            D = (J - J0) / a
+            if abs(J0-J) > ESTTOL * max(J0,J):
+                b.append(log(abs(D - Dex)))
+                x.append(log(a))
+            tabfile.write("%d      %e %e %e %e %e %e %e\n" % (k, J0, J, Dex, D, D - Dex, (D - Dex) / a, abs(J0-J)/max(J0,J)))
+        if len(x) > 0:
+            m, c = np.linalg.lstsq(np.vstack([np.array(x), np.ones(len(x))]).T, b, rcond=-1)[0]
+            if m < 0.99:
+                tabfile.write(f"WARNING: Poor convergence rate = {m} (# of data = {len(x)}).\n")
+            else:
+                tabfile.write(f"Convergence rate = {m} (# of data = {len(x)}).\n")
 logger.info("All done - Have a nice day!")

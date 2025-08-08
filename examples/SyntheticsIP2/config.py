@@ -84,7 +84,11 @@ if regularization_DC == 'H2_0' :
 if regularization_DC == 'H1_0' :
     regularization_w1DC=0.001
     regularization_w1IP = 0.001
-    regularization_w1DC=1000.
+    regularization_w1DC=1000
+
+regularization_IP = 'H2'
+regularization_length_scale = None
+regularization_w1IP = 0.1
 #
 #    regularization_DC = 'H2'
 #    regularization_w1DC = 1e-3
