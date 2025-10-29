@@ -12,7 +12,8 @@ from esys.weipa import saveVTK, saveSilo
 #from esys.escript.pdetools import Locator, MaskFromTag
 
 parser = argparse.ArgumentParser(description='creates ERT sensitivity map.')
-parser.add_argument('--truesigma', '-t', dest='truesigma',  action='store_true', default=False, help='use the true conductivity distribution set in configuation if available.')
+parser.add_argument('--threshold', '-t', dest='threshold',  type=float, default=0.1, help='sensitivity threshold')
+parser.add_argument('--sigma_true', '-s', dest='truesigma',  action='store_true', default=False, help='use the true conductivity distribution set in configuation if available.')
 parser.add_argument('--vtk', '-v', dest='usevtk',  action='store_true', default=False, help='use the vtk output format.')
 parser.add_argument('--obs', '-o',  dest='obs', metavar='OBS', type=str, default = None, help="request sensitivity for specific observation, format = `A,B,M,N`")
 parser.add_argument('--file', '-f',  dest='outfile', metavar='OUTFILE', type=str, default='sensitivity', help="file for saving sensitivity for visualization (no extension) (default: `sensitivity`).")
@@ -77,16 +78,18 @@ else:
     print("Constant conductivity is used.")
 
 if args.obs:
-    obsS=runner.getSensitivity(*tuple( [ int(ST) for ST in args.obs.split(',')]) )
+    obsS=runner.getSensitivityDensity(*tuple([int(ST) for ST in args.obs.split(',')]))
     kw="S"
     for ST in args.obs.split(','):
         kw+=f"_{int(ST)}"
     out[kw] = abs(obsS)
 
-sensitivity=runner.getTotalSensitivity()
+sensitivity=runner.getTotalSensitivityDensity()
+resolution = (args.threshold / (sensitivity * runner.GEOMETRY_FACTOR) ) ** (1./3)
 resolutionloss = (Lsup(sensitivity)/sensitivity)**(1./3)
 out['Sensitivity'] = sensitivity
 out['ResolutionLoss'] = resolutionloss
+out['Resolution'] = resolution
 
 if args.usevtk:
     saveVTK(args.outfile , **out)

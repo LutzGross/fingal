@@ -14,8 +14,9 @@ class ERTSensitivity(object):
     This creates synthetic data files for ERT and IP for know conductivity and normalized chargeability
     distributions sigma_0 and M_n.  
     """
+    GEOMETRY_FACTOR = np.pi / 6
     def __init__(self, domain, schedule, sigma_src=1,  maskZeroPotential=None, stationsFMT="e%s",
-                 createSecondaryData=True, createFieldData=False, printInfo = True):
+                 createSecondaryData=True, createFieldData=False, geometry_factor = None, printInfo = True):
         """
         :param domain: physical domain
         :type domain: `AbstractDomain`
@@ -40,13 +41,15 @@ class ERTSensitivity(object):
         self.sigma_src=sigma_src
         self.stationsFMT=stationsFMT
         self.maskZeroPotential=maskZeroPotential
-
+        if geometry_factor is not None:
+            self.GEOMETRY_FACTOR = geometry_factor
         # 
-        station_locations = [ schedule.getStationLocationByKey(S) for S in schedule.getStationNumeration() ]
+        self.station_locations = [ schedule.getStationLocationByKey(S) for S in schedule.getStationNumeration() ]
 
-        self.nodelocators = Locator(Solution(domain), station_locations)
-        self.elementlocators = Locator(ReducedFunction(domain), station_locations)
-        self.stationlocators = Locator(Function(domain), station_locations)
+        self.nodelocators = Locator(Solution(domain), self.station_locations)
+        self.elementlocators = Locator(ReducedFunction(domain), self.station_locations)
+        self.stationlocators = Locator(Function(domain), self.station_locations)
+
 
         self.source_potential = getSourcePotentials(domain, sigma_src, self.schedule, maskZeroPotential=self.maskZeroPotential,
                                                     stationsFMT=self.stationsFMT)
@@ -58,7 +61,7 @@ class ERTSensitivity(object):
         if self.printinfo:
             print("source conductivity = %s"%str(self.sigma_src))
             print("%s electrode locations found" % (len(self.source_potential_at_station)))
-            print(str(len(station_locations)) + " station locators calculated.")
+            print(str(len(self.station_locations)) + " station locators calculated.")
             print(str(len(self.source_potential)) + " source potentials calculated.")
 
 
@@ -93,7 +96,7 @@ class ERTSensitivity(object):
             print(str(len(self.potential_0)) + " DC potentials calculated.")
             if self.createFieldData:
                 print(str(len(self.field_0)) + " DC fields calculated.")
-    def getSensitivity(self, *stations):
+    def getSensitivityDensity(self, *stations):
         if self.potential_0:
             potential_at_stations= self.potential_0_at_stations
             potential = self.potential_0
@@ -108,16 +111,16 @@ class ERTSensitivity(object):
                 UAB = potential[iA] - potential[iB]
                 UMN = potential[iM] - potential[iN]
                 sigma_a = F_ABMN_1/F_ABMN
-                S_ABMN = sigma_a/F_ABMN * inner(grad(UAB, ReducedFunction(self.domain)), grad(UMN, ReducedFunction(self.domain)) )
-                S_ABMN_max = Lsup(S_ABMN)
-                print(stations, " -> sigma_a = ", sigma_a, "; S = ", S_ABMN_max )
+                s_ABMN = sigma_a/F_ABMN * interpolate(inner(grad(UAB, Function(self.domain)), grad(UMN, Function(self.domain))), ReducedFunction(self.domain))
+                s_ABMN_max = Lsup(s_ABMN)
+                print(stations, " -> sigma_a = ", sigma_a, "; s = ", s_ABMN_max)
             else:
                 raise NotImplementedError()
         else:
             raise NotImplementedError()
-        return S_ABMN
+        return s_ABMN
 
-    def getTotalSensitivity(self):
+    def getTotalSensitivityDensity(self):
         """
         get sensitivity across the survey.
 
@@ -126,10 +129,10 @@ class ERTSensitivity(object):
         N=0
         for ST in self.schedule.tokenIterator():
             if N > 0:
-                out+=abs(self.getSensitivity(*ST))
+                out+=abs(self.getSensitivityDensity(*ST))
                 N+=1
             else:
-                out=abs(self.getSensitivity(*ST))
+                out=abs(self.getSensitivityDensity(*ST))
                 N=1
         if N > 0:
             out*=1./N
