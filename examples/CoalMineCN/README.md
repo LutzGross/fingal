@@ -16,12 +16,17 @@ converts the mesh file `mine.fly` in `fly` format.
 
 ## Sensitivity
 
-Create the sensitivity and resolution loss map:
+Create the sensitivity and resolution map:
 
     runSensitivityERT.py config
 
 ## Synthetics
 
-Create the sensitivity and resolution loss map:
+Create synthetic survey run
 
-    runSensitivityERT.py config
+    cd Synthetics
+    ./mkData.py
+
+creat
+
+

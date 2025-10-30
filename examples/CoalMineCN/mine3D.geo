@@ -14,8 +14,8 @@ OriginalCenterY = 890424.0922468755;
 meshSizeRemoteCore = 15.;
 meshSizeCore = 5.;
 meshSizeCloseToSeam = 3;
-meshSizeSeam = 2.5;
-meshSizeElectrodes = 2.5/10;
+meshSizeSeam = 2.5/1.2;
+meshSizeElectrodes = 2.5/400;
 meshSizePadding = 2*(241.06384326395346+PaddingX)/15;
 //... mine lay out
 Point(226) = {-44.35527517402079, 56.828797810478136, 0., meshSizeSeam};

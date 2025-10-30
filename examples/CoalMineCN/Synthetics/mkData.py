@@ -40,7 +40,7 @@ RHO_REF = 200
 RHO_BASE = RHO_REF
 RHO_COAL = RHO_REF
 RHO_MINE = RHO_REF
-RHO_GOAF = RHO_REF * 50
+RHO_GOAF = RHO_REF*5
 
 
 rho = Scalar(RHO_REF, Function(domain) )
@@ -64,9 +64,9 @@ DamageBaseDepth = 20;
 FringeWidth = 5;
 ResetDamagedZoneSouth = 2 * FringeWidth
 ResetDamagedZoneNorth = 2* FringeWidth
-FringeWidth = 1;
-ResetDamagedZoneSouth = 0 * FringeWidth
-ResetDamagedZoneNorth = 0* FringeWidth
+FringeWidth = 3;
+ResetDamagedZoneSouth = 3 * FringeWidth
+ResetDamagedZoneNorth = 3 * FringeWidth
 #ResetDamagedZoneSouth = 100
 # ========
 SeamHeight = 13
