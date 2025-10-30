@@ -19,8 +19,8 @@ meshSizeElectrodes = 2.5/10;
 meshSizePadding = 2*(241.06384326395346+PaddingX)/15;
 //... mine lay out
 Point(226) = {-44.35527517402079, 56.828797810478136, 0., meshSizeSeam};
-Point(312) = {147.4847248259466, 56.82851888751611, 0., meshSizeSeam};
-Point(314) = {147.48472712998046, -143.17124071449507, 0., meshSizeSeam};
+Point(312) = {147.4847248259466 + 4., 56.82851888751611, 0., meshSizeSeam};
+Point(314) = {147.48472712998046 +4., -143.17124071449507, 0., meshSizeSeam};
 Point(318) = {-65.57938983303029, -178.42203949647956, 0., meshSizeCloseToSeam};
 Point(319) = {-65.57938983303029, -163.74508660647552, 0., meshSizeSeam};
 Point(320) = {-60.57938983303029, -178.42203949647956, 0., meshSizeSeam};
@@ -332,8 +332,8 @@ Curve Loop(30) = {1, -58, -28, 26, 27, 56, -55, 52, 53, 131, -134, -106, -105, -
 Plane Surface(30) = {3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 17, 18, 19, 21, 26, 27, 29, 30};
 // ... top of galleries ... 
 Point(821) = {-44.35527517402079, 56.828797810478136, GalleryHeight, meshSizeSeam};
-Point(907) = {147.4847248259466, 56.82851888751611, GalleryHeight, meshSizeSeam};
-Point(909) = {147.48472712998046, -143.17124071449507, GalleryHeight, meshSizeSeam};
+Point(907) = {147.4847248259466 + 4., 56.82851888751611, GalleryHeight, meshSizeSeam};
+Point(909) = {147.48472712998046 + 4., -143.17124071449507, GalleryHeight, meshSizeSeam};
 Point(913) = {-65.57938983303029, -178.42203949647956, GalleryHeight, meshSizeCloseToSeam};
 Point(914) = {-65.57938983303029, -163.74508660647552, GalleryHeight, meshSizeSeam};
 Point(915) = {-60.57938983303029, -178.42203949647956, GalleryHeight, meshSizeSeam};
@@ -453,12 +453,12 @@ Point(1189) = {197.4847140919882, -148.5720208064885, GalleryHeight, meshSizeCor
 Point(1190) = {-115.23432427900843, 56.828797810478136, SeamHeight, meshSizeSeam};
 Point(1191) = {-60.4151782640256, 72.22858866746537, SeamHeight, meshSizeSeam};
 Point(1192) = {-44.35527517402079, 56.828797810478136, SeamHeight, meshSizeSeam};
-Point(1193) = {147.4847248259466, 56.82851888751611, SeamHeight, meshSizeSeam};
+Point(1193) = {147.4847248259466 + 4., 56.82851888751611, SeamHeight, meshSizeSeam};
 Point(1194) = {197.48472482495708, 56.82837679947261, SeamHeight, meshSizeCore};
 Point(1195) = {241.06384326395346, 56.82842257351149, SeamHeight, meshSizeCore};
 Point(1196) = {241.06384326395346, -143.17125472647604, SeamHeight, meshSizeCore};
 Point(1197) = {197.48471409198828, -143.17125238850713, SeamHeight, meshSizeCore};
-Point(1198) = {147.48472712998046, -143.17124071449507, SeamHeight, meshSizeSeam};
+Point(1198) = {147.48472712998046 + 4., -143.17124071449507, SeamHeight, meshSizeSeam};
 Point(1199) = {-115.23432427900843, -143.17110019456595, SeamHeight, meshSizeSeam};
 
 Point(1201) = {-230.0899094590568, 112.3783179235179, -BaseDepth, meshSizeRemoteCore};
