@@ -35,10 +35,11 @@ To run the inversion.
 
 ## Field Data
 
-It used `../mine.fly`, `../stations.csv` and  `data_field.csv`.
-
     cd FieldData
-    runERTinversion.py --nooptimize -d config
+
+
+It uses `../mine.fly`, `../stations.csv` and  `data_field.csv`.
+
 
 To run the inversion.
 
