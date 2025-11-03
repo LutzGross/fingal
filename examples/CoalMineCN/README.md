@@ -28,7 +28,19 @@ Create synthetic survey run
     ./mkData.py
 
 It requires `../mine.fly` and `../stations.csv` and creates `data.csv` from `schedule.csv`.
+To run the inversion.
 
     runERTinversion.py --nooptimize -d config
 
-to run the inversion.
+
+## Field Data
+
+It used `../mine.fly`, `../stations.csv` and  `data_field.csv`.
+
+    cd FieldData
+    runERTinversion.py --nooptimize -d config
+
+To run the inversion.
+
+    runERTinversion.py --nooptimize -d config
+
