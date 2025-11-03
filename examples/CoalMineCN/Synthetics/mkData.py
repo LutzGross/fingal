@@ -13,7 +13,7 @@ RAISE_FACTOR_DAMAGED_RESISTIVITY = 5
 #GEOFILE = "mine.geo"
 PLOTDIR="plots"
 SILODIR="results"
-REL_ERR = 0.02
+REL_ERR = 0.05
 
 # extract some geometrical information from the geo file:
 #minegeo=getGeometryFromGeoFile(GEOFILE)
@@ -64,9 +64,9 @@ DamageBaseDepth = 20;
 FringeWidth = 5;
 ResetDamagedZoneSouth = 2 * FringeWidth
 ResetDamagedZoneNorth = 2* FringeWidth
-FringeWidth = 1;
-ResetDamagedZoneSouth = 0 * FringeWidth
-ResetDamagedZoneNorth = 15 * FringeWidth
+FringeWidth = 2;
+ResetDamagedZoneSouth = 40
+ResetDamagedZoneNorth = 0
 #ResetDamagedZoneSouth = 100
 # ========
 SeamHeight = 13
@@ -154,16 +154,20 @@ for iA in src_potentials:
     potentials_at_stations[iA] = a * u1 + u2
 
 f=open(config.datafile,'w')
+print(f"relative error = {REL_ERR:g}.")
+print(f"A, B, M, N, d_ABMN, rel. errr")
 for A,B,M,N in schedule.tokenIterator():
     iA=schedule.getStationNumber(A)
     iB=schedule.getStationNumber(B)
     iM=schedule.getStationNumber(M)
     iN=schedule.getStationNumber(N)
     if REL_ERR > 0 :
-        pert = np.random.uniform(low=-REL_ERR, high=REL_ERR)
+        #pert = np.random.uniform(low=-REL_ERR, high=REL_ERR)
+        pert = np.random.normal(0, REL_ERR)
     else:
         pert = 0.
     u=(potentials_at_stations[iA][iM]-potentials_at_stations[iB][iM]-potentials_at_stations[iA][iN]+potentials_at_stations[iB][iN]) * (1+pert)
+    print(f"{A:d}, {B:d}, {M:d}, {N:d}, {u:g}, {pert:g}")
     f.write(f"{A:d}, {B:d}, {M:d}, {N:d}, {u:g}\n")
 f.close()
 print(f"data saved to file {config.datafile}.")

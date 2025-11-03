@@ -31,7 +31,7 @@ data_rtol = 1e-4
 #
 #  This section of the file defines the inversion
 #
-sigma0_ref= 0.005 # 0.0275 # 0.03 # 0.0275
+sigma0_ref= 0.005
 Mn_ref=0.01*sigma0_ref
 true_properties=None
 use_robin_condition_in_model = False
@@ -59,17 +59,24 @@ use_log_misfit_DC = False
 
 regularization_DC = 'H2'
 
-CASE = 2
+CASE = 4
 
 if CASE == 1 :
     regularization_length_scale = None
-    regularization_w1DC= 0.5 # 1e-1
-elif CASE == 3 :
-    regularization_length_scale = 4
-    regularization_w1DC = 1e-3
-elif CASE == 2 :
-    regularization_length_scale = 2
+    regularization_w1DC= 1.e-1
+elif CASE == 2:
+    regularization_length_scale = 100
     regularization_w1DC = 1e-2
+elif CASE == 3:
+    regularization_length_scale = 50
+    regularization_w1DC = 1e-2
+elif CASE == 4 :
+    regularization_length_scale = 5
+    regularization_w1DC = 1e-3
+elif CASE == 5 :
+    regularization_length_scale = 1
+    regularization_w1DC = 1e-3
+
 #
 # Output handeling:
 #

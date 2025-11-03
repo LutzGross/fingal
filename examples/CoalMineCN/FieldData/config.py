@@ -14,7 +14,7 @@ padding_tags = ['Padding']
 #
 #  file of the location of stations/electrodes. 
 #
-stationfile = 'stations.csv'
+stationfile = '../stations.csv'
 stationdelimiter = ','
 stationsFMT = 's%s'
 #
@@ -31,7 +31,8 @@ data_rtol = 1e-4
 #
 #  This section of the file defines the inversion
 #
-sigma0_ref= 0.025# 0.0188 # 0.0275 # 0.085 # 0.0275 # 0.03 # 0.02753
+sigma0_ref= 0.0297
+sigma0_ref= 0.03
 Mn_ref=0.01*sigma0_ref
 true_properties=None
 use_robin_condition_in_model = False
@@ -58,11 +59,26 @@ epsilon_L1Norm=0.01
 use_log_misfit_DC = False
 
 
-regularization_DC = 'H2' # in ['H1', 'H2', 'H1_0', 'H2_0', 'Gauss', DGauss']
+regularization_DC = 'H2'
 
-# H2 & H2_0
-regularization_w1DC=8e-4
-#
+CASE = 1
+
+if CASE == 1 :
+    regularization_length_scale = None
+    regularization_w1DC= 1e-1 # in paper
+    regularization_w1DC = 1e-2
+elif CASE == 2:
+    regularization_length_scale = 100
+    regularization_w1DC = 1.e-2
+elif CASE == 3:
+    regularization_length_scale = 50
+    regularization_w1DC = 1.e-2
+elif CASE == 4 :
+    regularization_length_scale = 5
+    regularization_w1DC = 1e-3
+elif CASE == 5 :
+    regularization_length_scale = 1
+    regularization_w1DC = 1e-4
 
 # Output handeling:
 #
