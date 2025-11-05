@@ -59,11 +59,11 @@ use_log_misfit_DC = False
 
 regularization_DC = 'H2'
 
-CASE = 5
+CASE = 1
 
 if CASE == 1 :
     regularization_length_scale = None
-    regularization_w1DC= 1.e-1
+    regularization_w1DC= 1.e-2
     sigma0_ref = 0.005
 elif CASE == 2:
     regularization_length_scale = 100
