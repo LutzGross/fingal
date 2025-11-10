@@ -27,6 +27,7 @@ dipoleMeasurements = True
 datadelimiter = ','
 usesStationCoordinates = False
 schedulefile = 'schedule.csv'
+#schedulefile = 'scheduleWenner.csv'
 data_rtol = 1e-4
 #
 #  This section of the file defines the inversion
