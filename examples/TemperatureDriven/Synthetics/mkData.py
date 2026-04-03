@@ -163,12 +163,11 @@ else:
 pde = setupERTPDE(domain, tolerance=1e-10, poisson=False, debug=1)
 pde.setValue(A=config.thermal_conductivity *kronecker(3))
 
-# flux at top and buttom
-qs=Scalar(0., FunctionOnBoundary(domain))
-qs.setTaggedValue("SurfaceBottom", q_bottom)
-qs.setTaggedValue("SurfaceTop", h_top*T_air)
+# flux at top and buttomqs
 h=Scalar(0., FunctionOnBoundary(domain))
 h.setTaggedValue("SurfaceTop", h_top)
+qs= h * T_air
+qs.setTaggedValue("SurfaceBottom", -q_bottom)
 pde.setValue(y=qs, d=h)
 
 Q=Scalar(config.background_heat_production, Function(domain))
@@ -177,7 +176,7 @@ pde.setValue(Y=Q)
 
 T=pde.getSolution()
 
-saveSilo("temperature", T=T, flux =  -grad(T))
+saveSilo("temperature", T=T, flux =  -config.thermal_conductivity *grad(T))
 del pde
 # save surface temperature to file:
 if False:
@@ -190,7 +189,7 @@ if False:
 #    print(((sup(x)+inf(x))/2)**2)
 #    T=(T_bottom-T_air)/(inf(z)-sup(z))*(z-sup(z))
 #    T*=(sup(x)-x)*(x-inf(x))/((sup(x)-inf(x))/2)**2
-#    T*=(sup(y)-y)*(y-inf(y))/((sup(y)-inf(y))/2)**2
+#    T*=(sup(y)-y)*(y-inf(y))/((sup(y)-inf(y))/2)**2AC2069
 #    T+=T_air
 print("Temperature =",str(T))   
 
@@ -199,6 +198,15 @@ if config.surfacetemperature_file:
 
     saveDataCSV(config.surfacetemperature_file, A0=x[0], A1=x[1], A3=x[2], T=T, mask=whereZero(x[2]-sup(x[2])), refid=True)
     print("surface temperature saved to "+config.surfacetemperature_file)
+
+if config.surfaceflux_file:
+    qq = h * ( T - T_air)
+    mm = Scalar(0., qq.getFunctionSpace())
+    mm.setTaggedValue("SurfaceTop", 1)
+    x=qq.getX()
+
+    saveDataCSV(config.surfaceflux_file, A0=x[0], A1=x[1], A3=x[2], Qr=qq, mask=mm, refid=True)
+    print("surface flux saved to "+config.surfaceflux_file)
 
 
 # get the schedule

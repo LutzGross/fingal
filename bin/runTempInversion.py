@@ -12,7 +12,7 @@ from datetime import datetime
 from esys.escript.minimizer import MinimizerLBFGS
 sys.path.append(os.getcwd())
 from fingal import readElectrodeLocations, readSurveyData, InterpolatorWithExtension, mapToDomain2D, createBackgroundTemperature
-from fingal import ConductivityModelByTemperature, InversionIPBySource, InversionIPByFlux, InversionIPByTemperature
+from fingal import ConductivityModelByTemperature, InversionIPBySource, InversionIPByFlux, InversionIPByTemperature, InversionIPByFluxWithWeakBC
 from esys.finley import ReadMesh
 import numpy as np
 from esys.weipa import saveSilo
@@ -67,17 +67,13 @@ if getMPIRankWorld() == 0:
 z = domain.getX()[2]
 if config.surface_tags :
     maskSurfaceTemperatureNodes=getMaskFromBoundaryTag(domain, *tuple(config.surface_tags))
-
     maskTopSurfaceElements=Scalar(0., FunctionOnBoundary(domain))
     [ maskTopSurfaceElements.setTaggedValue(t, 1) for t in config.surface_tags]
-
     if getMPIRankWorld() == 0:
         print("surface tags =  "+str(config.surface_tags)+".")
 else:
-
     maskSurfaceTemperatureNodes=whereZero(z-sup(z))
     maskTopSurfaceElements=wherePositive(interpolate(whereZero(ReducedFunctionOnBoundary(domain).getX()[2] - sup(z)), FunctionOnBoundary(domain)))
-
 maskBottomSurfaceElements=wherePositive(interpolate(whereZero(ReducedFunctionOnBoundary(domain).getX()[2] - inf(z)), FunctionOnBoundary(domain)))
 # ====================================================================
 # ....create access to the conductivity model ... :
@@ -95,26 +91,48 @@ if config.surfacetemperature_file:
     TEMPy=TEMP[TEMPidx ,2]
     surfTemperatureData=TEMP[TEMPidx ,4]
     x=domain.getX()
-    interp=InterpolatorWithExtension((TEMPx, TEMPy), surfTemperatureData  , inf(x[0]), sup(x[0]), inf(x[1]), sup(x[1]),  markExtrapolation=not config.useTemperatureExtrapolation)
-    T_surf, maskTemperatureInterpolatedFromData = mapToDomain2D(Scalar(0., maskSurfaceTemperatureNodes.getFunctionSpace()), interp, where=maskSurfaceTemperatureNodes)
+    interpolator_Temperature=InterpolatorWithExtension((TEMPx, TEMPy), surfTemperatureData  , inf(x[0]), sup(x[0]), inf(x[1]), sup(x[1]),  markExtrapolation=not config.useTemperatureExtrapolation)
+    T_surf, maskTemperatureInterpolatedFromData = mapToDomain2D(Scalar(0., maskSurfaceTemperatureNodes.getFunctionSpace()), interpolator_Temperature, where=maskSurfaceTemperatureNodes)
     if getMPIRankWorld() == 0:
         print("surface temperature loaded from ", config.surfacetemperature_file)
+    del TEMP, interpolator_Temperature
 else:
     T_surf=Scalar(my_conductivity_model.T_ref, Solution(domain))
     maskTemperatureInterpolatedFromData = maskSurfaceTemperatureNodes
     if getMPIRankWorld() == 0:
         print("surface temperature set to ",str(my_conductivity_model.T_ref))
-
-# ... create mask where the elect. potential is set to zero:
-mask_face = getMaskFromBoundaryTag(domain, *config.faces_tags)
 #
 #... set conductivity, flux and heat source for background temperature:
 #
 thermal_conductivity = Scalar(config.thermal_conductivity, Function(domain))
-
 Q = Scalar(config.background_heat_production, Function(domain))
 [Q.setTaggedValue(t, config.background_heat_production_core) for t in config.core_tags]
-q = maskBottomSurfaceElements * config.background_heat_surface_flux_bottom - maskTopSurfaceElements * config.background_heat_surface_flux_top
+logger.debug("Heat source set to " + str(Q) )
+q = - maskBottomSurfaceElements * config.background_heat_surface_flux_bottom + maskTopSurfaceElements * config.background_heat_surface_flux_top
+#q = - maskBottomSurfaceElements * config.background_heat_surface_flux_bottom + maskTopSurfaceElements * config.background_heat_surface_flux_top
+
+## read surface fluxes and merge into q:
+if config.surfaceflux_file:
+    FLUXundef=config.surfaceflux_undef
+    FLUX=np.loadtxt(config.surfaceflux_file, comments='#', delimiter=',' , skiprows = config.surfaceflux_skiprows )
+    FLUXidx=np.logical_not(FLUX[:,4]==FLUXundef)
+    FLUXx=FLUX[FLUXidx ,1]
+    FLUXy=FLUX[FLUXidx ,2]
+    surfFLUXData=FLUX[FLUXidx ,4]
+    x=FunctionOnBoundary(domain).getX()
+    interpolator_Flux=InterpolatorWithExtension((FLUXx, FLUXy), surfFLUXData  , inf(x[0]), sup(x[0]), inf(x[1]), sup(x[1]),  markExtrapolation=not config.useFluxExtrapolation)
+    Flux_surf, maskFluxInterpolatedFromData = mapToDomain2D(Scalar(0., x.getFunctionSpace()), interpolator_Flux, where=maskTopSurfaceElements)
+    if getMPIRankWorld() == 0:
+        print("surface flux loaded from ", config.surfaceflux_file)
+    logger.debug("Read surface heat fluxes are " + str(Flux_surf))
+    q =  maskFluxInterpolatedFromData * Flux_surf + (1-maskFluxInterpolatedFromData) * q
+    del FLUX, interpolator_Flux
+
+logger.debug("Surface flux set to " + str(q) )
+
+# ... create mask where the elect. potential is set to zero:
+mask_face = getMaskFromBoundaryTag(domain, *config.faces_tags)
+
 # ------------------------------------------------------------------------------------------------
 # ===== Start inversion
 if config.model == "SOURCE":
@@ -131,6 +149,24 @@ if config.model == "SOURCE":
                                 surface_flux = q, logclip = config.clip_property_function,
                                 logger=logger.getChild(f"IP-Temp-SRC"))
     m_init = Scalar(0., Solution(domain))
+elif config.model == "FLUXWEAK":
+    costf = InversionIPByFluxWithWeakBC(domain, data=survey,  maskZeroPotential=mask_face,
+                                conductivity_model=my_conductivity_model,
+                                sigma_src=None,
+                                pde_tol=config.pde_tol, stationsFMT=config.stationsFMT, length_scale=config.regularization_length_scale,
+                                useLogMisfitDC=config.use_log_misfit_DC, dataRTolDC = config.data_rtol,
+                                useLogMisfitIP=config.use_log_misfit_IP, dataRTolIP=config.data_rtol,
+                                weightingMisfitDC=config.regularization_weighting_DC_misfit,
+                                w1=config.regularization_w1DC, reg_tol=None,
+                                surface_flux=q,
+                                set_temperature = config.temperature_longrange, mask_set_temperature = mask_face  * maskSurfaceTemperatureNodes ,
+                                mask_flux_variation=maskTopSurfaceElements,
+                                flux_variation_factor=config.surface_values_variation_factor,
+                                thermal_conductivity=thermal_conductivity,
+                                heat_production = Q,
+                                logger=logger.getChild(f"IP-Temp-FLXBC"))
+    m_init = Vector(0., Solution(domain))
+
 elif config.model == "FLUX":
     costf = InversionIPByFlux(domain, data=survey,  maskZeroPotential=mask_face,
                                 conductivity_model=my_conductivity_model,
@@ -154,7 +190,7 @@ elif config.model == "TEMP":
                                 useLogMisfitDC=config.use_log_misfit_DC, dataRTolDC = config.data_rtol,
                                 useLogMisfitIP=config.use_log_misfit_IP, dataRTolIP=config.data_rtol,
                                 weightingMisfitDC=config.regularization_weighting_DC_misfit,
-                                w1=config.regularization_w1DC, reg_tol=None, temperature_variation_factor = config.temperature_variation_factor,
+                                w1=config.regularization_w1DC, reg_tol=None, temperature_variation_factor = config.surface_values_variation_factor,
                                 surface_temperature=T_surf, mask_surface_temperature=maskTemperatureInterpolatedFromData,
                                 thermal_conductivity=thermal_conductivity,
                                 heat_production = Q,

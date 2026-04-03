@@ -60,29 +60,25 @@ use_log_misfit_DC = False
 
 regularization_DC = 'H2'
 
-CASE = 4
+sigma0_ref = 0.03
+sigma0_ref = 0.1
 
+CASE = 1
 if CASE == 1 :
     regularization_length_scale = None
-    regularization_w1DC = 1e-3
-    sigma0_ref = 0.03
+    regularization_w1DC = 1e-2
 elif CASE == 2:
     regularization_length_scale = 100
-    regularization_w1DC = 1.e-3
-    sigma0_ref = 0.03
+    regularization_w1DC = 1.e-2
 elif CASE == 3:
     regularization_length_scale = 50
-    regularization_w1DC = 1.e-3
-    sigma0_ref = 0.03
+    regularization_w1DC = 1.e-2
 elif CASE == 4 :
     regularization_length_scale = 5
     regularization_w1DC = 1e-3
-    sigma0_ref = 0.03
-    regularization_w1DC = 1e-4
 elif CASE == 5 :
     regularization_length_scale = 1
     regularization_w1DC = 1e-4
-    sigma0_ref = 0.03
 
 # Output handeling:
 #

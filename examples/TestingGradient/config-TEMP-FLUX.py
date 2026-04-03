@@ -1,0 +1,56 @@
+#
+# this is a fingal configuration file
+#
+
+created = 'today'
+project='Heron Line'
+# 
+#   name of the mesh file
+# 
+meshfile = 'mesh.fly'
+faces_tags = ['faces']
+surface_tags = ['surface']
+core_tags = ['core']
+padding_tags = ['padding']
+#
+#  file of the location of stations/electrodes. 
+#
+stationfile = 'stations.csv'
+stationdelimiter = ','
+stationsFMT = 's%s'
+#
+# this defines the data file: 
+# 
+datafile = 'data.csv'
+datacolumns = ['R', "ERR_R", "ETA", "RELERR_ETA"]
+dipoleInjections = True
+dipoleMeasurements = True
+datadelimiter = ','
+usesStationCoordinates = False
+schedulefile = None
+data_rtol = 0.0001
+#
+#  This section of the file defines the inversion
+#
+sigma0_ref=0.002
+Mn_ref=0.01*sigma0_ref
+true_properties=None
+#
+#
+#  Inversion:
+#
+pde_tol = 1e-10
+fixed_region_tags=[]
+fix_top = False
+#weighting_misfit_ERT=0.5
+clip_property_function=10
+regularization_w1DC=1e-5
+use_log_misfit_DC = False
+use_log_misfit_IP = False
+regularization_length_scale = 10
+temperature_longrange = 13.4
+surface_values_variation_factor = 100
+thermal_conductivity = 2
+
+
+

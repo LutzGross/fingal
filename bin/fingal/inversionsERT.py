@@ -82,12 +82,14 @@ class ERTMisfitCostFunction(CostFunction):
                 iMs = [self.data.getStationNumber(M) for M, N in obs_DC]
                 iNs = [self.data.getStationNumber(N) for M, N in obs_DC]
                 if self.useLogMisfitDC:
-                    error_DC = (np.array([self.data.getResistenceRelError((A, B, M, N)) for M, N in obs_DC])**2 + self.dataRTolDC**2) ** 0.5
+                    #error_DC = (np.array([self.data.getResistenceRelError((A, B, M, N)) for M, N in obs_DC])**2 + self.dataRTolDC**2) ** 0.5
+                    error_DC = 0.05 * np.ones(len(data_DC))
                     self.misfit_DC[(iA, iB)] =  DataMisfitLog(iMs=iMs, data=data_DC, iNs=iNs, injections=(A,B), weightings=1. / error_DC**2)
                 else:
-
-                    error_DC = ( np.array([self.data.getResistenceError((A, B, M, N)) for M, N in obs_DC])**2 + data_atol_DC**2) ** 0.5
-                    print(error_DC, data_DC )
+                    #error_DC = ( np.array([self.data.getResistenceError((A, B, M, N)) for M, N in obs_DC])**2 + data_atol_DC**2) ** 0.5
+                    #error_DC = abs(data_DC).max() * 0.05 * np.ones(len(data_DC))
+                    error_DC = np.array([self.data.getResistenceError((A, B, M, N)) for M, N in obs_DC])
+                    #print(error_DC, data_DC,  data_DC/error_DC)
                     self.misfit_DC[(iA, iB)] = DataMisfitQuad(iMs=iMs, data=data_DC, iNs=iNs, injections=(A, B), weightings =1./error_DC**2)
                 nd_DC+= n_use_DC
 

@@ -6,7 +6,7 @@ sys.path.append(os.getcwd())
 from fingal import ERTInversionH1, ERTInversionGauss, ERTInversionH2, ERTInversionGaussWithDiagonalHessian
 from fingal import readElectrodeLocations, readSurveyData, makeMaskForOuterSurface
 from esys.finley import ReadMesh
-from esys.escript.pdetools import MaskFromBoundaryTag, MaskFromTag
+from esys.escript.pdetools import MaskFromBoundaryTag, getMaskFromBoundaryTag
 import numpy as np
 from esys.weipa import saveVTK, saveSilo
 import argparse
@@ -58,7 +58,7 @@ m_ref = None
 
 # define region with fixed conductivity:
 if config.fixed_region_tags and isinstance(config.fixed_region_tags , list):
-    fixedm=MaskFromTag(domain, *tuple(config.fixed_region_tags))
+    fixedm=getMaskFromBoundaryTag(domain, *tuple(config.fixed_region_tags))
     if len(config.fixed_region_tags)> 0:
         logger.info("Tags of regions with fixed property function : %s"%(config.fixed_region_tags) )
 else:
