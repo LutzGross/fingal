@@ -403,7 +403,7 @@ def setupPDESystem(domain, numEquations=1, symmetric=True, tolerance=1e-8):
         optionsG.setTrilinosParameter("problem: symmetric", symmetric)
 
     return pde
-def setupERTPDE(domain, tolerance=1e-8, poisson=True, debug=0):
+def setupERTPDE(domain, tolerance=1e-8, poisson=True, isComplex=False, debug=0):
     """
     used to setup all PDEs fro ERT related inversion. If available TRILINOS is usered.
     
@@ -418,7 +418,7 @@ def setupERTPDE(domain, tolerance=1e-8, poisson=True, debug=0):
     
 
     """
-    pde = LinearSinglePDE(domain, isComplex=False)
+    pde = LinearSinglePDE(domain, isComplex=isComplex)
     pde.setSymmetryOn()
     optionsG = pde.getSolverOptions()
     optionsG.setSolverMethod(SolverOptions.PCG)

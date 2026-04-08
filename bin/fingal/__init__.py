@@ -11,3 +11,4 @@ from .datamapping import mapToDomain
 from .synthetics import IPSynthetic
 from .sensitivity import ERTSensitivity
 from .geometry import MeshWithTopgraphy
+from .sipforward import *
