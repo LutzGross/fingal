@@ -57,8 +57,8 @@ class SIPSolver(object):
         self.current = current
         if self.verbose:
             print("primary conductivity  : ", self.sigma_p)
-            print("        potential real : ", self.u_p.real())
-            print("                  imag : ", self.u_p.imag())
+            print("        potential real : ", inf(self.u_p.real()), sup(self.u_p.real()) )
+            print("                  imag : ", inf(self.u_p.imag()), sup(self.u_p.imag()) )
 
     def setConductivity(self, sigma, sigma_bc = None):
         """
@@ -84,12 +84,12 @@ class SIPSolver(object):
         self.pde_fw.setValue(A=self.sigma_re * kronecker(3), d=sigma_bc_re * self.alpha)
         self.pde_prec.setValue(A=self.sigma_prec * kronecker(3), d=self.sigma_bc_prec * self.alpha)
         if self.verbose:
-            print("conductivity real : ", self.sigma_re)
-            print("             imag : ", self.sigma_im)
-            print("conductivity BC real : ", self.sigma_bc_re)
-            print("                imag : ", self.sigma_bc_im)
-            print("preconditioner    : ", self.sigma_prec)
-            print("               BC : ", self.sigma_bc_prec)
+            print("conductivity real : ", inf(self.sigma_re), sup(self.sigma_re))
+            print("             imag : ", inf(self.sigma_im), sup(self.sigma_im))
+            print("conductivity BC real : ", inf(self.sigma_bc_re), sup(self.sigma_bc_re))
+            print("                imag : ", inf(self.sigma_bc_im), sup(self.sigma_bc_im))
+            print("preconditioner    : ", inf(self.sigma_prec), sup(self.sigma_prec))
+            print("               BC : ", inf(self.sigma_bc_prec), sup(self.sigma_bc_prec))
         return self
 
     def _evalA(self,p_re):
