@@ -255,19 +255,18 @@ class IP2MisfitCostFunction(CostFunction):
                 isigma_0 = interpolate(self.sigma_0, iMn.getFunctionSpace())
                 isigma_oo = isigma_0 + iMn
                 self.IP_pde.setValue(A=isigma_oo * kronecker(self.IP_pde.getDim()), X=Data(), Y=Data())
-                DMisfitDMn = Scalar(0., self.DC_pde.getFunctionSpaceForCoefficient('Y'))
                 for iA in secondary_potentials_IP_stations.keys():
-                    VA = dc_potential_VA_stations[iA]
+                    VA = self.dc_potential_VA[iA]
                     WA = secondary_potentials_IP[iA]
                     UA = VA - WA
-                    s = Scalar(0., DiracDeltaFunctions(self.DC_pde.getDomain()))
+                    s = Scalar(0., DiracDeltaFunctions(self.IP_pde.getDomain()))
                     for M in self.data.getStationNumeration():
                         iM = self.data.getStationNumber(M)
                         if self.stationsFMT is None:
                             s.setTaggedValue(M, SOURCES_IP[iA, iM])
                         else:
                             s.setTaggedValue(self.stationsFMT % M, SOURCES_IP[iA, iM])
-                        self.IP_pde.setValue(y_dirac=s)
+                    self.IP_pde.setValue(y_dirac=s)
                     WA_star = self.IP_pde.getSolution()
 
                     DMisfitDMn += inner(grad(WA_star), grad(UA))
