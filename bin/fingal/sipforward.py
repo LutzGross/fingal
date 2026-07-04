@@ -77,9 +77,9 @@ class SIPSolver(object):
         assert inf(sigma_bc_re) > 0, "real part of sigma must be positive on the boundary."
         self.sigma_bc_re = sigma_bc_re
         self.sigma_bc_im = sigma_bc.imag()
-
-        self.sigma_prec = self.sigma_re * ( 1 + (self.sigma_im / self.sigma_re) ** 2 )
-        self.sigma_bc_prec = self.sigma_bc_re * ( 1 + (self.sigma_bc_im / self.sigma_bc_re) ** 2 )
+        PRECFAC =  1.
+        self.sigma_prec = self.sigma_re * ( 1 + PRECFAC * (self.sigma_im / self.sigma_re) ** 2 )
+        self.sigma_bc_prec = self.sigma_bc_re * ( 1 + PRECFAC * (self.sigma_bc_im / self.sigma_bc_re) ** 2 )
 
         self.pde_fw.setValue(A=self.sigma_re * kronecker(3), d=sigma_bc_re * self.alpha)
         self.pde_prec.setValue(A=self.sigma_prec * kronecker(3), d=self.sigma_bc_prec * self.alpha)
