@@ -20,7 +20,7 @@ sys.path.append(os.getcwd())
 
 parser = argparse.ArgumentParser(description='Creates a mesh fly file using the station location information. the gmsh mesh generator is used.', epilog="fingal by l.gross@uq.edu.au version Feb/2024")#
 parser.add_argument('--zlevel', '-z',  dest='zlevel', type=float, default=None, help="file name of the topography interpolation file.")
-parser.add_argument('--core_depth', '-D',  dest='core_depth', type=float, default=35., help="core depth [%%] relative survey diameter.")
+parser.add_argument('--core_depth', '-D',  dest='core_depth', type=float, default=45., help="core depth [%%] relative survey diameter.")
 parser.add_argument('--extra_core', '-C',  dest='extra_core', type=float, default=20., help="extra core length [%%] relative to survey edge length.")
 parser.add_argument('--extra_padding', '-P',  dest='extra_padding', type=float, default=1100, help="extra padding length [%%] relative to core edge length.")
 parser.add_argument('--num_elements_outer_edge', '-O',  dest='num_elements_outer_edge', type=int, default=20, help="numer of elements on outer edges.")

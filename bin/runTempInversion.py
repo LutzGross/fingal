@@ -210,7 +210,7 @@ def myCallback(iterCount, m, dm, Fm, grad_Fm, norm_m, args_m, failed):
             print("restart file %s for step %s created."%(iterCount, args.RESTARTFN))
 
 def myCallbackQ(iterCount, m, dm, Fm, grad_Fm, norm_m, args_m, failed):
-        saveSilo(f"tmpQ/out{iterCount:03d}", m=m, Q=args_m[0], T=args_m[1], tag=getRegionTags(ReducedFunction(m.getDomain())))
+        saveSilo(f"tmp/out{iterCount:03d}", m=m, Q=args_m[0], T=args_m[1], tag=getRegionTags(ReducedFunction(m.getDomain())))
         if getMPIRankWorld() == 0:
             print(f">>>> iteration saved to  file tmpQ/out{iterCount:03d}!")
         # if args.RESTARTFN and iterCount > 0:

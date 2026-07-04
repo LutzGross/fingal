@@ -425,7 +425,6 @@ def setupERTPDE(domain, tolerance=1e-8, poisson=True, isComplex=False, debug=0):
     optionsG.setTolerance(tolerance)
     #optionsG.setSolverMethod(SolverOptions.DIRECT)
     if hasFeature('trilinos'):
-        optionsG.setPackage(SolverOptions.TRILINOS)
         optionsG.setPreconditioner(SolverOptions.AMG)
         if poisson:
             optionsG.setTrilinosParameter("problem:type", "Poisson-3D")

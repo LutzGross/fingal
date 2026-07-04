@@ -956,7 +956,7 @@ class InversionIPByFluxWithWeakBC(IPMisfitCostFunction):
         self.T_background = self.Tpde.getSolution()
         self.logger.debug("Background Temperature = %s" % (str(self.T_background)))
         self.Tpde.setValue(r=Data(), Y=Data(), y=Data())
-        saveSilo("T", T_bg= self.T_background, q=surface_flux, Tmask=mask_set_temperature)
+        #saveSilo("T", T_bg= self.T_background, q=surface_flux, Tmask=mask_set_temperature)
         if length_scale is None:
             self.a = None
         else:

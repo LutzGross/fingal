@@ -46,7 +46,7 @@ GEOFILE = args.geofile + ".geo"
 T_air=15  # air temperature in celcius!
 q_bottom= config.background_heat_surface_flux_bottom
 h_top=0.05*2 # convective heat transfer coefficient in  W/m/K
-Q_volcano = 0.8# heatsource of volcane W/m^3/K
+Q_volcano = 0.8/5# heatsource of volcane W/m^3/K
 #===========================================
 
 
@@ -114,9 +114,9 @@ if not args.haveMesh:
     out += "DepthBoundingBox = %g;\n" % (CoreThickness + Zpadding)
     out += "// Geometry:\n"
     out += "DistanceElectrodes = %g;\n" % (DistanceElectrodes)
-    out += "DepthInterface = 3 * DistanceElectrodes;\n"
-    out += "RadiusConduit = 3 * DistanceElectrodes;\n"
-    out += "OffsetXConduit = 3 * DistanceElectrodes;\n"
+    out += "DepthInterface = 5 * DistanceElectrodes;\n"
+    out += "RadiusConduit = 10 * DistanceElectrodes;\n"
+    out += "OffsetXConduit = 5 * DistanceElectrodes;\n"
     out += "OffsetYConduit = 0.0 * DistanceElectrodes;\n"
     out += "// mesh sizes\n"
     out += "meshSizeCore = %g * DistanceElectrodes;\n" % (args.coremeshfactor)
