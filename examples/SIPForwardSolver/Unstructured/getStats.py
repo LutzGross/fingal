@@ -3,10 +3,10 @@
 Aggregate SIP forward-solver run logs into LaTeX tables.
 
 Each file in LOGDIR holds one JSON run record per line; the last line is
-taken as the record for that log. For every contrast (excluding the first,
-baseline value) two tables are written to OUTFILE: solver iterations and
-total timing, with mesh node counts as rows and the anomaly `ratio` as
-columns. Progress and warnings go to stderr.
+taken as the record for that log. For every contrast, two tables are
+written to OUTFILE: solver iterations and total timing, with mesh node
+counts as rows and the anomaly `ratio` as columns. Progress and warnings
+go to stderr.
 """
 import os
 import sys
@@ -86,7 +86,7 @@ def main():
         index.setdefault((rec["mesh"], rec["contrast"], rec["ratio"]), rec)
 
     blocks = []
-    for contrast in contrasts[1:]:
+    for contrast in contrasts:
         blocks.append(f"% solver iterations, contrast = {contrast}")
         blocks.append(make_table(index, meshes, node_counts, contrast, ratios, "iterations", ""))
         blocks.append(f"% total timing [s], contrast = {contrast}")
