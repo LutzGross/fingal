@@ -6,8 +6,7 @@ the idea is to double the number of nodes between meshes.
 import os, subprocess
 from esys.finley import ReadGmsh
 meshdir = "meshes"
-#for k in [1, 2, 4, 8, 16, 32, 64, 128] : #, 256, 512, 1024]:
-for k in [ 256 ]:
+for k in [1, 2, 4, 8, 16, 32, 64, 128, 256] : #, 256, 512, 1024]:
     rf = k ** (-1/3.)
     geofile = f"dom{k}.geo"
     mshfile = f"tmp.msh"
