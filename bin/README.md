@@ -36,6 +36,32 @@ Don't forget to set the OPENMP environment variables, eg.
 - runTempInversion.py - temperature driven inversion (not working)
 - runIPFieldinversion.py - FullWaver inversion (really not working) 
 
+#### Coupled IP (`runIPinversion.py`) vs. subsequent IP (`runIP2inversion.py`)
+
+Both scripts recover the normalised chargeability `Mn`, but they differ in how the DC
+conductivity `sigma_0` is treated:
+
+- **Coupled IP (`runIPinversion.py`)** inverts for `sigma_0` and `Mn` **jointly**. The
+  property function is a two-component vector `m = [log(sigma_0/sigma0_ref), log(Mn/Mn_ref)]`.
+  Both the DC (resistance) data and the IP (secondary potential) data enter the misfit,
+  weighted against each other by `regularization_weighting_DC_misfit`. Two forward PDEs are
+  solved per iteration (for `sigma_0` and for `sigma_oo = sigma_0 + Mn`). A cross-gradient
+  term (`regularization_theta`) can couple the conductivity and chargeability structures.
+  Implemented in `fingal/inversionsIP.py`.
+
+- **Subsequent IP (`runIP2inversion.py`)** assumes `sigma_0` is already known and **fixed**:
+  it is read from the dump file written by a prior ERT inversion (`sigma0_dump`, see below).
+  Only `Mn` is inverted for, so the property function is the scalar `m = log(Mn/Mn_ref)`,
+  and only the IP data enter the misfit. The DC potentials are computed once up front and
+  reused, and a single forward PDE is solved per iteration. There is no cross-gradient term
+  (there is only one property). Implemented in `fingal/inversionsIP2.py`.
+
+In short: coupled IP lets conductivity and chargeability inform each other at the cost of a
+larger, more expensive, more nonlinear problem; subsequent IP is a cheaper and typically more
+robust two-stage workflow (run `runERTinversion.py` first, then `runIP2inversion.py`) but
+cannot update `sigma_0` from the IP data. Both offer `H1`, `H1_0`, `H2` and `H2_0`
+regularization.
+
 ### Helpers
 - mkWennerSurvey.py - makes a Wenner survey schedule file 
 - plotStations.py - plot the stations
