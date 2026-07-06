@@ -8,13 +8,15 @@ written to OUTFILE: solver iterations and total timing, with mesh node
 counts as rows and the anomaly `ratio` as columns. Progress and warnings
 go to stderr.
 
-If the directory LOGDIR0 exists, a second value is read from it for each
-(mesh, contrast, ratio) and appended to the primary value in each cell,
-separated by "/" (e.g. "3/4").
+In the timing tables a second number is appended after "/": the timing
+relative to the smallest mesh (first row) in the same column. In the
+iterations tables, if the directory LOGDIR0 exists, the matching value
+from it is appended after "/" instead (e.g. "3/4").
 """
 import os
 import sys
 import json
+import numpy as np
 
 LOGDIR = "logs/"
 LOGDIR0 = "logs0/"
@@ -48,6 +50,12 @@ def build_index(records):
     return index
 
 
+def fit_power_law(xs, ys):
+    """Least-squares fit y = a * x**b in log-log space; returns (a, b)."""
+    b, loga = np.polyfit(np.log(xs), np.log(ys), 1)
+    return float(np.exp(loga)), float(b)
+
+
 def node_count(flyfile):
     """Number of 3D nodes declared in a finley .fly mesh file, or None."""
     with open(flyfile) as f:
@@ -57,25 +65,57 @@ def node_count(flyfile):
     return None
 
 
-def make_table(index, meshes, node_counts, contrast, ratios, field, fmt, index0=None):
+def make_table(index, meshes, node_counts, contrast, ratios, field, fmt,
+               index0=None, relative=False):
     """Build one LaTeX table for `field` at `contrast`.
 
     `index` maps (mesh, contrast, ratio) -> record. Missing cells are blank.
-    If `index0` is given, its value for the same key is appended after "/".
+    A second number may be appended after "/":
+      - if `relative`, the value divided by the value for the smallest mesh
+        (`meshes[0]`) in the same column, i.e. the scaling relative to it;
+      - else if `index0` is given, its value for the same key.
     """
-    header = " # nodes" + "".join(f" & {r}" for r in ratios) + "\\\\"
+    header = " # nodes & $N/N_0$" + "".join(f" & {r}" for r in ratios) + "\\\\"
     lines = ["\\toprule", header, "\\midrule"]
+    base_nodes = node_counts[meshes[0]]
     for mesh in meshes:
         cells = []
         for r in ratios:
             key = (mesh, contrast, r)
             rec = index.get(key)
             cell = format(rec[field], fmt) if rec is not None else ""
-            if index0 is not None:
+            if relative:
+                base = index.get((meshes[0], contrast, r))
+                if rec is not None and base is not None and base[field]:
+                    cell += "/" + format(rec[field] / base[field], fmt)
+                else:
+                    cell += "/"
+            elif index0 is not None:
                 rec0 = index0.get(key)
                 cell += "/" + (format(rec0[field], fmt) if rec0 is not None else "")
             cells.append(cell)
-        lines.append(f"{node_counts[mesh]} " + "".join(f" & {c}" for c in cells) + " \\\\")
+        node_ratio = format(node_counts[mesh] / base_nodes, ".3g")
+        lines.append(f"{node_counts[mesh]} & {node_ratio}" + "".join(f" & {c}" for c in cells) + " \\\\")
+    if relative:
+        # per column, fit absolute time  T = a * N**b  in log-log space
+        coeffs, exps = [], []
+        for r in ratios:
+            xs, ys = [], []
+            for mesh in meshes:
+                rec = index.get((mesh, contrast, r))
+                if rec is not None and rec[field] > 0:
+                    xs.append(node_counts[mesh])
+                    ys.append(rec[field])
+            if len(xs) >= 2:
+                a, b = fit_power_law(xs, ys)
+                coeffs.append(format(a, ".3g"))
+                exps.append(format(b, ".3g"))
+            else:
+                coeffs.append("")
+                exps.append("")
+        lines.append("\\midrule")
+        lines.append("fit $a$ & & " + " & ".join(coeffs) + " \\\\")
+        lines.append("fit $b$ & & " + " & ".join(exps) + " \\\\")
     lines.append("\\bottomrule")
     return "\n".join(lines)
 
@@ -111,8 +151,8 @@ def main():
     for contrast in contrasts:
         blocks.append(f"% solver iterations, contrast = {contrast}")
         blocks.append(make_table(index, meshes, node_counts, contrast, ratios, "iterations", "", index0))
-        blocks.append(f"% total timing [s], contrast = {contrast}")
-        blocks.append(make_table(index, meshes, node_counts, contrast, ratios, "timing_total", ".3g", index0))
+        blocks.append(f"% total timing [s] (rel. to smallest mesh; fit T = a N^b), contrast = {contrast}")
+        blocks.append(make_table(index, meshes, node_counts, contrast, ratios, "timing_total", ".3g", relative=True))
 
     with open(OUTFILE, "w") as f:
         f.write("\n".join(blocks) + "\n")
