@@ -39,7 +39,6 @@ class SIPSolver(object):
         S = Scalar(0., DiracDeltaFunctions(self.dom))
         S.setTaggedValue(tag, 1)
         S.expand()
-        print(str(S))
         self.pde_fw.setValue(y_dirac=S, X = Data(), y=Data())
 
         self.u_src = self.pde_fw.getSolution()
