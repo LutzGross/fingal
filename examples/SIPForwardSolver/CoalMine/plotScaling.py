@@ -47,20 +47,20 @@ def main():
     # sort by number of cores
     cores, timings = zip(*sorted(zip(cores, timings)))
 
-    # least-squares power-law fit  T = a * n**b  in log-log space
-    b, loga = np.polyfit(np.log(cores), np.log(timings), 1)
-    a = np.exp(loga)
+    # least-squares fit  T = a + b/n  (linear in a, b)
+    n = np.asarray(cores, dtype=float)
+    A = np.vstack([np.ones_like(n), 1.0 / n]).T
+    a, b = np.linalg.lstsq(A, timings, rcond=None)[0]
 
     fig, ax = plt.subplots()
-    ax.loglog(cores, timings, "o", label="measured")
-    fit = a * np.power(cores, b)
-    ax.loglog(cores, fit, "-", label=f"fit: $T = {a:.3g}\\,n^{{{b:.3g}}}$")
+    ax.plot(cores, timings, "o", label="measured")
+    fit = a + b / n
+    ax.plot(cores, fit, "-", label=f"fit: $T = {a:.3g} + {b:.3g}/n$")
     ax.legend()
-    ax.set_xlabel("number of cores")
-    ax.set_ylabel("solver time [s]")
-    ax.set_title("CoalMine SIP forward solver scaling")
+    ax.set_xlabel("number of cores $n$")
+    ax.set_ylabel("solver time $T$ [s]")
+    ax.set_title("Coal Mine SIP forward solver scaling ")
     ax.set_xticks(cores)
-    ax.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
     ax.grid(True, which="both", ls=":")
     fig.tight_layout()
     fig.savefig(OUTFILE, dpi=150)
