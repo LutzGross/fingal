@@ -8,10 +8,8 @@ written to OUTFILE: solver iterations and total timing, with mesh node
 counts as rows and the anomaly `ratio` as columns. Progress and warnings
 go to stderr.
 
-In the timing tables a second number is appended after "/": the timing
-relative to the smallest mesh (first row) in the same column. In the
-iterations tables, if the directory LOGDIR0 exists, the matching value
-from it is appended after "/" instead (e.g. "3/4").
+In the iterations tables, if the directory LOGDIR0 exists, the matching
+value from it is appended after "/" (e.g. "3/4").
 """
 import os
 import sys
@@ -66,14 +64,12 @@ def node_count(flyfile):
 
 
 def make_table(index, meshes, node_counts, contrast, ratios, field, fmt,
-               index0=None, relative=False):
+               index0=None, fit=False):
     """Build one LaTeX table for `field` at `contrast`.
 
     `index` maps (mesh, contrast, ratio) -> record. Missing cells are blank.
-    A second number may be appended after "/":
-      - if `relative`, the value divided by the value for the smallest mesh
-        (`meshes[0]`) in the same column, i.e. the scaling relative to it;
-      - else if `index0` is given, its value for the same key.
+    If `index0` is given, its value for the same key is appended after "/".
+    If `fit`, a per-column power-law fit T = a N**b is appended as extra rows.
     """
     header = " # nodes & $N/N_0$" + "".join(f" & {r}" for r in ratios) + "\\\\"
     lines = ["\\toprule", header, "\\midrule"]
@@ -84,19 +80,13 @@ def make_table(index, meshes, node_counts, contrast, ratios, field, fmt,
             key = (mesh, contrast, r)
             rec = index.get(key)
             cell = format(rec[field], fmt) if rec is not None else ""
-            if relative:
-                base = index.get((meshes[0], contrast, r))
-                if rec is not None and base is not None and base[field]:
-                    cell += "/" + format(rec[field] / base[field], fmt)
-                else:
-                    cell += "/"
-            elif index0 is not None:
+            if index0 is not None:
                 rec0 = index0.get(key)
                 cell += "/" + (format(rec0[field], fmt) if rec0 is not None else "")
             cells.append(cell)
         node_ratio = format(node_counts[mesh] / base_nodes, ".3g")
         lines.append(f"{node_counts[mesh]} & {node_ratio}" + "".join(f" & {c}" for c in cells) + " \\\\")
-    if relative:
+    if fit:
         # per column, fit absolute time  T = a * N**b  in log-log space
         coeffs, exps = [], []
         for r in ratios:
@@ -151,8 +141,8 @@ def main():
     for contrast in contrasts:
         blocks.append(f"% solver iterations, contrast = {contrast}")
         blocks.append(make_table(index, meshes, node_counts, contrast, ratios, "iterations", "", index0))
-        blocks.append(f"% total timing [s] (rel. to smallest mesh; fit T = a N^b), contrast = {contrast}")
-        blocks.append(make_table(index, meshes, node_counts, contrast, ratios, "timing_total", ".3g", relative=True))
+        blocks.append(f"% total timing [s] (fit T = a N^b), contrast = {contrast}")
+        blocks.append(make_table(index, meshes, node_counts, contrast, ratios, "timing_total", ".3g", fit=True))
 
     with open(OUTFILE, "w") as f:
         f.write("\n".join(blocks) + "\n")

@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-out = """# nohup run.sh &> log.txt &
+out = """# nohup runs.sh &> log.txt &
 export OMP_NUM_THREADS=6
 export OMP_PLACES=threads
 export OMP_PROC_BIND=false
