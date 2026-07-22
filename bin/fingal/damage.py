@@ -23,7 +23,7 @@ by fingal, 2026.
 import numpy as np
 from esys.escript import (Function, Scalar, kronecker, trace, inner,
                           sqrt, clip, maximum, symmetric, grad, Lsup, interpolate)
-from esys.escript.linearPDEs import LinearSinglePDE, SolverOptions
+from esys.escript.linearPDEs import LinearSinglePDE, LameEquation, SolverOptions
 
 __all__ = ['SmoothDamageModel']
 
@@ -104,16 +104,28 @@ class SmoothDamageModel(object):
         self.lam = E0 * nu / ((1. + nu) * (1. - 2. * nu))
         self.mu = E0 / (2. * (1. + nu))
         self.kappa = None
+        self.elasticity = None
         self.helmholtz = None
 
-    def initialize(self, domain):
+    def initialize(self, domain, elasticity_solver=SolverOptions.PCG):
         """
-        sets the history variable kappa to the threshold value kappa0 and the
-        damage D to zero on the element (`Function`) function space of
-        `domain` and returns self.
+        prepares the model on `domain`: sets the history variable kappa to the
+        threshold value kappa0 and the damage D to zero on the element
+        (`Function`) function space, builds the `LameEquation` for the
+        elasticity problem (available as `self.elasticity`) and, if a
+        localization length is set, the Helmholtz PDE for the non-local
+        smoothing. Returns self.
+
+        The caller sets the constraints (`q`, `r`) on `self.elasticity` for the
+        loading; the damaged Lame parameters are (re)set by `solveLoadStep`.
+
+        :param elasticity_solver: solver method for the elasticity PDE.
         """
         self.kappa = Scalar(self.kappa0, Function(domain))
         self.D = Scalar(0., Function(domain))
+        # elasticity problem  -(sigma_ij),j = 0  (LameEquation sets symmetry on)
+        self.elasticity = LameEquation(domain)
+        self.elasticity.getSolverOptions().setSolverMethod(elasticity_solver)
         self.helmholtz = None
         if self.localization_length is not None:
             dim = domain.getDim()
@@ -197,32 +209,31 @@ class SmoothDamageModel(object):
         """
         return (1. - D) * (self.lam * trace(eps) * kronecker(3) + 2. * self.mu * eps)
 
-    def solveLoadStep(self, pde, tol=1e-6, max_iter=20):
+    def solveLoadStep(self, tol=1e-6, max_iter=20):
         """
         advances the model by one displacement-controlled load step using the
-        split-operator (staggered) scheme: the equilibrium PDE `pde`, the
-        implicit-gradient smoothing of the equivalent strain (if a localization
-        length is set) and the damage update are solved alternately until the
-        damage field converges.
+        split-operator (staggered) scheme: the elasticity PDE `self.elasticity`,
+        the implicit-gradient smoothing of the equivalent strain (if a
+        localization length is set) and the damage update are solved alternately
+        until the damage field converges.
 
-        The constraints (`q`, `r`) of `pde` must already be set for the current
-        load level; its Lame coefficients are (re)set here from the current
-        damage. On entry the stored damage `self.D` and history `self.kappa` are
-        used as the starting point; on exit the history is committed and
-        `self.D` holds the (non-decreasing) updated damage.
+        The constraints (`q`, `r`) of `self.elasticity` must already be set for
+        the current load level; its Lame coefficients are (re)set here from the
+        current damage. On entry the stored damage `self.D` and history
+        `self.kappa` are used as the starting point; on exit the history is
+        committed and `self.D` holds the (non-decreasing) updated damage.
 
-        :param pde: `LameEquation` for the elasticity problem.
         :param tol: convergence tolerance on the change of the damage field.
         :param max_iter: maximum number of staggered iterations.
         :return: (displacement `u`, strain `eps`, number of iterations used).
         """
-        assert self.D is not None, "call initialize(domain) first."
+        assert self.elasticity is not None, "call initialize(domain) first."
         D = self.D
         kappa_trial = self.kappa
         for it in range(max_iter):
             lam_eff, mu_eff = self.getLameParameters(D)
-            pde.setValue(lame_lambda=lam_eff, lame_mu=mu_eff)
-            u = pde.getSolution()
+            self.elasticity.setValue(lame_lambda=lam_eff, lame_mu=mu_eff)
+            u = self.elasticity.getSolution()
             eps = symmetric(grad(u))
             etilde = self.getEquivalentStrain(eps)     # local equivalent strain
             ebar = self.getNonlocalStrain(etilde)      # implicit-gradient smoothing
@@ -236,33 +247,32 @@ class SmoothDamageModel(object):
         self.D = D
         return u, eps, it + 1
 
-    def runLoading(self, pde, set_bc, nsteps, callback=None, tol=1e-6,
-                   max_iter=20):
+    def runLoading(self, set_bc, nsteps, callback=None, tol=1e-6, max_iter=20):
         """
         runs a displacement-controlled loading path of `nsteps` increments,
         advancing the damage model with the split-operator scheme at each step.
 
         For each step k = 1 .. nsteps:
-          1. `set_bc(pde, k, nsteps)` sets the constraints (`q`, `r`) of `pde`
-             for the current load level;
+          1. `set_bc(self.elasticity, k, nsteps)` sets the constraints (`q`,
+             `r`) of the elasticity PDE for the current load level;
           2. `solveLoadStep` performs the staggered equilibrium/damage solve,
              updating `self.kappa` and `self.D`;
           3. the optional `callback(k, u, eps, self)` is invoked for output or
              recording of the solution `u`, strain `eps` and model state.
 
-        :param pde: elasticity PDE `-(A_ijkl u_k,l),j = 0`, 3 equations.
-        :param set_bc: callable `set_bc(pde, step, nsteps)` setting the load.
+        :param set_bc: callable `set_bc(pde, step, nsteps)` setting the load on
+                       the elasticity PDE `pde` (= `self.elasticity`).
         :param nsteps: number of load increments.
         :param callback: optional callable `callback(step, u, eps, model)`.
         :param tol: convergence tolerance passed to `solveLoadStep`.
         :param max_iter: maximum staggered iterations passed to `solveLoadStep`.
         :return: list with the number of staggered iterations used per step.
         """
-        assert self.D is not None, "call initialize(domain) first."
+        assert self.elasticity is not None, "call initialize(domain) first."
         iters = []
         for step in range(1, nsteps + 1):
-            set_bc(pde, step, nsteps)
-            u, eps, nit = self.solveLoadStep(pde, tol=tol, max_iter=max_iter)
+            set_bc(self.elasticity, step, nsteps)
+            u, eps, nit = self.solveLoadStep(tol=tol, max_iter=max_iter)
             iters.append(nit)
             if callback is not None:
                 callback(step, u, eps, self)

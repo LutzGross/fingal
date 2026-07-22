@@ -28,7 +28,7 @@ import matplotlib.pyplot as plt
 from esys.finley import Brick
 from esys.escript import (Function, Solution, length, whereZero,
                           integrate, Vector, Scalar)
-from esys.escript.linearPDEs import LameEquation, SolverOptions
+from esys.escript.linearPDEs import SolverOptions
 
 from fingal import SmoothDamageModel
 
@@ -64,11 +64,9 @@ print("wrote damage_vs_strain.png")
 L = 0.005                       # element edge length [m] (5 mm)
 LOAD_DIR = 2                     # compress along x3 (z)
 domain = Brick(n0=1, n1=1, n2=1, l0=L, l1=L, l2=L, order=1)
-model.initialize(domain)
-
-# --- elasticity PDE: isotropic Lame equation -(sigma_ij),j = 0 ------------
-pde = LameEquation(domain)      # sets symmetry on; damaged Lame params per step
-pde.getSolverOptions().setSolverMethod(SolverOptions.DIRECT)
+# the model owns the elasticity LameEquation (self.elasticity); use a direct
+# solver for this tiny single-element problem.
+model.initialize(domain, elasticity_solver=SolverOptions.DIRECT)
 
 # --- boundary conditions: uniaxial compression, free lateral faces --------
 x = domain.getX()
@@ -85,7 +83,7 @@ q = Vector(0., Solution(domain))
 q[LOAD_DIR] = whereZero(x[2]) + whereZero(x[2] - L)
 q[0] = atpoint((0., 0., 0.)) + atpoint((0., L, 0.))   # no x-transl / z-rot
 q[1] = atpoint((0., 0., 0.)) + atpoint((L, 0., 0.))   # no y-transl
-pde.setValue(q=q)
+model.elasticity.setValue(q=q)
 
 vol = integrate(Scalar(1., Function(domain)))         # element volume
 
@@ -123,7 +121,7 @@ def record(step, u, eps, model):
           f"eq={eq_avg: .3e} D={D_avg: .4f} sig_zz={sig_zz: .3e} Pa")
 
 
-model.runLoading(pde, set_bc, nsteps, callback=record,
+model.runLoading(set_bc, nsteps, callback=record,
                  tol=STAG_TOL, max_iter=STAG_MAX)
 
 # --- plot single-element response -----------------------------------------
