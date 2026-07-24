@@ -21,8 +21,9 @@ by fingal, 2026.
 """
 
 import numpy as np
-from esys.escript import (Function, Scalar, kronecker, trace, inner,
-                          sqrt, clip, maximum, symmetric, grad, Lsup, interpolate)
+from esys.escript import (Function, Solution, Scalar, Vector, Data, kronecker,
+                          trace, inner, sqrt, clip, maximum, symmetric, grad,
+                          Lsup, interpolate)
 from esys.escript.linearPDEs import LinearSinglePDE, LameEquation, SolverOptions
 
 __all__ = ['SmoothDamageModel']
@@ -106,6 +107,10 @@ class SmoothDamageModel(object):
         self.kappa = None
         self.elasticity = None
         self.helmholtz = None
+        # accumulated total displacement and total Cauchy stress (state carried
+        # between load steps by the incremental scheme); set in `initialize`.
+        self.u = None
+        self.stress = None
 
     def initialize(self, domain, elasticity_solver=SolverOptions.PCG):
         """
@@ -117,22 +122,30 @@ class SmoothDamageModel(object):
         smoothing. Returns self.
 
         The caller sets the constraints (`q`, `r`) on `self.elasticity` for the
-        loading; the damaged Lame parameters are (re)set by `solveLoadStep`.
+        loading; the damaged Lame parameters are (re)set by `solveLoadStep`. The
+        accumulated total displacement `self.u` and total stress `self.stress`
+        (the state carried by the incremental solve) are reset to zero.
 
         :param elasticity_solver: solver method for the elasticity PDE.
         """
+        dim = domain.getDim()
         self.kappa = Scalar(self.kappa0, Function(domain))
         self.D = Scalar(0., Function(domain))
+        self.u = Vector(0., Solution(domain))                # total displacement
+        self.stress = Data(0., (dim, dim), Function(domain))  # total Cauchy stress
         # elasticity problem  -(sigma_ij),j = 0  (LameEquation sets symmetry on)
         self.elasticity = LameEquation(domain)
         self.elasticity.getSolverOptions().setSolverMethod(elasticity_solver)
         self.helmholtz = None
         if self.localization_length is not None:
-            dim = domain.getDim()
             c = self.localization_length ** 2 / 2.        # c = l**2/2
             self.helmholtz = LinearSinglePDE(domain, isComplex=False)
             self.helmholtz.setSymmetryOn()
-            self.helmholtz.getSolverOptions().setSolverMethod(SolverOptions.PCG)
+            # the Helmholtz operator is symmetric positive definite, so PCG with
+            # an algebraic multigrid preconditioner is used.
+            options = self.helmholtz.getSolverOptions()
+            options.setSolverMethod(SolverOptions.PCG)
+            options.setPreconditioner(SolverOptions.AMG)
             # ebar - c*laplace(ebar) = etilde,  natural BC  grad(ebar).n = 0 (Eq. 20)
             self.helmholtz.setValue(A=c * kronecker(dim), D=1.)
         return self
@@ -217,11 +230,25 @@ class SmoothDamageModel(object):
         localization length is set) and the damage update are solved alternately
         until the damage field converges.
 
+        The equilibrium is solved incrementally: each staggered iteration solves
+        for a displacement correction `du` from the internal-force residual of
+        the stored total stress `self.stress`,
+
+            -div(C(D):eps(du)) = div(self.stress),
+
+        which enters the `LameEquation` as the prescribed stress `sigma =
+        -self.stress` (the `X` coefficient). The load increment is applied as the
+        constraint `du = r_total - self.u` on the constrained DOFs, where
+        `r_total` is the (total) prescribed displacement set on the PDE. The
+        correction is accumulated into the total displacement `self.u` and the
+        stored stress is refreshed to `C(D):eps(u)` for the next residual, so the
+        total secant equilibrium is preserved exactly as the damage `D` evolves.
+        The traction-free faces are preserved by the natural boundary condition.
+
         The constraints (`q`, `r`) of `self.elasticity` must already be set for
-        the current load level; its Lame coefficients are (re)set here from the
-        current damage. On entry the stored damage `self.D` and history
-        `self.kappa` are used as the starting point; on exit the history is
-        committed and `self.D` holds the (non-decreasing) updated damage.
+        the current (total) load level. On entry the stored state `self.u`,
+        `self.stress`, `self.D` and `self.kappa` is used as the starting point;
+        on exit it is committed to the updated (non-decreasing damage) state.
 
         :param tol: convergence tolerance on the change of the damage field.
         :param max_iter: maximum number of staggered iterations.
@@ -230,10 +257,17 @@ class SmoothDamageModel(object):
         assert self.elasticity is not None, "call initialize(domain) first."
         D = self.D
         kappa_trial = self.kappa
+        u = self.u
+        stress = self.stress
+        # total prescribed displacement for this load level (copied because the
+        # PDE's r coefficient is overwritten with the increment below).
+        r_total = self.elasticity.getCoefficient("r").copy()
         for it in range(max_iter):
             lam_eff, mu_eff = self.getLameParameters(D)
-            self.elasticity.setValue(lame_lambda=lam_eff, lame_mu=mu_eff)
-            u = self.elasticity.getSolution()
+            # incremental equilibrium: solve for the correction du.
+            self.elasticity.setValue(lame_lambda=lam_eff, lame_mu=mu_eff,
+                                     sigma=-stress, r=r_total - u)
+            u = u + self.elasticity.getSolution()
             eps = symmetric(grad(u))
             etilde = self.getEquivalentStrain(eps)     # local equivalent strain
             ebar = self.getNonlocalStrain(etilde)      # implicit-gradient smoothing
@@ -241,8 +275,13 @@ class SmoothDamageModel(object):
             D_trial = self.getDamage(kappa_trial)
             change = Lsup(D_trial - D)
             D = D_trial
+            # refresh the stored total stress with the updated damage so it is the
+            # residual base C(D):eps(u) of the next iteration / committed step.
+            stress = self.getStress(eps, D)
             if change < tol:
                 break
+        self.u = u                        # commit total displacement
+        self.stress = stress              # commit total stress
         self.kappa = kappa_trial          # commit history (Eq. 7)
         self.D = D
         return u, eps, it + 1
