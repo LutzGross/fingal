@@ -5,11 +5,12 @@ Multi-element test of the smoothed continuum damage model of
 
 A rectangular prism is loaded in displacement-controlled uniaxial compression
 (smooth platens: only the axial displacement is prescribed on the top/bottom
-faces, lateral expansion is free). A small pre-damaged flaw is seeded off-centre
-so that damage nucleates there and localises into an inclined band rather than
-smearing uniformly -- this exercises the non-local implicit-gradient smoothing,
-the incremental-residual equilibrium solve and the adaptive load stepping that
-the single-element test (test1.py) cannot.
+faces, lateral expansion is free). A small weaker flaw (slightly reduced
+stiffness E0, undamaged) is placed off-centre so that it strains more under load,
+reaches the damage threshold first and nucleates damage that localises rather
+than smearing uniformly -- this exercises the non-local implicit-gradient
+smoothing, the incremental-residual equilibrium solve and the adaptive load
+stepping that the single-element test (test1.py) cannot.
 
 The mesh is resolved to two elements per localisation length l (the paper's
 minimum to resolve the smoothing). The volume-averaged axial stress-strain
@@ -57,19 +58,22 @@ eopts.setPreconditioner(SolverOptions.AMG)
 eopts.setTolerance(1e-8)
 
 # --------------------------------------------------------------------------
-# pre-damaged flaw: raise the history variable kappa (and damage D) in a small
-# off-centre sphere so damage initiates there. State stays consistent because
-# u = 0 => stress = 0 regardless of D.
+# weaker flaw: a small off-centre sphere with slightly reduced stiffness E0 (the
+# Lame parameters lam, mu are scaled by `weak`; nu and the damage threshold
+# kappa0 are unchanged). It is NOT pre-damaged -- under load the softer flaw
+# strains more, reaches the equivalent-strain threshold kappa0 first and so
+# nucleates damage there, which then localises.
 # --------------------------------------------------------------------------
 Xe = Function(domain).getX()                      # element-centre coordinates
 flaw_centre = np.array([0.35 * Lx, 0.5 * Ly, 0.5 * Lz])
 flaw_radius = 1.5 * h
-kappa_flaw = 6.0e-4                               # in (kappa0, kappa_c)
+weak = 0.8                                         # flaw stiffness = 0.8 * E0
 inside = whereNegative(length(Xe - flaw_centre) - flaw_radius)
-model.kappa = model.kappa * (1. - inside) + kappa_flaw * inside
-model.D = model.getDamage(model.kappa)
-print(f"seeded flaw at {flaw_centre*1e3} mm, radius {flaw_radius*1e3:g} mm, "
-      f"initial D_max = {sup(model.D):.3g}")
+factor = 1. - (1. - weak) * inside                # `weak` inside, 1 outside
+model.lam = model.lam * factor
+model.mu = model.mu * factor
+print(f"weaker flaw at {flaw_centre*1e3} mm, radius {flaw_radius*1e3:g} mm, "
+      f"stiffness {weak:g}*E0 inside")
 
 # --------------------------------------------------------------------------
 # boundary conditions: uniaxial compression, smooth platens, minimal lateral
@@ -155,8 +159,11 @@ yc = coords[:, 1]
 ytarget = yc[np.argmin(np.abs(yc - 0.5 * Ly))]     # nearest element-centre layer
 mask = np.abs(yc - ytarget) < 0.25 * h
 plt.figure(figsize=(4.2, 6))
+# autoscale the colour range to the slice so the (mild, pre-peak) concentration
+# at the weaker flaw is visible rather than washed out on a fixed [0, 1] scale.
 sc = plt.scatter(coords[mask, 0] * 1e3, coords[mask, 2] * 1e3, c=Dvals[mask],
-                 marker="s", s=260, cmap="inferno", vmin=0., vmax=1.)
+                 marker="s", s=260, cmap="inferno",
+                 vmin=Dvals[mask].min(), vmax=Dvals[mask].max())
 plt.colorbar(sc, label="damage  $D$")
 plt.xlabel("x [mm]")
 plt.ylabel("z [mm]")

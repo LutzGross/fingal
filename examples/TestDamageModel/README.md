@@ -124,11 +124,14 @@ available as `model.converged` and `model.last_change`.
 hexahedral prism (element size `h = l/2`, i.e. two elements per localisation
 length `l`, the paper's minimum to resolve the smoothing) loaded in
 displacement-controlled uniaxial compression with smooth platens. A small
-pre-damaged flaw is seeded off-centre (by raising the history variable `kappa`,
-and hence `D`, inside a sphere) so that damage nucleates there and **localises**
-instead of smearing uniformly. This exercises what the single element cannot: the
-non-local Helmholtz smoothing (identity on one element), the incremental-residual
-equilibrium solve, and the adaptive load stepping.
+**weaker flaw** is placed off-centre — a sphere with slightly reduced stiffness
+`E0` (the Lamé parameters are scaled by `0.8`; `nu` and the damage threshold
+`kappa0` are unchanged). It is *not* pre-damaged: under load the softer flaw
+strains more, reaches the equivalent-strain threshold `kappa0` first, and so
+nucleates damage that **localises** there instead of smearing uniformly. This
+exercises what the single element cannot: the non-local Helmholtz smoothing
+(identity on one element), the incremental-residual equilibrium solve, and the
+adaptive load stepping.
 
 Run:
 
@@ -137,8 +140,9 @@ Run:
 Outputs:
 
 - `multi_element_response.png` — volume-averaged axial stress–strain response.
-- `multi_element_damage_slice.png` — damage on the mid-plane (`y = Ly/2`) slice,
-  showing the localised zone and its non-local halo.
+- `multi_element_damage_slice.png` — damage on the mid-plane (`y = Ly/2`) slice
+  (colour range autoscaled), showing the concentration at the flaw and its
+  non-local halo.
 - `multi_element_damage.silo` and per-step `multi_element_step0NN.silo` — damage,
   displacement and axial stress fields for VisIt / ParaView.
 
@@ -146,10 +150,12 @@ Outputs:
 
 ![multi-element damage slice](./multi_element_damage_slice.png)
 
-The driver loads only up to the peak of the response. Pushing
-displacement-controlled loading into the **post-peak softening branch** is
-numerically stiff (snap-back): the staggered scheme stops converging and the
-adaptive bisection sub-steps down toward `min_increment`, making little progress
-(watch the `INFO` bisection messages). Traversing the softening branch robustly
-needs arc-length / load-factor-as-unknown control, which is a possible next
-addition.
+The driver loads only up to the peak of the response, so the localisation is
+still **mild**: damage concentrates at the flaw and forms an incipient band
+across mid-height, but the variation is small (the whole specimen is near the
+threshold at the peak). A sharp, fully-developed band only forms on the
+**post-peak softening branch**, which under displacement control is numerically
+stiff (snap-back): the staggered scheme stops converging and the adaptive
+bisection sub-steps down toward `min_increment`, making little progress (watch
+the `INFO` bisection messages). Traversing the softening branch robustly needs
+arc-length / load-factor-as-unknown control, a possible next addition.
