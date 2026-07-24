@@ -55,6 +55,7 @@ equilibrium/damage iteration to the tolerance `tol` (default `1e-6`) with at mos
 | `max_iter` | `20` | maximum staggered iterations per (sub-)step. |
 | `adaptive` | `True` | enable automatic bisection sub-stepping (see below). |
 | `min_increment` | `1e-3/nsteps` | smallest allowed load-factor increment; reaching it without convergence terminates the run. |
+| `scale_to_onset` | `True` | scale the first step elastically to the damage-onset load factor (see below). |
 
 **Adaptive bisection (`adaptive=True`, the default).** When a (sub-)step does not
 converge within `max_iter` staggered iterations, the committed state
@@ -73,6 +74,18 @@ Rollback requires that only the load level changes between (sub-)steps, so
 used with no sub-stepping; a non-converged step is committed anyway and
 `solveLoadStep` logs a warning. This reproduces the original behaviour.
 
+**First step scaled to onset (`scale_to_onset=True`, the default).** Below the
+damage threshold the response is linear elastic and the equivalent strain is
+homogeneous of degree one in the load factor, so a single elastic solve at full
+load gives the load factor `s = kappa0 / max(ebar)` at which the peak non-local
+equivalent strain first reaches `kappa0` (damage onset). The first committed step
+jumps directly to this scaled elastic state, skipping the purely-elastic
+sub-steps and saving the corresponding equilibrium solves (it is only applied
+when starting from the undamaged state). The onset step is reported with zero
+staggered iterations. Because the elastic ramp below onset is no longer sampled,
+[`test1.py`](./test1.py) seeds its history with the `(0, 0)` origin so the
+stress–strain plot still shows the elastic branch.
+
 Examples:
 
     # default: adaptive on, terminates if it cannot converge at 1e-3/nsteps
@@ -83,6 +96,9 @@ Examples:
 
     # disable adaptivity (fixed 80-step schedule, warn on non-convergence)
     model.runLoading(set_bc, nsteps=80, callback=record, adaptive=False)
+
+    # do not skip the elastic ramp (resolve every elastic sub-step)
+    model.runLoading(set_bc, nsteps=80, callback=record, scale_to_onset=False)
 
 Progress and step-control messages (bisection, non-convergence, termination) are
 emitted through the `fingal.SmoothDamageModel` logger; enable them with

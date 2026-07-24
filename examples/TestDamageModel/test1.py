@@ -93,7 +93,9 @@ nsteps = 80
 STAG_TOL = 1e-6
 STAG_MAX = 20
 
-hist = {"strain": [], "stress": [], "damage": [], "eqstrain": []}
+# seed with the unloaded origin so the elastic branch is drawn from (0, 0)
+# even though runLoading scales the first step straight to damage onset.
+hist = {"strain": [0.], "stress": [0.], "damage": [0.], "eqstrain": [0.]}
 
 
 def set_bc(pde, step, nsteps):

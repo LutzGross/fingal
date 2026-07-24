@@ -24,7 +24,7 @@ import logging
 import numpy as np
 from esys.escript import (Function, Solution, Scalar, Vector, Data, kronecker,
                           trace, inner, sqrt, clip, maximum, symmetric, grad,
-                          Lsup, interpolate)
+                          Lsup, sup, interpolate)
 from esys.escript.linearPDEs import LinearSinglePDE, LameEquation, SolverOptions
 
 __all__ = ['SmoothDamageModel']
@@ -319,7 +319,7 @@ class SmoothDamageModel(object):
         return u, eps, it + 1
 
     def runLoading(self, set_bc, nsteps, callback=None, tol=1e-6, max_iter=20,
-                   adaptive=True, min_increment=None):
+                   adaptive=True, min_increment=None, scale_to_onset=True):
         """
         runs a displacement-controlled loading path parameterised by a load
         factor in [0, 1], advancing the damage model with the split-operator
@@ -346,6 +346,16 @@ class SmoothDamageModel(object):
         raising `RuntimeError`. With ``adaptive=False`` the classic fixed
         `nsteps` schedule is used (and `solveLoadStep` warns on non-convergence).
 
+        First step scaled to damage onset (``scale_to_onset=True``): while the
+        material is undamaged the response scales linearly with the load factor,
+        and the (modified von Mises) equivalent strain is homogeneous of degree
+        one in it. A single elastic solve at full load therefore gives the load
+        factor `s = kappa0 / max(ebar)` at which the peak non-local equivalent
+        strain first reaches `kappa0` (damage onset). The committed state is set
+        directly to this scaled elastic solution and stepping continues from `s`,
+        skipping the purely-elastic sub-steps. This is only applied when starting
+        from the undamaged state.
+
         Because `set_bc` is evaluated at intermediate load factors, it must
         accept a fractional `step` argument (the standard `u_bc*step/nsteps`
         form does).
@@ -362,8 +372,11 @@ class SmoothDamageModel(object):
                        the run is terminated with `RuntimeError` if a (sub-)step
                        at this increment does not converge. Defaults to
                        `1e-3 / nsteps`.
+        :param scale_to_onset: if True (default) jump the first step elastically
+                       to the damage-onset load factor (see above), applied only
+                       when starting from the undamaged state.
         :return: list with the number of staggered iterations used per
-                 (sub-)step.
+                 (sub-)step (0 for the elastic onset step, if taken).
         :raises RuntimeError: if the minimum load increment is reached without
                        convergence.
         """
@@ -380,6 +393,33 @@ class SmoothDamageModel(object):
         step = 0
         # stop just short of 1 to avoid a spurious tiny final increment.
         load_end = 1. - 0.5 * min_increment
+
+        # elastic jump to the damage-onset load factor (see docstring). Only
+        # applied from the undamaged state; the elastic response scales linearly
+        # with the load factor so a single full-load solve locates onset.
+        if scale_to_onset and Lsup(self.D) == 0.:
+            set_bc(self.elasticity, nsteps, nsteps)          # probe at factor 1
+            r_full = self.elasticity.getCoefficient("r").copy()
+            self.elasticity.setValue(lame_lambda=self.lam, lame_mu=self.mu,
+                                     sigma=-self.stress, r=r_full)
+            u_el = self.elasticity.getSolution()
+            eps_el = symmetric(grad(u_el))
+            ebar = self.getNonlocalStrain(self.getEquivalentStrain(eps_el))
+            peak = sup(ebar)
+            if peak > 0.:
+                s = self.kappa0 / peak
+                if s < 1.:
+                    self.u = s * u_el
+                    self.stress = self.getStress(s * eps_el, self.D)
+                    load = s
+                    step += 1
+                    iters.append(0)
+                    self.logger.info(
+                        "scaled first step elastically to damage onset at load "
+                        "factor %g.", s)
+                    if callback is not None:
+                        callback(step, self.u, s * eps_el, self)
+
         while load < load_end:
             target = min(load + dload, 1.)
             while True:
