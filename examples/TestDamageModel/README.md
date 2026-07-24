@@ -177,13 +177,15 @@ the damage is updated in the loop. On non-convergence `Δτ` is halved and the
 step retried (down to a floor, below which it raises). Loading starts undamaged:
 the first step scales elastically past onset to seed a non-zero dissipation.
 
-Run:
+Run (optional args: elements-per-`l` and stop-damage):
 
-    PYTHONPATH=../../bin run-escript test3.py
+    PYTHONPATH=../../bin run-escript test3.py                # 2 elements per l
+    PYTHONPATH=../../bin run-escript test3.py 3 0.9          # finer, stop at D=0.9
 
 Outputs `m3_response.png` (the **full stress–strain curve including the
 descending, near-vertical softening branch**), `m3_damage_slice.png` (a
 fully-developed localisation band, `D → 1`), and per-step `m3_step0NN.silo`.
+Finer runs write suffixed files (`m3_response_3pl.png`, …).
 
 ![dissipation-controlled response](./m3_response.png)
 
@@ -195,3 +197,11 @@ control could not go. Note the tangent is still the SPD **secant** stiffness, so
 close to `D = 1` (vanishing band stiffness) the corrector needs `Δτ` cut-backs;
 a consistent-tangent monolithic Newton would be the fully-robust — but much
 larger — alternative.
+
+**Mesh objectivity.** The non-local length `l` sets the band width, so the
+response is (nearly) mesh-independent. Running `test3.py 2` and `test3.py 3`
+gives essentially the same peak stress (≈ 30.2 MPa) and the same ~2 mm (≈ `l`)
+band — the finer mesh only resolves it with more elements (a *local* model would
+instead collapse the band to one element and lose peak strength as `h → 0`). The
+elasticity solve uses AMG multigrid told it is a `dim`-equation system, so it
+scales to the finer meshes.
