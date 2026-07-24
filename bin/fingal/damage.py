@@ -20,6 +20,7 @@ captures the full single-element behaviour.
 by fingal, 2026.
 """
 
+import logging
 import numpy as np
 from esys.escript import (Function, Solution, Scalar, Vector, Data, kronecker,
                           trace, inner, sqrt, clip, maximum, symmetric, grad,
@@ -100,6 +101,7 @@ class SmoothDamageModel(object):
         self.gamma = gamma
         self.min_stiffness_ratio = min_stiffness_ratio
         self.localization_length = localization_length
+        self.logger = logging.getLogger('fingal.SmoothDamageModel')
         # isotropic Lame parameters of the undamaged material; the full 4th
         # order stiffness tensor is `isotropicStiffnessTensor(E0, nu)`.
         self.lam = E0 * nu / ((1. + nu) * (1. - 2. * nu))
@@ -111,6 +113,9 @@ class SmoothDamageModel(object):
         # between load steps by the incremental scheme); set in `initialize`.
         self.u = None
         self.stress = None
+        # diagnostics of the most recent `solveLoadStep`.
+        self.converged = False
+        self.last_change = None
 
     def initialize(self, domain, elasticity_solver=SolverOptions.PCG):
         """
@@ -222,7 +227,7 @@ class SmoothDamageModel(object):
         """
         return (1. - D) * (self.lam * trace(eps) * kronecker(3) + 2. * self.mu * eps)
 
-    def solveLoadStep(self, tol=1e-6, max_iter=20):
+    def solveLoadStep(self, tol=1e-6, max_iter=20, warn_on_nonconvergence=True):
         """
         advances the model by one displacement-controlled load step using the
         split-operator (staggered) scheme: the elasticity PDE `self.elasticity`,
@@ -250,11 +255,25 @@ class SmoothDamageModel(object):
         `self.stress`, `self.D` and `self.kappa` is used as the starting point;
         on exit it is committed to the updated (non-decreasing damage) state.
 
+        If the staggered loop does not reach `tol` within `max_iter` iterations
+        the last iterate is committed anyway (the remaining imbalance is carried
+        in `self.stress` and corrected at the next load step); the recommended
+        remedy is to reduce the displacement-BC increment (sub-step the load
+        level), which `runLoading` does automatically. The convergence flag is
+        stored in `self.converged` and the final damage change in
+        `self.last_change`.
+
         :param tol: convergence tolerance on the change of the damage field.
         :param max_iter: maximum number of staggered iterations.
-        :return: (displacement `u`, strain `eps`, number of iterations used).
+        :param warn_on_nonconvergence: if True (default) a warning is logged when
+                        the loop is exhausted without reaching `tol`. `runLoading`
+                        sets this to False while sub-stepping so the automatic
+                        bisection retries stay quiet.
+        :return: (displacement `u`, strain `eps`, number of iterations used;
+                 equal to `max_iter` when the loop did not converge).
         """
         assert self.elasticity is not None, "call initialize(domain) first."
+        assert max_iter >= 1, "max_iter must be at least 1."
         D = self.D
         kappa_trial = self.kappa
         u = self.u
@@ -262,6 +281,7 @@ class SmoothDamageModel(object):
         # total prescribed displacement for this load level (copied because the
         # PDE's r coefficient is overwritten with the increment below).
         r_total = self.elasticity.getCoefficient("r").copy()
+        change = None
         for it in range(max_iter):
             lam_eff, mu_eff = self.getLameParameters(D)
             # incremental equilibrium: solve for the correction du.
@@ -280,41 +300,123 @@ class SmoothDamageModel(object):
             stress = self.getStress(eps, D)
             if change < tol:
                 break
+        self.last_change = change
+        self.converged = bool(change < tol)
+        if not self.converged and warn_on_nonconvergence:
+            # max_iter exhausted without meeting tol: the committed (u, eps) are
+            # slightly off-equilibrium for the final damage (the residual is
+            # carried into self.stress and corrected at the next load step). The
+            # better remedy is to reduce the displacement-BC increment (sub-step
+            # this load level) so the staggered damage/equilibrium loop converges.
+            self.logger.warning(
+                "solveLoadStep did not converge: |dD|=%g >= tol=%g after %d "
+                "iterations; consider reducing the load (BC) increment.",
+                change, tol, max_iter)
         self.u = u                        # commit total displacement
         self.stress = stress              # commit total stress
         self.kappa = kappa_trial          # commit history (Eq. 7)
         self.D = D
         return u, eps, it + 1
 
-    def runLoading(self, set_bc, nsteps, callback=None, tol=1e-6, max_iter=20):
+    def runLoading(self, set_bc, nsteps, callback=None, tol=1e-6, max_iter=20,
+                   adaptive=True, min_increment=None):
         """
-        runs a displacement-controlled loading path of `nsteps` increments,
-        advancing the damage model with the split-operator scheme at each step.
+        runs a displacement-controlled loading path parameterised by a load
+        factor in [0, 1], advancing the damage model with the split-operator
+        scheme. The nominal increment is `1/nsteps`; the load level at factor
+        `lambda` is prescribed by `set_bc(self.elasticity, lambda*nsteps, nsteps)`
+        (so at the nominal factors `k/nsteps` this reduces to the plain
+        `set_bc(pde, k, nsteps)`).
 
-        For each step k = 1 .. nsteps:
-          1. `set_bc(self.elasticity, k, nsteps)` sets the constraints (`q`,
-             `r`) of the elasticity PDE for the current load level;
+        For each (sub-)step:
+          1. `set_bc` sets the constraints (`q`, `r`) of the elasticity PDE for
+             the target (total) load level;
           2. `solveLoadStep` performs the staggered equilibrium/damage solve,
-             updating `self.kappa` and `self.D`;
-          3. the optional `callback(k, u, eps, self)` is invoked for output or
+             updating the committed state (`self.u`, `self.stress`, `self.kappa`,
+             `self.D`);
+          3. the optional `callback(step, u, eps, self)` is invoked for output or
              recording of the solution `u`, strain `eps` and model state.
 
+        Automatic sub-stepping (``adaptive=True``): if `solveLoadStep` does not
+        converge, the committed state is rolled back, the increment is halved
+        (bisection) and the (sub-)step is retried, down to `min_increment`. After
+        a successful step the increment is grown back toward the nominal
+        `1/nsteps`. If the (sub-)step still does not converge once the increment
+        has been reduced to `min_increment`, the calculation is terminated by
+        raising `RuntimeError`. With ``adaptive=False`` the classic fixed
+        `nsteps` schedule is used (and `solveLoadStep` warns on non-convergence).
+
+        Because `set_bc` is evaluated at intermediate load factors, it must
+        accept a fractional `step` argument (the standard `u_bc*step/nsteps`
+        form does).
+
         :param set_bc: callable `set_bc(pde, step, nsteps)` setting the load on
-                       the elasticity PDE `pde` (= `self.elasticity`).
-        :param nsteps: number of load increments.
+                       the elasticity PDE `pde` (= `self.elasticity`); may be
+                       called with a fractional `step` when sub-stepping.
+        :param nsteps: number of nominal load increments.
         :param callback: optional callable `callback(step, u, eps, model)`.
         :param tol: convergence tolerance passed to `solveLoadStep`.
         :param max_iter: maximum staggered iterations passed to `solveLoadStep`.
-        :return: list with the number of staggered iterations used per step.
+        :param adaptive: enable automatic bisection sub-stepping (default True).
+        :param min_increment: smallest allowed load-factor increment (in [0, 1]);
+                       the run is terminated with `RuntimeError` if a (sub-)step
+                       at this increment does not converge. Defaults to
+                       `1e-3 / nsteps`.
+        :return: list with the number of staggered iterations used per
+                 (sub-)step.
+        :raises RuntimeError: if the minimum load increment is reached without
+                       convergence.
         """
         assert self.elasticity is not None, "call initialize(domain) first."
+        assert nsteps >= 1, "nsteps must be at least 1."
         iters = []
-        for step in range(1, nsteps + 1):
-            set_bc(self.elasticity, step, nsteps)
-            u, eps, nit = self.solveLoadStep(tol=tol, max_iter=max_iter)
+        nominal = 1. / nsteps
+        if min_increment is None:
+            min_increment = 1e-3 * nominal
+        assert 0. < min_increment <= nominal, \
+            "min_increment must be in (0, 1/nsteps]."
+        dload = nominal                      # current load-factor increment
+        load = 0.                            # committed load factor in [0, 1]
+        step = 0
+        # stop just short of 1 to avoid a spurious tiny final increment.
+        load_end = 1. - 0.5 * min_increment
+        while load < load_end:
+            target = min(load + dload, 1.)
+            while True:
+                if adaptive:
+                    # snapshot the committed state so a non-converged attempt can
+                    # be rolled back before retrying with a smaller increment.
+                    saved = (self.u.copy(), self.stress.copy(),
+                             self.kappa.copy(), self.D.copy())
+                set_bc(self.elasticity, target * nsteps, nsteps)
+                u, eps, nit = self.solveLoadStep(
+                    tol=tol, max_iter=max_iter,
+                    warn_on_nonconvergence=not adaptive)
+                if self.converged or not adaptive:
+                    break
+                if dload <= min_increment:
+                    # the minimum increment has been reached and still does not
+                    # converge: terminate the calculation.
+                    raise RuntimeError(
+                        "load stepping failed to converge at load factor %g with "
+                        "the minimum load increment %g (|dD|=%g >= tol=%g); "
+                        "aborting." % (target, dload, self.last_change, tol))
+                # reject: roll back and halve the increment (not below the
+                # minimum), then retry.
+                self.u, self.stress, self.kappa, self.D = saved
+                dload = max(0.5 * dload, min_increment)
+                target = min(load + dload, 1.)
+                self.logger.info(
+                    "load step did not converge; bisecting increment to %g "
+                    "(target load factor %g).", dload, target)
+            load = target
+            step += 1
             iters.append(nit)
             if callback is not None:
                 callback(step, u, eps, self)
+            # grow the increment back toward the nominal size after success.
+            if adaptive and dload < nominal:
+                dload = min(2. * dload, nominal)
         return iters
 
     @staticmethod
