@@ -14,9 +14,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-LOGDIR = "logs/"
-OUTFILE = "scaling.png"
-
+LOGDIR, N,  OUTFILE  = "logsLarge/", "2.7", "scalingLarge.png"
+#LOGDIR, N,  OUTFILE  = "logsMedium/", "1.4", "scalingMedium.png"
 
 def read_last_record(path):
     """Return the last non-empty JSON line of `path` as a dict, or None."""
@@ -59,7 +58,7 @@ def main():
     ax.legend()
     ax.set_xlabel("number of cores $n$")
     ax.set_ylabel("solver time $T$ [s]")
-    ax.set_title("Coal Mine SIP forward solver scaling ")
+    ax.set_title(f"Coal Mine SIP forward solver:  {N} Million nodes.")
     ax.set_xticks(cores)
     ax.grid(True, which="both", ls=":")
     fig.tight_layout()
