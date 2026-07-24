@@ -117,3 +117,39 @@ emitted through the `fingal.SmoothDamageModel` logger; enable them with
 
 The convergence flag and final damage change of the most recent step are also
 available as `model.converged` and `model.last_change`.
+
+## Multi-element specimen — `test2.py`
+
+[`test2.py`](./test2.py) takes the model to a real mesh: a `8 × 8 × 16 = 1024`
+hexahedral prism (element size `h = l/2`, i.e. two elements per localisation
+length `l`, the paper's minimum to resolve the smoothing) loaded in
+displacement-controlled uniaxial compression with smooth platens. A small
+pre-damaged flaw is seeded off-centre (by raising the history variable `kappa`,
+and hence `D`, inside a sphere) so that damage nucleates there and **localises**
+instead of smearing uniformly. This exercises what the single element cannot: the
+non-local Helmholtz smoothing (identity on one element), the incremental-residual
+equilibrium solve, and the adaptive load stepping.
+
+Run:
+
+    PYTHONPATH=../../bin run-escript test2.py
+
+Outputs:
+
+- `multi_element_response.png` — volume-averaged axial stress–strain response.
+- `multi_element_damage_slice.png` — damage on the mid-plane (`y = Ly/2`) slice,
+  showing the localised zone and its non-local halo.
+- `multi_element_damage.silo` and per-step `multi_element_step0NN.silo` — damage,
+  displacement and axial stress fields for VisIt / ParaView.
+
+![multi-element response](./multi_element_response.png)
+
+![multi-element damage slice](./multi_element_damage_slice.png)
+
+The driver loads only up to the peak of the response. Pushing
+displacement-controlled loading into the **post-peak softening branch** is
+numerically stiff (snap-back): the staggered scheme stops converging and the
+adaptive bisection sub-steps down toward `min_increment`, making little progress
+(watch the `INFO` bisection messages). Traversing the softening branch robustly
+needs arc-length / load-factor-as-unknown control, which is a possible next
+addition.
