@@ -31,6 +31,15 @@ Outputs:
 The run also prints the per-step response and, at the end, the peak stress and
 final damage (≈ 30.4 MPa and `D = 1.0` for the shipped parameters).
 
+The constitutive damage law `D(kappa)` (cf. Fig. 2 of the paper):
+
+![damage versus strain](./damage_vs_strain.png)
+
+The single-element uniaxial-compression response (note the elastic branch runs
+to the origin while the first solved point sits at damage onset, `kappa0`):
+
+![single-element response](./single_element_response.png)
+
 ### Loading and adaptive step-size control
 
 The loading path is driven by `model.runLoading(set_bc, nsteps, ...)`. It is
