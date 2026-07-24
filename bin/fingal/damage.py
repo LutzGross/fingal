@@ -173,7 +173,10 @@ class SmoothDamageModel(object):
         accumulated total displacement `self.u` and total stress `self.stress`
         (the state carried by the incremental solve) are reset to zero.
 
-        :param elasticity_solver: solver method for the elasticity PDE.
+        :param elasticity_solver: solver method for the elasticity PDE. An
+                        iterative method (e.g. PCG, the default) is preconditioned
+                        with algebraic multigrid (AMG); use DIRECT for tiny
+                        problems (e.g. the single-element test).
         """
         dim = domain.getDim()
         self.kappa = Scalar(self.kappa0, Function(domain))
@@ -182,7 +185,16 @@ class SmoothDamageModel(object):
         self.stress = Data(0., (dim, dim), Function(domain))  # total Cauchy stress
         # elasticity problem  -(sigma_ij),j = 0  (LameEquation sets symmetry on)
         self.elasticity = LameEquation(domain)
-        self.elasticity.getSolverOptions().setSolverMethod(elasticity_solver)
+        eoptions = self.elasticity.getSolverOptions()
+        eoptions.setSolverMethod(elasticity_solver)
+        # the elasticity operator is symmetric positive definite; for an iterative
+        # method use an algebraic multigrid preconditioner (scales to fine meshes).
+        # Tell AMG this is a `dim`-equations-per-node vector (elasticity) system so
+        # it coarsens the block problem suitably rather than as a scalar PDE.
+        if elasticity_solver != SolverOptions.DIRECT:
+            eoptions.setPreconditioner(SolverOptions.AMG)
+            eoptions.setTrilinosParameter("number of equations", dim)
+            eoptions.setTrilinosParameter("verbosity", "none")
         self.helmholtz = None
         if self.localization_length is not None:
             c = self.localization_length ** 2 / 2.        # c = l**2/2
@@ -512,7 +524,7 @@ class SmoothDamageModel(object):
     def runLoadingDissipation(self, set_bc, callback=None, delta_tau=None,
                               tol=1e-6, max_iter=40, max_steps=300,
                               al_tol=1e-3, seed_factor=1.05, tau_growth=1.3,
-                              min_delta_tau=None):
+                              min_delta_tau=None, stop_damage=0.999):
         """
         dissipation-controlled (arc-length / path-following) load stepping that
         can traverse the post-peak softening branch on which displacement control
@@ -549,6 +561,8 @@ class SmoothDamageModel(object):
         :param seed_factor: overshoot of the onset factor to initiate damage.
         :param tau_growth: growth factor applied to delta_tau after a good step.
         :param min_delta_tau: floor for delta_tau; RuntimeError below it.
+        :param stop_damage: stop once the peak damage exceeds this (default
+                        0.999); lower it to skip the stiff near-failure tail.
         :return: list of committed load factors `lambda` per step.
         """
         assert self.elasticity is not None, "call initialize(domain) first."
@@ -581,7 +595,7 @@ class SmoothDamageModel(object):
         dstep = load - onset                              # load-factor predictor
 
         # --- dissipation-controlled path following
-        while step < max_steps and sup(self.D) <= 0.999:
+        while step < max_steps and sup(self.D) <= stop_damage:
             saved = (self.u.copy(), self.stress.copy(),
                      self.kappa.copy(), self.D.copy())
             Dn = saved[3]
