@@ -24,10 +24,52 @@ import logging
 import numpy as np
 from esys.escript import (Function, Solution, Scalar, Vector, Data, kronecker,
                           trace, inner, sqrt, clip, maximum, symmetric, grad,
-                          Lsup, sup, interpolate)
+                          Lsup, sup, integrate, interpolate)
 from esys.escript.linearPDEs import LinearSinglePDE, LameEquation, SolverOptions
 
 __all__ = ['SmoothDamageModel']
+
+
+def _rootIncreasing(phi, x_scale, tol, itmax=50):
+    """
+    finds the root of a monotonically increasing scalar function `phi` near 0 by
+    bracketing (expanding a step of magnitude `|x_scale|` in the direction that
+    reduces `phi`) followed by bisection to the absolute tolerance `tol`. Returns
+    the (possibly negative) root; `phi` is evaluated by field operations, so calls
+    are kept modest. Used for the dissipation-arc-length step size.
+    """
+    f0 = phi(0.)
+    if abs(f0) <= tol:
+        return 0.
+    dx = abs(x_scale) if x_scale != 0. else 1e-6
+    if f0 < 0.:                                   # root at positive argument
+        lo, flo, hi = 0., f0, dx
+        for _ in range(60):
+            fhi = phi(hi)
+            if fhi > 0.:
+                break
+            lo, hi = hi, 2. * hi
+        else:
+            return hi
+    else:                                         # root at negative argument
+        hi, fhi, lo = 0., f0, -dx
+        for _ in range(60):
+            flo = phi(lo)
+            if flo < 0.:
+                break
+            hi, lo = lo, 2. * lo
+        else:
+            return lo
+    for _ in range(itmax):
+        mid = 0.5 * (lo + hi)
+        fm = phi(mid)
+        if abs(fm) <= tol:
+            return mid
+        if fm < 0.:
+            lo = mid
+        else:
+            hi = mid
+    return 0.5 * (lo + hi)
 
 
 def isotropicStiffnessTensor(E, nu):
@@ -458,6 +500,144 @@ class SmoothDamageModel(object):
             if adaptive and dload < nominal:
                 dload = min(2. * dload, nominal)
         return iters
+
+    def dissipationRate(self, eps, D):
+        """
+        damage energy-release rate density Y = 1/2 eps:C0:eps (C0 the undamaged
+        stiffness), the driving force of the dissipation. The incremental
+        dissipation between two states is `integrate(Y * (D - D_old))`.
+        """
+        return 0.5 * (self.lam * trace(eps) ** 2 + 2. * self.mu * inner(eps, eps))
+
+    def runLoadingDissipation(self, set_bc, callback=None, delta_tau=None,
+                              tol=1e-6, max_iter=40, max_steps=300,
+                              al_tol=1e-3, seed_factor=1.05, tau_growth=1.3,
+                              min_delta_tau=None):
+        """
+        dissipation-controlled (arc-length / path-following) load stepping that
+        can traverse the post-peak softening branch on which displacement control
+        (`runLoading`) stalls (snap-back).
+
+        The load factor `lambda` becomes an unknown (the Dirichlet load is
+        `r = lambda * r_ref`, `r_ref` the pattern set by `set_bc(pde, 1.0)`) and
+        each step is controlled by prescribing the incremental dissipation
+        `delta_tau = integrate(Y * (D - D_n))` (Y from `dissipationRate`). Since
+        dissipation only increases (2nd law) it is a monotone path parameter even
+        where `lambda` decreases, so the softening branch is followed.
+
+        Each staggered corrector solves the residual correction `du_I` (r=0) and
+        the load sensitivity `du_II` (r=r_ref, X=0) with the current secant
+        stiffness, then a scalar solve gives `dlam` such that the total
+        dissipation hits `delta_tau`; the damage is updated in the loop. The step
+        is accepted when the equilibrium correction and the dissipation residual
+        are below tolerance; otherwise `delta_tau` is halved and the step retried
+        (down to `min_delta_tau`, below which `RuntimeError` is raised).
+
+        Loading starts from the undamaged state: the first step scales elastically
+        to just past damage onset (`seed_factor` times the onset factor) to seed a
+        non-zero dissipation, after which `delta_tau` defaults to that seeding
+        step's dissipation.
+
+        :param set_bc: callable `set_bc(pde, factor)` setting `r = factor*r_ref`.
+        :param callback: optional `callback(step, u, eps, model)`.
+        :param delta_tau: prescribed dissipation increment per step (default: the
+                        seeding step's dissipation).
+        :param tol: equilibrium tolerance (relative Lsup of the correction).
+        :param max_iter: max staggered correctors per step.
+        :param max_steps: max number of (sub-)steps.
+        :param al_tol: relative tolerance on the dissipation constraint.
+        :param seed_factor: overshoot of the onset factor to initiate damage.
+        :param tau_growth: growth factor applied to delta_tau after a good step.
+        :param min_delta_tau: floor for delta_tau; RuntimeError below it.
+        :return: list of committed load factors `lambda` per step.
+        """
+        assert self.elasticity is not None, "call initialize(domain) first."
+        assert Lsup(self.D) == 0., "runLoadingDissipation starts undamaged."
+        set_bc(self.elasticity, 1.)                       # r_ref = r at factor 1
+        r_ref = self.elasticity.getCoefficient("r").copy()
+        zero_u = 0. * self.u
+        zero_stress = 0. * self.stress
+
+        # --- seed damage: elastic probe -> onset factor -> one step just past it
+        self.elasticity.setValue(lame_lambda=self.lam, lame_mu=self.mu,
+                                 sigma=-self.stress, r=r_ref)
+        eps_el = symmetric(grad(self.elasticity.getSolution()))
+        peak = sup(self.getNonlocalStrain(self.getEquivalentStrain(eps_el)))
+        assert peak > 0., "no straining under the reference load."
+        onset = self.kappa0 / peak
+        Dn = self.D.copy()                                # zero
+        load = onset * seed_factor
+        set_bc(self.elasticity, load)
+        u, eps, _ = self.solveLoadStep(tol=tol, max_iter=max_iter,
+                                       warn_on_nonconvergence=False)
+        if delta_tau is None:
+            delta_tau = integrate(self.dissipationRate(eps, self.D) * (self.D - Dn))
+        if min_delta_tau is None:
+            min_delta_tau = 1e-4 * delta_tau
+        loads = [load]
+        step = 1
+        if callback is not None:
+            callback(step, u, eps, self)
+        dstep = load - onset                              # load-factor predictor
+
+        # --- dissipation-controlled path following
+        while step < max_steps and sup(self.D) <= 0.999:
+            saved = (self.u.copy(), self.stress.copy(),
+                     self.kappa.copy(), self.D.copy())
+            Dn = saved[3]
+            kappa_n = saved[2]
+            u, lam = self.u, load
+            ok = False
+            for it in range(max_iter):
+                lam_eff, mu_eff = self.getLameParameters(self.D)
+                self.elasticity.setValue(lame_lambda=lam_eff, lame_mu=mu_eff,
+                                         sigma=-self.stress, r=zero_u)
+                duI = self.elasticity.getSolution()       # residual correction
+                self.elasticity.setValue(sigma=zero_stress, r=r_ref)
+                duII = self.elasticity.getSolution()      # d u / d lambda
+
+                def phi(dl):
+                    e = symmetric(grad(u + duI + dl * duII))
+                    eb = self.getNonlocalStrain(self.getEquivalentStrain(e))
+                    Dt = self.getDamage(maximum(kappa_n, eb))
+                    return integrate(self.dissipationRate(e, Dt)
+                                     * (Dt - Dn)) - delta_tau
+
+                dlam = _rootIncreasing(phi, max(abs(dstep), 1e-3 * abs(lam) + 1e-9),
+                                       al_tol * delta_tau)
+                u = u + duI + dlam * duII
+                lam = lam + dlam
+                eps = symmetric(grad(u))
+                ebar = self.getNonlocalStrain(self.getEquivalentStrain(eps))
+                self.kappa = maximum(kappa_n, ebar)
+                self.D = self.getDamage(self.kappa)
+                self.u = u
+                self.stress = self.getStress(eps, self.D)
+                eqn = Lsup(duI) / (Lsup(u) + 1e-30)
+                gval = abs(integrate(self.dissipationRate(eps, self.D)
+                                     * (self.D - Dn)) - delta_tau) / delta_tau
+                if eqn < tol and gval < al_tol:
+                    ok = True
+                    break
+            if not ok:
+                # reject: roll back and reduce the dissipation increment
+                self.u, self.stress, self.kappa, self.D = saved
+                if delta_tau <= min_delta_tau:
+                    raise RuntimeError(
+                        "dissipation step failed to converge at the minimum "
+                        "increment %g (load factor %g)." % (delta_tau, load))
+                delta_tau *= 0.5
+                self.logger.info("dissipation step did not converge; reducing "
+                                 "delta_tau to %g.", delta_tau)
+                continue
+            dstep = lam - load
+            load = lam
+            step += 1
+            loads.append(load)
+            if callback is not None:
+                callback(step, self.u, eps, self)
+            delta_tau *= tau_growth
+        return loads
 
     @staticmethod
     def damageCurve(kappa, kappa0, kappa_c, alpha, beta):

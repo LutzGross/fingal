@@ -158,4 +158,40 @@ threshold at the peak). A sharp, fully-developed band only forms on the
 stiff (snap-back): the staggered scheme stops converging and the adaptive
 bisection sub-steps down toward `min_increment`, making little progress (watch
 the `INFO` bisection messages). Traversing the softening branch robustly needs
-arc-length / load-factor-as-unknown control, a possible next addition.
+arc-length / load-factor-as-unknown control — this is what `test3.py` does.
+
+## Post-peak softening — `test3.py` (dissipation-controlled)
+
+[`test3.py`](./test3.py) drives the same weaker-flaw prism with
+`SmoothDamageModel.runLoadingDissipation`, which makes the load factor `lambda`
+an **unknown** (the Dirichlet load is `r = lambda * r_ref`) and controls each
+step by prescribing the **incremental dissipation** `Δτ = ∫ Y (D − Dₙ) dV`
+(with `Y = ½ ε:C₀:ε` the damage energy-release rate). Because dissipation only
+increases (2nd law), it is a monotone path parameter even where `lambda`
+decreases — so the softening branch that `test2.py` stalls on can be followed.
+
+Each staggered corrector solves the residual correction `du_I` (`r = 0`) and the
+load sensitivity `du_II` (`r = r_ref`, `X = 0`) with the current secant
+stiffness, then a scalar solve picks `dλ` so the total dissipation hits `Δτ`;
+the damage is updated in the loop. On non-convergence `Δτ` is halved and the
+step retried (down to a floor, below which it raises). Loading starts undamaged:
+the first step scales elastically past onset to seed a non-zero dissipation.
+
+Run:
+
+    PYTHONPATH=../../bin run-escript test3.py
+
+Outputs `m3_response.png` (the **full stress–strain curve including the
+descending, near-vertical softening branch**), `m3_damage_slice.png` (a
+fully-developed localisation band, `D → 1`), and per-step `m3_step0NN.silo`.
+
+![dissipation-controlled response](./m3_response.png)
+
+![dissipation-controlled damage slice](./m3_damage_slice.png)
+
+The method carries the solution from the ~30 MPa peak down the softening branch
+to near-complete failure of the band (`D_max ≈ 0.99`), where displacement
+control could not go. Note the tangent is still the SPD **secant** stiffness, so
+close to `D = 1` (vanishing band stiffness) the corrector needs `Δτ` cut-backs;
+a consistent-tangent monolithic Newton would be the fully-robust — but much
+larger — alternative.
