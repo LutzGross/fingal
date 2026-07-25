@@ -108,7 +108,8 @@ class SmoothDamageModel(object):
     """
     def __init__(self, E0=36.e9, nu=0.18, kappa0=2.0e-4, kappa_c=1.0e-3,
                  alpha=1.6, beta=0.01, gamma=841. / 250., sigma_t=None,
-                 min_stiffness_ratio=1.e-3, localization_length=None):
+                 min_stiffness_ratio=1.e-3, localization_length=None,
+                 porosity0=0.0, crack_porosity=0.0):
         """
         :param E0: undamaged Young's modulus [Pa]
         :param nu: Poisson ratio
@@ -128,6 +129,10 @@ class SmoothDamageModel(object):
                         ebar - c*laplace(ebar) = etilde with c = l**2/2 before
                         it drives the damage. If `None` (default) the local
                         model is used (ebar = etilde).
+        :param porosity0: initial porosity phi0 (auxiliary field, see
+                        `getPorosity`). Default 0 leaves porosity tracking off.
+        :param crack_porosity: coefficient `a` of the (irreversible) crack
+                        porosity a*D added by damage in `getPorosity`.
         """
         assert 0. <= nu < 0.5, "Poisson ratio must be in [0, 0.5)."
         assert kappa_c > kappa0 > 0., "need kappa_c > kappa0 > 0."
@@ -143,6 +148,9 @@ class SmoothDamageModel(object):
         self.gamma = gamma
         self.min_stiffness_ratio = min_stiffness_ratio
         self.localization_length = localization_length
+        self.porosity0 = porosity0
+        self.crack_porosity = crack_porosity
+        self.porosity = None                     # auxiliary porosity state field
         self.logger = logging.getLogger('fingal.SmoothDamageModel')
         # isotropic Lame parameters of the undamaged material; the full 4th
         # order stiffness tensor is `isotropicStiffnessTensor(E0, nu)`.
@@ -181,6 +189,7 @@ class SmoothDamageModel(object):
         dim = domain.getDim()
         self.kappa = Scalar(self.kappa0, Function(domain))
         self.D = Scalar(0., Function(domain))
+        self.porosity = Scalar(self.porosity0, Function(domain))  # auxiliary field
         self.u = Vector(0., Solution(domain))                # total displacement
         self.stress = Data(0., (dim, dim), Function(domain))  # total Cauchy stress
         # elasticity problem  -(sigma_ij),j = 0  (LameEquation sets symmetry on)
@@ -281,6 +290,26 @@ class SmoothDamageModel(object):
         """
         return (1. - D) * (self.lam * trace(eps) * kronecker(3) + 2. * self.mu * eps)
 
+    def getPorosity(self, eps, D=None):
+        """
+        auxiliary (one-way coupled) porosity field
+
+            phi = phi0 + (1 - phi0) * trace(eps) + crack_porosity * D
+
+        combining the pore-volume change from the volumetric strain `trace(eps)`
+        (small-strain mass conservation: compaction if < 0, dilatancy if > 0)
+        with an irreversible crack porosity `crack_porosity * D` opened by the
+        damage `D`. Uses the stored damage if `D` is not given; clipped to
+        [0, 1). This field does NOT feed back into the deformation model -- it is
+        evaluated from the current strain and damage for output/analysis only.
+        A permeability estimate follows e.g. Kozeny-Carman k = k0 phi^3/(1-phi)^2.
+        """
+        if D is None:
+            D = self.D
+        phi = self.porosity0 + (1. - self.porosity0) * trace(eps) \
+            + self.crack_porosity * D
+        return clip(phi, minval=0., maxval=0.999)
+
     def solveLoadStep(self, tol=1e-6, max_iter=20, warn_on_nonconvergence=True):
         """
         advances the model by one displacement-controlled load step using the
@@ -370,6 +399,7 @@ class SmoothDamageModel(object):
         self.stress = stress              # commit total stress
         self.kappa = kappa_trial          # commit history (Eq. 7)
         self.D = D
+        self.porosity = self.getPorosity(eps, D)   # auxiliary porosity
         return u, eps, it + 1
 
     def runLoading(self, set_bc, nsteps, callback=None, tol=1e-6, max_iter=20,
@@ -648,6 +678,7 @@ class SmoothDamageModel(object):
             load = lam
             step += 1
             loads.append(load)
+            self.porosity = self.getPorosity(eps, self.D)   # auxiliary porosity
             if callback is not None:
                 callback(step, self.u, eps, self)
             delta_tau *= tau_growth
