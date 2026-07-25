@@ -1,2 +1,12 @@
-# generated field output (regenerable by the test drivers)
+# generated field / plot / movie output (regenerable by the test drivers)
 *.silo
+*.csv
+*.mp4
+*.gif
+__pycache__/
+frames/
+frames3d/
+# cube benchmark output directories (test5.py)
+cube_n*/
+# VisIt field renders (not the committed example figures)
+visit_*.png

@@ -25,20 +25,20 @@ damage/elasticity coupling.
 
 Outputs:
 
-- `damage_vs_strain.png` — the constitutive damage curve.
-- `single_element_response.png` — stress–strain and damage evolution.
+- `single_element/damage_vs_strain.png` — the constitutive damage curve.
+- `single_element/response.png` — stress–strain and damage evolution.
 
 The run also prints the per-step response and, at the end, the peak stress and
 final damage (≈ 30.4 MPa and `D = 1.0` for the shipped parameters).
 
 The constitutive damage law `D(kappa)` (cf. Fig. 2 of the paper):
 
-![damage versus strain](./damage_vs_strain.png)
+![damage versus strain](./single_element/damage_vs_strain.png)
 
 The single-element uniaxial-compression response (note the elastic branch runs
 to the origin while the first solved point sits at damage onset, `kappa0`):
 
-![single-element response](./single_element_response.png)
+![single-element response](./single_element/response.png)
 
 ### Loading and adaptive step-size control
 
@@ -139,16 +139,16 @@ Run:
 
 Outputs:
 
-- `multi_element_response.png` — volume-averaged axial stress–strain response.
-- `multi_element_damage_slice.png` — damage on the mid-plane (`y = Ly/2`) slice
+- `multi_element/response.png` — volume-averaged axial stress–strain response.
+- `multi_element/damage_slice.png` — damage on the mid-plane (`y = Ly/2`) slice
   (colour range autoscaled), showing the concentration at the flaw and its
   non-local halo.
-- `multi_element_damage.silo` and per-step `multi_element_step0NN.silo` — damage,
+- `multi_element/multi_element_damage.silo` and per-step `multi_element/step0NN.silo` — damage,
   displacement and axial stress fields for VisIt / ParaView.
 
-![multi-element response](./multi_element_response.png)
+![multi-element response](./multi_element/response.png)
 
-![multi-element damage slice](./multi_element_damage_slice.png)
+![multi-element damage slice](./multi_element/damage_slice.png)
 
 The driver loads only up to the peak of the response, so the localisation is
 still **mild**: damage concentrates at the flaw and forms an incipient band
@@ -182,14 +182,15 @@ Run (optional args: elements-per-`l` and stop-damage):
     PYTHONPATH=../../bin run-escript test3.py                # 2 elements per l
     PYTHONPATH=../../bin run-escript test3.py 3 0.9          # finer, stop at D=0.9
 
-Outputs `m3_response.png` (the **full stress–strain curve including the
-descending, near-vertical softening branch**), `m3_damage_slice.png` (a
-fully-developed localisation band, `D → 1`), and per-step `m3_step0NN.silo`.
-Finer runs write suffixed files (`m3_response_3pl.png`, …).
+Outputs (in `dissipation_<n>pl/`) `response.png` (the **full stress–strain curve including the
+descending, near-vertical softening branch**), `damage_slice.png` (a
+fully-developed localisation band, `D → 1`), and per-step `step0NN.silo`.
+Each resolution writes to its own directory, e.g. `dissipation_2pl/` (default) or
+`dissipation_3pl/`.
 
-![dissipation-controlled response](./m3_response.png)
+![dissipation-controlled response](./dissipation_2pl/response.png)
 
-![dissipation-controlled damage slice](./m3_damage_slice.png)
+![dissipation-controlled damage slice](./dissipation_2pl/damage_slice.png)
 
 The method carries the solution from the ~30 MPa peak down the softening branch
 to near-complete failure of the band (`D_max ≈ 0.99`), where displacement

@@ -19,10 +19,8 @@ a silo file for visualisation (VisIt / ParaView).
 
 Run:  PYTHONPATH=../../bin run-escript test2.py
 """
+import os
 import numpy as np
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 
 from esys.finley import Brick
 from esys.escript import (Function, Solution, length, whereZero, whereNegative,
@@ -31,6 +29,9 @@ from esys.escript.linearPDEs import SolverOptions
 from esys.weipa import saveSilo
 
 from fingal import SmoothDamageModel
+
+RESULTS = "multi_element"                 # all outputs of this case go here
+os.makedirs(RESULTS, exist_ok=True)
 
 # --------------------------------------------------------------------------
 # material (as in test1.py: Table 1 damage law + Table 2 elastic properties)
@@ -105,10 +106,32 @@ u_bc_max = 1.25e-3 * Lz         # nominal global axial strain up to 1.25e-3
 nsteps = 5
 STAG_TOL, STAG_MAX = 1e-6, 30
 
-hist = {"strain": [0.], "stress": [0.], "Dmax": [0.], "Dmean": [0.]}
+# fixed mid-plane (y = Ly/2) slice geometry for the streamed slice.csv
+_coords = np.array(Function(domain).getX().toListOfTuples())
+_yc = _coords[:, 1]
+_yt = _yc[np.argmin(np.abs(_yc - 0.5 * Ly))]
+_smask = np.abs(_yc - _yt) < 0.25 * h
+_sx, _sz = _coords[_smask, 0] * 1e3, _coords[_smask, 2] * 1e3
 
-# write the initial (pre-flaw) damage field as step 0
-saveSilo("multi_element_step000", D=model.D)
+
+def write_slice(D):
+    """overwrite slice.csv with the current mid-plane damage (survives abort)."""
+    Dv = np.array(D.toListOfTuples())[_smask]
+    with open(os.path.join(RESULTS, "slice.csv"), "w") as f:
+        f.write("x_mm,z_mm,D\n")
+        for xv, zv, dv in zip(_sx, _sz, Dv):
+            f.write(f"{xv:.4f},{zv:.4f},{dv:.6f}\n")
+
+
+# stream the plot data to CSV as the run proceeds (plot with plot.py); seed the
+# unloaded origin so the elastic branch is drawn from (0, 0).
+hist = {"stress": [0.], "Dmax": [0.]}
+hist_csv = open(os.path.join(RESULTS, "history.csv"), "w")
+hist_csv.write("step,strain,stress,Dmax,Dmean\n")
+hist_csv.write("0,0.0,0.0,0.0,0.0\n")
+hist_csv.flush()
+saveSilo(os.path.join(RESULTS, "step000"), D=model.D)
+write_slice(model.D)
 
 
 def set_bc(pde, step, nsteps):
@@ -119,63 +142,26 @@ def set_bc(pde, step, nsteps):
 
 def record(step, u, eps, model):
     D = model.D
-    sig_zz = integrate(model.getStress(eps, D)[LOAD_DIR, LOAD_DIR]) / vol
-    eps_zz = integrate(eps[LOAD_DIR, LOAD_DIR]) / vol
-    hist["strain"].append(-eps_zz)
-    hist["stress"].append(-sig_zz)
-    hist["Dmax"].append(sup(D))
-    hist["Dmean"].append(integrate(D) / vol)
-    print(f"step {step:3d}: eps_zz={eps_zz: .3e} "
-          f"sig_zz={sig_zz: .3e} Pa  D_max={sup(D): .4f}  "
-          f"D_mean={integrate(D)/vol: .4f}", flush=True)
-    # per-step field snapshot for visualising the localisation band
-    saveSilo(f"multi_element_step{step:03d}", D=D, u=u,
+    strain = -float(integrate(eps[LOAD_DIR, LOAD_DIR]) / vol)
+    stress = -float(integrate(model.getStress(eps, D)[LOAD_DIR, LOAD_DIR]) / vol)
+    dmax, dmean = sup(D), float(integrate(D) / vol)
+    hist["stress"].append(stress)
+    hist["Dmax"].append(dmax)
+    hist_csv.write(f"{step},{strain:.8e},{stress:.8e},{dmax:.6f},{dmean:.6f}\n")
+    hist_csv.flush()
+    print(f"step {step:3d}: eps_zz={-strain: .3e} sig_zz={-stress: .3e} Pa  "
+          f"D_max={dmax: .4f}  D_mean={dmean: .4f}", flush=True)
+    saveSilo(os.path.join(RESULTS, f"step{step:03d}"), D=D, u=u,
              sig_zz=model.stress[LOAD_DIR, LOAD_DIR])
+    write_slice(D)
 
 
 iters = model.runLoading(set_bc, nsteps, callback=record,
                          tol=STAG_TOL, max_iter=STAG_MAX)
+hist_csv.close()
 print(f"executed {len(iters)} (sub-)steps; staggered iterations: {iters}")
-
-# --------------------------------------------------------------------------
-# outputs
-# --------------------------------------------------------------------------
-plt.figure(figsize=(6, 4))
-plt.plot(np.array(hist["strain"]) * 1e3, np.array(hist["stress"]) / 1e6, "b.-")
-plt.xlabel("axial compressive strain  [1e-3]")
-plt.ylabel("axial compressive stress [MPa]")
-plt.title("Multi-element specimen: stress-strain")
-plt.grid(True, alpha=0.3)
-plt.tight_layout()
-plt.savefig("multi_element_response.png", dpi=120)
-plt.close()
-print("wrote multi_element_response.png")
-
-# damage on the vertical mid-plane slice through the flaw (y = Ly/2), from the
-# element-centre values -- shows the localisation band without a silo viewer.
-coords = np.array(Function(domain).getX().toListOfTuples())
-Dvals = np.array(model.D.toListOfTuples())
-yc = coords[:, 1]
-ytarget = yc[np.argmin(np.abs(yc - 0.5 * Ly))]     # nearest element-centre layer
-mask = np.abs(yc - ytarget) < 0.25 * h
-plt.figure(figsize=(4.2, 6))
-# autoscale the colour range to the slice so the (mild, pre-peak) concentration
-# at the weaker flaw is visible rather than washed out on a fixed [0, 1] scale.
-sc = plt.scatter(coords[mask, 0] * 1e3, coords[mask, 2] * 1e3, c=Dvals[mask],
-                 marker="s", s=260, cmap="inferno",
-                 vmin=Dvals[mask].min(), vmax=Dvals[mask].max())
-plt.colorbar(sc, label="damage  $D$")
-plt.xlabel("x [mm]")
-plt.ylabel("z [mm]")
-plt.title(f"Damage on y = {ytarget*1e3:.1f} mm slice")
-plt.gca().set_aspect("equal")
-plt.tight_layout()
-plt.savefig("multi_element_damage_slice.png", dpi=120)
-plt.close()
-print("wrote multi_element_damage_slice.png")
-
-saveSilo("multi_element_damage", D=model.D, u=model.u,
+saveSilo(os.path.join(RESULTS, "multi_element_damage"), D=model.D, u=model.u,
          sig_zz=model.stress[LOAD_DIR, LOAD_DIR])
-print("wrote multi_element_damage.silo")
 print(f"peak stress = {max(hist['stress'])/1e6:.2f} MPa, "
-      f"final D_max = {hist['Dmax'][-1]:.4f}, D_mean = {hist['Dmean'][-1]:.4f}")
+      f"final D_max = {hist['Dmax'][-1]:.4f}", flush=True)
+print(f"plot with:  python3 plot.py {RESULTS}", flush=True)

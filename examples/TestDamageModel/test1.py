@@ -32,6 +32,10 @@ from esys.escript.linearPDEs import SolverOptions
 
 from fingal import SmoothDamageModel
 
+import os
+RESULTS = "single_element"                # all outputs of this case go here
+os.makedirs(RESULTS, exist_ok=True)
+
 # --------------------------------------------------------------------------
 # material (Table 1: damage law; Table 2: elastic properties, strength ratio)
 # --------------------------------------------------------------------------
@@ -54,9 +58,9 @@ plt.xlim(0., 1.2 * model.kappa_c)
 plt.ylim(0., 1.05)
 plt.grid(True, alpha=0.3)
 plt.tight_layout()
-plt.savefig("damage_vs_strain.png", dpi=120)
+plt.savefig(os.path.join(RESULTS, "damage_vs_strain.png"), dpi=120)
 plt.close()
-print("wrote damage_vs_strain.png")
+print(f"wrote {RESULTS}/damage_vs_strain.png")
 
 # ==========================================================================
 # (2) single-element FEM uniaxial compression
@@ -95,7 +99,13 @@ STAG_MAX = 20
 
 # seed with the unloaded origin so the elastic branch is drawn from (0, 0)
 # even though runLoading scales the first step straight to damage onset.
-hist = {"strain": [0.], "stress": [0.], "damage": [0.], "eqstrain": [0.]}
+hist = {"stress": [0.], "damage": [0.]}
+# stream the response data to CSV so a plot can be made (with plot.py) even if
+# the run is terminated; the constitutive curve above is already on disk.
+hist_csv = open(os.path.join(RESULTS, "history.csv"), "w")
+hist_csv.write("step,strain,stress,damage,eqstrain\n")
+hist_csv.write("0,0.0,0.0,0.0,0.0\n")
+hist_csv.flush()
 
 
 def set_bc(pde, step, nsteps):
@@ -107,41 +117,23 @@ def set_bc(pde, step, nsteps):
 
 
 def record(step, u, eps, model):
-    """volume-average and store the single-element response of a load step."""
+    """volume-average and stream the single-element response of a load step."""
     D = model.D
-    eq = model.getEquivalentStrain(eps)
-    sig = model.getStress(eps, D)
-    sig_zz = integrate(sig[LOAD_DIR, LOAD_DIR]) / vol
-    eps_zz = integrate(eps[LOAD_DIR, LOAD_DIR]) / vol
-    eq_avg = integrate(eq) / vol
-    D_avg = integrate(D) / vol
-    hist["strain"].append(-eps_zz)          # compressive strain (positive)
-    hist["stress"].append(-sig_zz)          # compressive stress (positive)
+    sig_zz = float(integrate(model.getStress(eps, D)[LOAD_DIR, LOAD_DIR]) / vol)
+    eps_zz = float(integrate(eps[LOAD_DIR, LOAD_DIR]) / vol)
+    eq_avg = float(integrate(model.getEquivalentStrain(eps)) / vol)
+    D_avg = float(integrate(D) / vol)
+    hist["stress"].append(-sig_zz)
     hist["damage"].append(D_avg)
-    hist["eqstrain"].append(eq_avg)
+    hist_csv.write(f"{step},{-eps_zz:.8e},{-sig_zz:.8e},{D_avg:.6f},{eq_avg:.8e}\n")
+    hist_csv.flush()
     print(f"step {step:3d}: eps_zz={eps_zz: .3e} "
           f"eq={eq_avg: .3e} D={D_avg: .4f} sig_zz={sig_zz: .3e} Pa")
 
 
 model.runLoading(set_bc, nsteps, callback=record,
                  tol=STAG_TOL, max_iter=STAG_MAX)
-
-# --- plot single-element response -----------------------------------------
-fig, ax = plt.subplots(1, 2, figsize=(11, 4))
-ax[0].plot(np.array(hist["strain"]), np.array(hist["stress"]) / 1e6, "b.-")
-ax[0].set_xlabel("axial compressive strain")
-ax[0].set_ylabel("axial compressive stress [MPa]")
-ax[0].set_title("Single-element stress-strain")
-ax[0].grid(True, alpha=0.3)
-
-ax[1].plot(hist["eqstrain"], hist["damage"], "r.-")
-ax[1].set_xlabel("equivalent strain  $\\tilde{\\varepsilon}$")
-ax[1].set_ylabel("damage  $D$")
-ax[1].set_title("Single-element damage evolution")
-ax[1].grid(True, alpha=0.3)
-plt.tight_layout()
-plt.savefig("single_element_response.png", dpi=120)
-plt.close()
-print("wrote single_element_response.png")
+hist_csv.close()
 print(f"peak stress = {max(hist['stress']) / 1e6:.2f} MPa, "
       f"final damage = {hist['damage'][-1]:.4f}")
+print(f"plot with:  python3 plot.py {RESULTS}")
