@@ -109,7 +109,7 @@ class SmoothDamageModel(object):
     def __init__(self, E0=36.e9, nu=0.18, kappa0=2.0e-4, kappa_c=1.0e-3,
                  alpha=1.6, beta=0.01, gamma=841. / 250., sigma_t=None,
                  min_stiffness_ratio=1.e-3, localization_length=None,
-                 porosity0=0.0, crack_porosity=0.0):
+                 porosity0=0.0, biot=None, crack_porosity=0.0):
         """
         :param E0: undamaged Young's modulus [Pa]
         :param nu: Poisson ratio
@@ -131,8 +131,11 @@ class SmoothDamageModel(object):
                         model is used (ebar = etilde).
         :param porosity0: initial porosity phi0 (auxiliary field, see
                         `getPorosity`). Default 0 leaves porosity tracking off.
-        :param crack_porosity: coefficient `a` of the (irreversible) crack
-                        porosity a*D added by damage in `getPorosity`.
+        :param biot: intact Biot coefficient b0 = 1 - K/Ks (drained skeleton bulk
+                        modulus over solid-grain bulk modulus) of the poroelastic
+                        volumetric porosity term. Defaults to 1 - porosity0.
+        :param crack_porosity: coefficient `a` of the (dilatant, damage-driven)
+                        crack porosity a*D added in `getPorosity`.
         """
         assert 0. <= nu < 0.5, "Poisson ratio must be in [0, 0.5)."
         assert kappa_c > kappa0 > 0., "need kappa_c > kappa0 > 0."
@@ -149,6 +152,7 @@ class SmoothDamageModel(object):
         self.min_stiffness_ratio = min_stiffness_ratio
         self.localization_length = localization_length
         self.porosity0 = porosity0
+        self.biot = (1. - porosity0) if biot is None else biot   # intact Biot b0
         self.crack_porosity = crack_porosity
         self.porosity = None                     # auxiliary porosity state field
         self.logger = logging.getLogger('fingal.SmoothDamageModel')
@@ -294,20 +298,27 @@ class SmoothDamageModel(object):
         """
         auxiliary (one-way coupled) porosity field
 
-            phi = phi0 + (1 - phi0) * trace(eps) + crack_porosity * D
+            phi = phi0 + b(D) * trace(eps) + crack_porosity * D
 
-        combining the pore-volume change from the volumetric strain `trace(eps)`
-        (small-strain mass conservation: compaction if < 0, dilatancy if > 0)
-        with an irreversible crack porosity `crack_porosity * D` opened by the
-        damage `D`. Uses the stored damage if `D` is not given; clipped to
-        [0, 1). This field does NOT feed back into the deformation model -- it is
-        evaluated from the current strain and damage for output/analysis only.
+        with the poroelastic volumetric term b(D)*trace(eps) (linear
+        poroelasticity, dry case phi - phi0 = b*eps_v; Biot 1941, Coussy
+        Poromechanics 2004) using a damage-degraded Biot coefficient
+
+            b(D) = 1 - (1-D) K/Ks = biot + (1 - biot) * D
+
+        (skeleton bulk modulus degraded by (1-D); biot = b0 = 1 - K/Ks is the
+        intact value, b -> 1 as D -> 1). The optional crack_porosity*D term is a
+        phenomenological dilatant crack porosity. NOTE b(D)*eps_v captures pore
+        compaction/closure (in this damage-elasticity model eps_v is elastic, so
+        under compression damage increases compaction); dilatant crack opening is
+        represented by crack_porosity*D. Uses the stored damage if `D` is not
+        given; clipped to [0, 1). Does NOT feed back into the deformation model.
         A permeability estimate follows e.g. Kozeny-Carman k = k0 phi^3/(1-phi)^2.
         """
         if D is None:
             D = self.D
-        phi = self.porosity0 + (1. - self.porosity0) * trace(eps) \
-            + self.crack_porosity * D
+        b = self.biot + (1. - self.biot) * D                 # b(D), b0 -> 1
+        phi = self.porosity0 + b * trace(eps) + self.crack_porosity * D
         return clip(phi, minval=0., maxval=0.999)
 
     def solveLoadStep(self, tol=1e-6, max_iter=20, warn_on_nonconvergence=True):
