@@ -32,7 +32,8 @@ class spectral_random_field(object):
             for dim in domainsize:
                 tsize = dim + cutoff
                 # find closest multiple of 8 that is larger than tsize
-                m8 = np.int(np.ceil(tsize/8.)*8.)
+                # (np.int was removed in numpy 1.24)
+                m8 = int(np.ceil(tsize/8.)*8.)
                 cutoffs.append(m8 - dim)
 
             self.cutoff = np.array(cutoffs)

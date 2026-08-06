@@ -23,11 +23,37 @@ by fingal, 2026.
 import logging
 import numpy as np
 from esys.escript import (Function, Solution, Scalar, Vector, Data, kronecker,
-                          trace, inner, sqrt, clip, maximum, symmetric, grad,
-                          Lsup, sup, integrate, interpolate)
+                          trace, inner, sqrt, clip, maximum, minimum, symmetric,
+                          grad, Lsup, sup, inf, integrate, interpolate)
 from esys.escript.linearPDEs import LinearSinglePDE, LameEquation, SolverOptions
 
 __all__ = ['SmoothDamageModel']
+
+
+def _asField(value, fs):
+    """
+    returns `value` as a `Data` object on the function space `fs`, accepting
+    either a scalar (uniform material) or a `Data` object (heterogeneous
+    material, e.g. a layered specimen).
+    """
+    if isinstance(value, Data):
+        return interpolate(value, fs)
+    return Scalar(float(value), fs)
+
+
+def _inf(value):
+    """
+    minimum of `value` over the domain; passes scalars through unchanged. Used
+    to validate material parameters that may be given as `Data`.
+    """
+    return inf(value) if isinstance(value, Data) else float(value)
+
+
+def _sup(value):
+    """
+    maximum of `value` over the domain; passes scalars through unchanged.
+    """
+    return sup(value) if isinstance(value, Data) else float(value)
 
 
 def _rootIncreasing(phi, x_scale, tol, itmax=50):
@@ -105,6 +131,13 @@ class SmoothDamageModel(object):
 
     Default parameters follow Table 1 (damage law) and Table 2 (elastic
     properties, strength ratio) of Mondal et al. (2020).
+
+    All material parameters (`E0`, `nu`, `kappa0`, `kappa_c`, `alpha`, `beta`,
+    `gamma`, `sigma_t`, ...) may be given either as scalars for a uniform
+    material or as `Data` objects on `Function(domain)` for a heterogeneous one
+    (e.g. the layered roof/coal/floor specimen of
+    `examples/SimpleCompression`). Note that heterogeneous parameters must be
+    built on the same domain that is later passed to `initialize`.
     """
     def __init__(self, E0=36.e9, nu=0.18, kappa0=2.0e-4, kappa_c=1.0e-3,
                  alpha=1.6, beta=0.01, gamma=841. / 250., sigma_t=None,
@@ -137,13 +170,16 @@ class SmoothDamageModel(object):
         :param crack_porosity: coefficient `a` of the (dilatant, damage-driven)
                         crack porosity a*D added in `getPorosity`.
         """
-        assert 0. <= nu < 0.5, "Poisson ratio must be in [0, 0.5)."
-        assert kappa_c > kappa0 > 0., "need kappa_c > kappa0 > 0."
-        assert gamma >= 1., "compressive strength must not be below tensile strength."
-        self.E0 = E0
-        self.nu = nu
         if sigma_t is not None:
             kappa0 = sigma_t / E0
+        assert 0. <= _inf(nu) and _sup(nu) < 0.5, \
+            "Poisson ratio must be in [0, 0.5)."
+        assert _inf(kappa0) > 0., "need kappa0 > 0."
+        assert _inf(kappa_c - kappa0) > 0., "need kappa_c > kappa0 everywhere."
+        assert _inf(gamma) >= 1., \
+            "compressive strength must not be below tensile strength."
+        self.E0 = E0
+        self.nu = nu
         self.kappa0 = kappa0
         self.kappa_c = kappa_c
         self.alpha = alpha
@@ -161,6 +197,7 @@ class SmoothDamageModel(object):
         self.lam = E0 * nu / ((1. + nu) * (1. - 2. * nu))
         self.mu = E0 / (2. * (1. + nu))
         self.kappa = None
+        self.dim = None                          # set by `initialize`
         self.elasticity = None
         self.helmholtz = None
         # accumulated total displacement and total Cauchy stress (state carried
@@ -191,9 +228,11 @@ class SmoothDamageModel(object):
                         problems (e.g. the single-element test).
         """
         dim = domain.getDim()
-        self.kappa = Scalar(self.kappa0, Function(domain))
+        self.dim = dim
+        # `_asField` accepts scalar or `Data` parameters (heterogeneous material)
+        self.kappa = _asField(self.kappa0, Function(domain))
         self.D = Scalar(0., Function(domain))
-        self.porosity = Scalar(self.porosity0, Function(domain))  # auxiliary field
+        self.porosity = _asField(self.porosity0, Function(domain))  # auxiliary
         self.u = Vector(0., Solution(domain))                # total displacement
         self.stress = Data(0., (dim, dim), Function(domain))  # total Cauchy stress
         # elasticity problem  -(sigma_ij),j = 0  (LameEquation sets symmetry on)
@@ -260,7 +299,9 @@ class SmoothDamageModel(object):
         """
         if kappa is None:
             kappa = self.kappa
-        k = clip(kappa, minval=self.kappa0, maxval=self.kappa_c)
+        # `clip` takes scalar bounds only; `maximum`/`minimum` also accept the
+        # `Data` bounds of a heterogeneous material.
+        k = minimum(maximum(kappa, self.kappa0), self.kappa_c)
         return 1. - (self.kappa0 / k) ** self.beta \
             * ((self.kappa_c - k) / (self.kappa_c - self.kappa0)) ** self.alpha
 
@@ -292,7 +333,8 @@ class SmoothDamageModel(object):
         Cauchy stress sigma_ij = (1-D)*(lam*trace(eps)*delta_ij + 2*mu*eps_ij)
         for strain `eps` and damage `D`.
         """
-        return (1. - D) * (self.lam * trace(eps) * kronecker(3) + 2. * self.mu * eps)
+        return (1. - D) * (self.lam * trace(eps) * kronecker(eps.getFunctionSpace())
+                           + 2. * self.mu * eps)
 
     def getPorosity(self, eps, D=None):
         """
@@ -445,8 +487,9 @@ class SmoothDamageModel(object):
         material is undamaged the response scales linearly with the load factor,
         and the (modified von Mises) equivalent strain is homogeneous of degree
         one in it. A single elastic solve at full load therefore gives the load
-        factor `s = kappa0 / max(ebar)` at which the peak non-local equivalent
-        strain first reaches `kappa0` (damage onset). The committed state is set
+        factor `s = min(kappa0/ebar)` at which the non-local equivalent strain
+        first reaches `kappa0` anywhere (damage onset; this is `kappa0/max(ebar)`
+        for a uniform threshold). The committed state is set
         directly to this scaled elastic solution and stepping continues from `s`,
         skipping the purely-elastic sub-steps. This is only applied when starting
         from the undamaged state.
@@ -502,7 +545,10 @@ class SmoothDamageModel(object):
             ebar = self.getNonlocalStrain(self.getEquivalentStrain(eps_el))
             peak = sup(ebar)
             if peak > 0.:
-                s = self.kappa0 / peak
+                # smallest load factor at which kappa0 is reached anywhere. For a
+                # uniform kappa0 this is just kappa0/sup(ebar); the pointwise form
+                # also covers a heterogeneous threshold (layered specimen).
+                s = inf(self.kappa0 / maximum(ebar, 1e-30 * peak))
                 if s < 1.:
                     self.u = s * u_el
                     self.stress = self.getStress(s * eps_el, self.D)
@@ -565,7 +611,7 @@ class SmoothDamageModel(object):
     def runLoadingDissipation(self, set_bc, callback=None, delta_tau=None,
                               tol=1e-6, max_iter=40, max_steps=300,
                               al_tol=1e-3, seed_factor=1.05, tau_growth=1.3,
-                              min_delta_tau=None, stop_damage=0.999):
+                              min_delta_tau=None, stop_damage=0.999, stop=None):
         """
         dissipation-controlled (arc-length / path-following) load stepping that
         can traverse the post-peak softening branch on which displacement control
@@ -604,6 +650,13 @@ class SmoothDamageModel(object):
         :param min_delta_tau: floor for delta_tau; RuntimeError below it.
         :param stop_damage: stop once the peak damage exceeds this (default
                         0.999); lower it to skip the stiff near-failure tail.
+                        NOTE this tests the peak (`sup`) of the damage, so for a
+                        statistically heterogeneous material a single failed weak
+                        element ends the run; use `stop` instead there.
+        :param stop: optional callable `stop(model)` evaluated before each step;
+                        the run ends as soon as it returns True. Use it for
+                        criteria that the peak damage cannot express, such as a
+                        mean damage over a region or a drop off the peak load.
         :return: list of committed load factors `lambda` per step.
         """
         assert self.elasticity is not None, "call initialize(domain) first."
@@ -617,9 +670,11 @@ class SmoothDamageModel(object):
         self.elasticity.setValue(lame_lambda=self.lam, lame_mu=self.mu,
                                  sigma=-self.stress, r=r_ref)
         eps_el = symmetric(grad(self.elasticity.getSolution()))
-        peak = sup(self.getNonlocalStrain(self.getEquivalentStrain(eps_el)))
+        ebar_el = self.getNonlocalStrain(self.getEquivalentStrain(eps_el))
+        peak = sup(ebar_el)
         assert peak > 0., "no straining under the reference load."
-        onset = self.kappa0 / peak
+        # pointwise onset factor, see the note in `runLoading`.
+        onset = inf(self.kappa0 / maximum(ebar_el, 1e-30 * peak))
         Dn = self.D.copy()                                # zero
         load = onset * seed_factor
         set_bc(self.elasticity, load)
@@ -637,6 +692,10 @@ class SmoothDamageModel(object):
 
         # --- dissipation-controlled path following
         while step < max_steps and sup(self.D) <= stop_damage:
+            if stop is not None and stop(self):
+                self.logger.info("the `stop` criterion is met at step %d "
+                                 "(load factor %g).", step, load)
+                break
             saved = (self.u.copy(), self.stress.copy(),
                      self.kappa.copy(), self.D.copy())
             Dn = saved[3]
